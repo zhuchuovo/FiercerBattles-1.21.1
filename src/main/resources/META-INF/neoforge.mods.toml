@@ -1,0 +1,36 @@
+modLoader = "javafml"
+loaderVersion = "${loader_range}"
+license = "MIT"
+
+[[mods]]
+modId = "fiercerbattles"
+version = "${version}"
+displayName = "Fiercer Battles"
+authors = "FiercerBattles Dev"
+description = '''
+Better Combat extension: lets datapack authors slow down specific attack animations.
+'''
+
+[[dependencies.fiercerbattles]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neo_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "bettercombat"
+type = "required"
+versionRange = "[1.21.1,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[mixins]]
+config = "fiercerbattles.mixins.json"

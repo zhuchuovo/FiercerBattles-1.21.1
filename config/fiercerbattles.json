@@ -1,0 +1,25 @@
+{
+  "entries": [
+    {
+      "animation": "bettercombat:one_handed_stab",
+      
+        "attack_speed_multiplier": 1.0,
+      "upswing": 0.7,
+      "movement_speed_multiplier": 0.8,
+      "range_multiplier": 1.1,
+      "range_bonus": 0.5,
+      "after_cooldown": 0.2,
+      "attack_displacement": "0.2,1"
+    },
+    {
+      "animation": "bettercombat:two_handed_slam",
+      
+      "upswing": 0.75,
+      "movement_speed_multiplier": 0.7,
+      "range_multiplier": 0.9,
+      "range_bonus": 0,
+      "after_cooldown": 0,
+      "attack_displacement": "0.2,1"
+    }
+  ]
+}

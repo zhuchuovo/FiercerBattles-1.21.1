@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.fiercerbattles.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "WeaponRegistryMixin",
+    "PlayerAttackHelperCombatSkillMixin"
+  ],
+  "client": [
+    "AbstractClientPlayerMixin",
+    "TransmissionSpeedModifierMixin",
+    "ClientPlayerMixin",
+    "MinecraftMixin",
+    "PlayerAttackHelperMixin"
+  ],
+  "server": [
+    "ServerNetworkMultipleHitsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

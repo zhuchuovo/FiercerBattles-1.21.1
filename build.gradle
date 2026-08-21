@@ -1,0 +1,56 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+base {
+    archivesName = 'FiercerBattles'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        fiercerbattles {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // BetterCombat is required at runtime, but we intentionally avoid a compile-time
+    // dependency by using string-targeted Mixins and reflection.
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def replaceProperties = [
+            version: mod_version,
+            loader_range: loader_range,
+            minecraft_range: minecraft_range,
+            neo_range: neo_range
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
