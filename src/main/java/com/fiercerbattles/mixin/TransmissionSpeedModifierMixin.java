@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.lang.reflect.Field;
+import java.util.List;
 
 /**
  * Applies a real animation playback speed multiplier just before
@@ -27,12 +28,28 @@ public abstract class TransmissionSpeedModifierMixin {
             remap = false
     )
     private void fiercerbattles$applyAnimationSpeed(float tickDelta, CallbackInfo ci) {
+        if (FiercerBattlesRuntime.isForceOriginalPlayback()) {
+            try {
+                Field speedField = findField(getClass(), "speed");
+                if (speedField != null) {
+                    speedField.setAccessible(true);
+                    speedField.setFloat(this, 1.0F);
+                }
+                Field gearsField = findField(getClass(), "gears");
+                if (gearsField != null) {
+                    gearsField.setAccessible(true);
+                    gearsField.set(this, List.of());
+                }
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+            }
+            return;
+        }
         float multiplier = FiercerBattlesRuntime.getAnimationSpeed();
         if (multiplier == 1.0F) {
             return;
         }
         try {
-            Field speedField = findSpeedField(getClass());
+            Field speedField = findField(getClass(), "speed");
             if (speedField == null) {
                 return;
             }
@@ -43,11 +60,11 @@ public abstract class TransmissionSpeedModifierMixin {
         }
     }
 
-    private static Field findSpeedField(Class<?> clazz) {
+    private static Field findField(Class<?> clazz, String name) {
         Class<?> current = clazz;
         while (current != null) {
             try {
-                return current.getDeclaredField("speed");
+                return current.getDeclaredField(name);
             } catch (NoSuchFieldException ignored) {
                 current = current.getSuperclass();
             }

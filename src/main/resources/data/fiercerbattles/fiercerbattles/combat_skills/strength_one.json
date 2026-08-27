@@ -1,0 +1,29 @@
+{
+  "skill": {
+    "duration_seconds": 5,
+    "cooldown": 30,
+    "action_json": "",
+    "potion_effect": {
+      "id": "minecraft:strength",
+      "amplifier": 0
+    },
+    "sound": {
+      "id": "minecraft:entity.player.levelup",
+      "volume": 1.0,
+      "pitch": 1.0
+    }
+  },
+  "attributes": {
+    "attack_range": 3.2,
+    "category": "sword",
+    "attacks": [
+      {
+        "hitbox": "FORWARD_BOX",
+        "angle": 180,
+        "damage_multiplier": 1.0,
+        "upswing": 0.6,
+        "animation": "bettercombat:one_handed_stab"
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 package com.fiercerbattles.mixin;
 
+import com.fiercerbattles.FiercerBattlesCombatSkills;
 import com.fiercerbattles.FiercerBattlesRuntime;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,6 +16,13 @@ public abstract class PlayerAttackHelperMixin {
 
     @Inject(method = "getStaticRange", at = @At("RETURN"), remap = false, cancellable = true)
     private static void fiercerbattles$addRangeBonus(@Coerce Object player, @Coerce Object stack, CallbackInfoReturnable<Double> cir) {
+        double skillRange = FiercerBattlesCombatSkills.applyActiveSkillRange(
+                player, stack, cir.getReturnValue()
+        );
+        if (skillRange != cir.getReturnValue()) {
+            cir.setReturnValue(skillRange);
+            return;
+        }
         double bonus = FiercerBattlesRuntime.getCurrentRangeBonus();
         if (bonus != 0) {
             cir.setReturnValue(cir.getReturnValue() + bonus);

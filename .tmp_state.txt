@@ -1,0 +1,574 @@
+Compiled from "KeyframeAnimation.java"
+public final class dev.kosmx.playerAnim.core.data.KeyframeAnimation$StateCollection$State {
+  private boolean isModifiable;
+
+  public final float defaultValue;
+
+  public final float threshold;
+
+  private java.util.List<dev.kosmx.playerAnim.core.data.KeyframeAnimation$KeyFrame> keyFrames;
+
+  public final java.lang.String name;
+
+  private final boolean isAngle;
+
+  private boolean isEnabled;
+
+  public dev.kosmx.playerAnim.core.data.KeyframeAnimation$StateCollection$State(dev.kosmx.playerAnim.core.data.KeyframeAnimation$StateCollection$State);
+    Code:
+       0: aload_0
+       1: invokespecial #37                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: iconst_1
+       6: putfield      #39                 // Field isModifiable:Z
+       9: aload_0
+      10: new           #41                 // class java/util/ArrayList
+      13: dup
+      14: invokespecial #42                 // Method java/util/ArrayList."<init>":()V
+      17: putfield      #44                 // Field keyFrames:Ljava/util/List;
+      20: aload_0
+      21: iconst_0
+      22: putfield      #46                 // Field isEnabled:Z
+      25: aload_0
+      26: aload_1
+      27: getfield      #48                 // Field defaultValue:F
+      30: putfield      #48                 // Field defaultValue:F
+      33: aload_0
+      34: aload_1
+      35: getfield      #50                 // Field threshold:F
+      38: putfield      #50                 // Field threshold:F
+      41: aload_0
+      42: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      45: aload_1
+      46: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      49: invokeinterface #56,  2           // InterfaceMethod java/util/List.addAll:(Ljava/util/Collection;)Z
+      54: pop
+      55: aload_0
+      56: aload_1
+      57: getfield      #58                 // Field name:Ljava/lang/String;
+      60: putfield      #58                 // Field name:Ljava/lang/String;
+      63: aload_0
+      64: aload_1
+      65: getfield      #60                 // Field isAngle:Z
+      68: putfield      #60                 // Field isAngle:Z
+      71: aload_0
+      72: aload_1
+      73: getfield      #46                 // Field isEnabled:Z
+      76: invokevirtual #64                 // Method setEnabled:(Z)V
+      79: return
+
+  public boolean equals(java.lang.Object);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: if_acmpne     7
+       5: iconst_1
+       6: ireturn
+       7: aload_1
+       8: instanceof    #2                  // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection$State
+      11: ifne          16
+      14: iconst_0
+      15: ireturn
+      16: aload_1
+      17: checkcast     #2                  // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection$State
+      20: astore_2
+      21: aload_2
+      22: getfield      #48                 // Field defaultValue:F
+      25: aload_0
+      26: getfield      #48                 // Field defaultValue:F
+      29: invokestatic  #75                 // Method java/lang/Float.compare:(FF)I
+      32: ifeq          37
+      35: iconst_0
+      36: ireturn
+      37: aload_0
+      38: getfield      #60                 // Field isAngle:Z
+      41: aload_2
+      42: getfield      #60                 // Field isAngle:Z
+      45: if_icmpeq     50
+      48: iconst_0
+      49: ireturn
+      50: aload_0
+      51: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      54: aload_2
+      55: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      58: invokeinterface #77,  2           // InterfaceMethod java/util/List.equals:(Ljava/lang/Object;)Z
+      63: ifne          68
+      66: iconst_0
+      67: ireturn
+      68: aload_0
+      69: getfield      #46                 // Field isEnabled:Z
+      72: aload_2
+      73: getfield      #46                 // Field isEnabled:Z
+      76: if_icmpeq     81
+      79: iconst_0
+      80: ireturn
+      81: aload_0
+      82: getfield      #58                 // Field name:Ljava/lang/String;
+      85: aload_2
+      86: getfield      #58                 // Field name:Ljava/lang/String;
+      89: invokestatic  #82                 // Method java/util/Objects.equals:(Ljava/lang/Object;Ljava/lang/Object;)Z
+      92: ireturn
+
+  private void lock();
+    Code:
+       0: aload_0
+       1: iconst_0
+       2: putfield      #39                 // Field isModifiable:Z
+       5: aload_0
+       6: aload_0
+       7: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      10: invokestatic  #90                 // Method java/util/Collections.unmodifiableList:(Ljava/util/List;)Ljava/util/List;
+      13: putfield      #44                 // Field keyFrames:Ljava/util/List;
+      16: return
+
+  public void lockAndVerify(int);
+    Code:
+       0: aload_0
+       1: invokevirtual #97                 // Method getKeyFrames:()Ljava/util/List;
+       4: invokeinterface #101,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       9: astore_2
+      10: aload_2
+      11: invokeinterface #107,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          77
+      19: aload_2
+      20: invokeinterface #111,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      25: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      28: astore_3
+      29: aload_3
+      30: ifnull        57
+      33: aload_3
+      34: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+      37: iflt          57
+      40: aload_3
+      41: getfield      #119                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.ease:Ldev/kosmx/playerAnim/core/util/Ease;
+      44: ifnull        57
+      47: aload_3
+      48: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+      51: invokestatic  #126                // Method java/lang/Float.isFinite:(F)Z
+      54: ifne          74
+      57: new           #128                // class java/lang/IllegalArgumentException
+      60: dup
+      61: aload_3
+      62: invokestatic  #134                // Method java/lang/String.valueOf:(Ljava/lang/Object;)Ljava/lang/String;
+      65: invokedynamic #146,  0            // InvokeDynamic #0:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      70: invokespecial #149                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+      73: athrow
+      74: goto          10
+      77: aload_0
+      78: invokevirtual #151                // Method lock:()V
+      81: return
+
+  public void setEnabled(boolean);
+    Code:
+       0: aload_0
+       1: getfield      #39                 // Field isModifiable:Z
+       4: ifeq          15
+       7: aload_0
+       8: iload_1
+       9: putfield      #46                 // Field isEnabled:Z
+      12: goto          25
+      15: new           #156                // class java/lang/AssertionError
+      18: dup
+      19: ldc           #158                // String Can not modify locked things
+      21: invokespecial #161                // Method java/lang/AssertionError."<init>":(Ljava/lang/Object;)V
+      24: athrow
+      25: return
+
+  public int hashCode();
+    Code:
+       0: aload_0
+       1: getfield      #48                 // Field defaultValue:F
+       4: fconst_0
+       5: fcmpl
+       6: ifeq          19
+       9: aload_0
+      10: getfield      #48                 // Field defaultValue:F
+      13: invokestatic  #167                // Method java/lang/Float.floatToIntBits:(F)I
+      16: goto          20
+      19: iconst_0
+      20: istore_1
+      21: bipush        31
+      23: iload_1
+      24: imul
+      25: aload_0
+      26: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      29: invokeinterface #169,  1          // InterfaceMethod java/util/List.hashCode:()I
+      34: iadd
+      35: istore_1
+      36: bipush        31
+      38: iload_1
+      39: imul
+      40: aload_0
+      41: getfield      #60                 // Field isAngle:Z
+      44: ifeq          51
+      47: iconst_1
+      48: goto          52
+      51: iconst_0
+      52: iadd
+      53: istore_1
+      54: bipush        31
+      56: iload_1
+      57: imul
+      58: aload_0
+      59: getfield      #46                 // Field isEnabled:Z
+      62: ifeq          69
+      65: iconst_1
+      66: goto          70
+      69: iconst_0
+      70: iadd
+      71: istore_1
+      72: iload_1
+      73: ireturn
+
+  private dev.kosmx.playerAnim.core.data.KeyframeAnimation$StateCollection$State(java.lang.String, float, float, boolean);
+    Code:
+       0: aload_0
+       1: invokespecial #37                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: iconst_1
+       6: putfield      #39                 // Field isModifiable:Z
+       9: aload_0
+      10: new           #41                 // class java/util/ArrayList
+      13: dup
+      14: invokespecial #42                 // Method java/util/ArrayList."<init>":()V
+      17: putfield      #44                 // Field keyFrames:Ljava/util/List;
+      20: aload_0
+      21: iconst_0
+      22: putfield      #46                 // Field isEnabled:Z
+      25: aload_0
+      26: fload_2
+      27: putfield      #48                 // Field defaultValue:F
+      30: aload_0
+      31: fload_3
+      32: putfield      #50                 // Field threshold:F
+      35: aload_0
+      36: aload_1
+      37: putfield      #58                 // Field name:Ljava/lang/String;
+      40: aload_0
+      41: iload         4
+      43: putfield      #60                 // Field isAngle:Z
+      46: return
+
+  public int length();
+    Code:
+       0: aload_0
+       1: getfield      #44                 // Field keyFrames:Ljava/util/List;
+       4: invokeinterface #175,  1          // InterfaceMethod java/util/List.size:()I
+       9: ireturn
+
+  public int findAtTick(int);
+    Code:
+       0: aload_0
+       1: getfield      #44                 // Field keyFrames:Ljava/util/List;
+       4: aconst_null
+       5: iload_1
+       6: invokedynamic #196,  0            // InvokeDynamic #1:compare:(I)Ljava/util/Comparator;
+      11: invokestatic  #200                // Method java/util/Collections.binarySearch:(Ljava/util/List;Ljava/lang/Object;Ljava/util/Comparator;)I
+      14: istore_2
+      15: iload_2
+      16: ifge          24
+      19: iload_2
+      20: ineg
+      21: iconst_2
+      22: isub
+      23: istore_2
+      24: iload_2
+      25: iconst_1
+      26: iadd
+      27: aload_0
+      28: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      31: invokeinterface #175,  1          // InterfaceMethod java/util/List.size:()I
+      36: if_icmpge     65
+      39: aload_0
+      40: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      43: iload_2
+      44: iconst_1
+      45: iadd
+      46: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      51: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      54: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+      57: iload_1
+      58: if_icmpne     65
+      61: iload_2
+      62: iconst_1
+      63: iadd
+      64: ireturn
+      65: iload_2
+      66: ireturn
+
+  public boolean addKeyFrame(int, float, dev.kosmx.playerAnim.core.util.Ease, int, boolean);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: fload_2
+       3: aload_3
+       4: iload         4
+       6: iload         5
+       8: aconst_null
+       9: invokevirtual #212                // Method addKeyFrame:(IFLdev/kosmx/playerAnim/core/util/Ease;IZLjava/lang/Float;)Z
+      12: ireturn
+
+  public boolean addKeyFrame(int, float, dev.kosmx.playerAnim.core.util.Ease, int, boolean, java.lang.Float);
+    Code:
+       0: iload         5
+       2: ifeq          17
+       5: aload_0
+       6: getfield      #60                 // Field isAngle:Z
+       9: ifeq          17
+      12: fload_2
+      13: ldc           #214                // float 0.017453292f
+      15: fmul
+      16: fstore_2
+      17: aload_0
+      18: new           #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      21: dup
+      22: iload_1
+      23: fload_2
+      24: aload_3
+      25: aload         6
+      27: invokespecial #217                // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame."<init>":(IFLdev/kosmx/playerAnim/core/util/Ease;Ljava/lang/Float;)V
+      30: invokevirtual #220                // Method addKeyFrame:(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame;)Z
+      33: istore        7
+      35: aload_0
+      36: getfield      #60                 // Field isAngle:Z
+      39: ifeq          88
+      42: iload         4
+      44: ifeq          88
+      47: aload_0
+      48: new           #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      51: dup
+      52: iload_1
+      53: fload_2
+      54: f2d
+      55: ldc2_w        #221                // double 6.283185307179586d
+      58: iload         4
+      60: i2d
+      61: dmul
+      62: dadd
+      63: d2f
+      64: aload_3
+      65: aload         6
+      67: invokespecial #217                // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame."<init>":(IFLdev/kosmx/playerAnim/core/util/Ease;Ljava/lang/Float;)V
+      70: invokevirtual #220                // Method addKeyFrame:(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame;)Z
+      73: ifeq          85
+      76: iload         7
+      78: ifeq          85
+      81: iconst_1
+      82: goto          86
+      85: iconst_0
+      86: istore        7
+      88: iload         7
+      90: ireturn
+
+  public boolean addKeyFrame(int, float, dev.kosmx.playerAnim.core.util.Ease);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: fload_2
+       3: aload_3
+       4: aconst_null
+       5: invokevirtual #228                // Method addKeyFrame:(IFLdev/kosmx/playerAnim/core/util/Ease;Ljava/lang/Float;)Z
+       8: ireturn
+
+  public boolean addKeyFrame(int, float, dev.kosmx.playerAnim.core.util.Ease, java.lang.Float);
+    Code:
+       0: fload_2
+       1: invokestatic  #231                // Method java/lang/Float.isNaN:(F)Z
+       4: ifeq          17
+       7: new           #128                // class java/lang/IllegalArgumentException
+      10: dup
+      11: ldc           #233                // String value can\'t be NaN
+      13: invokespecial #149                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+      16: athrow
+      17: aload_0
+      18: new           #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      21: dup
+      22: iload_1
+      23: fload_2
+      24: aload_3
+      25: aload         4
+      27: invokespecial #217                // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame."<init>":(IFLdev/kosmx/playerAnim/core/util/Ease;Ljava/lang/Float;)V
+      30: invokevirtual #220                // Method addKeyFrame:(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame;)Z
+      33: ireturn
+
+  private boolean addKeyFrame(dev.kosmx.playerAnim.core.data.KeyframeAnimation$KeyFrame);
+    Code:
+       0: aload_0
+       1: iconst_1
+       2: invokevirtual #64                 // Method setEnabled:(Z)V
+       5: aload_0
+       6: aload_1
+       7: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+      10: invokevirtual #235                // Method findAtTick:(I)I
+      13: iconst_1
+      14: iadd
+      15: istore_2
+      16: aload_0
+      17: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      20: iload_2
+      21: aload_1
+      22: invokeinterface #239,  3          // InterfaceMethod java/util/List.add:(ILjava/lang/Object;)V
+      27: aload_0
+      28: getfield      #60                 // Field isAngle:Z
+      31: ifne          54
+      34: aload_0
+      35: getfield      #48                 // Field defaultValue:F
+      38: aload_1
+      39: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+      42: fsub
+      43: invokestatic  #245                // Method java/lang/Math.abs:(F)F
+      46: aload_0
+      47: getfield      #50                 // Field threshold:F
+      50: fcmpl
+      51: ifgt          58
+      54: iconst_1
+      55: goto          59
+      58: iconst_0
+      59: ireturn
+
+  public void replace(dev.kosmx.playerAnim.core.data.KeyframeAnimation$KeyFrame, int);
+    Code:
+       0: aload_0
+       1: getfield      #44                 // Field keyFrames:Ljava/util/List;
+       4: iload_2
+       5: invokeinterface #251,  2          // InterfaceMethod java/util/List.remove:(I)Ljava/lang/Object;
+      10: pop
+      11: aload_0
+      12: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      15: iload_2
+      16: aload_1
+      17: invokeinterface #239,  3          // InterfaceMethod java/util/List.add:(ILjava/lang/Object;)V
+      22: return
+
+  public void replaceEase(int, dev.kosmx.playerAnim.core.util.Ease);
+    Code:
+       0: aload_0
+       1: getfield      #44                 // Field keyFrames:Ljava/util/List;
+       4: iload_1
+       5: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      10: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      13: astore_3
+      14: aload_0
+      15: new           #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      18: dup
+      19: aload_3
+      20: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+      23: aload_3
+      24: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+      27: aload_2
+      28: invokespecial #256                // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame."<init>":(IFLdev/kosmx/playerAnim/core/util/Ease;)V
+      31: iload_1
+      32: invokevirtual #258                // Method replace:(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame;I)V
+      35: return
+
+  private void optimize(boolean, int);
+    Code:
+       0: iconst_1
+       1: istore_3
+       2: iload_3
+       3: aload_0
+       4: getfield      #44                 // Field keyFrames:Ljava/util/List;
+       7: invokeinterface #175,  1          // InterfaceMethod java/util/List.size:()I
+      12: iconst_1
+      13: isub
+      14: if_icmpge     183
+      17: aload_0
+      18: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      21: iload_3
+      22: iconst_1
+      23: isub
+      24: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      29: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      32: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+      35: aload_0
+      36: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      39: iload_3
+      40: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      45: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      48: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+      51: fcmpl
+      52: ifeq          58
+      55: goto          177
+      58: aload_0
+      59: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      62: invokeinterface #175,  1          // InterfaceMethod java/util/List.size:()I
+      67: iload_3
+      68: iconst_1
+      69: iadd
+      70: if_icmple     177
+      73: aload_0
+      74: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      77: iload_3
+      78: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      83: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+      86: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+      89: aload_0
+      90: getfield      #44                 // Field keyFrames:Ljava/util/List;
+      93: iload_3
+      94: iconst_1
+      95: iadd
+      96: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     101: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+     104: getfield      #122                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.value:F
+     107: fcmpl
+     108: ifeq          114
+     111: goto          177
+     114: iload_1
+     115: ifeq          163
+     118: aload_0
+     119: getfield      #44                 // Field keyFrames:Ljava/util/List;
+     122: iload_3
+     123: iconst_1
+     124: isub
+     125: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     130: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+     133: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+     136: iload_2
+     137: if_icmpge     163
+     140: aload_0
+     141: getfield      #44                 // Field keyFrames:Ljava/util/List;
+     144: iload_3
+     145: invokeinterface #204,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     150: checkcast     #13                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame
+     153: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+     156: iload_2
+     157: if_icmplt     163
+     160: goto          177
+     163: aload_0
+     164: getfield      #44                 // Field keyFrames:Ljava/util/List;
+     167: iload_3
+     168: iinc          3, -1
+     171: invokeinterface #251,  2          // InterfaceMethod java/util/List.remove:(I)Ljava/lang/Object;
+     176: pop
+     177: iinc          3, 1
+     180: goto          2
+     183: return
+
+  public dev.kosmx.playerAnim.core.data.KeyframeAnimation$StateCollection$State copy();
+    Code:
+       0: new           #2                  // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection$State
+       3: dup
+       4: aload_0
+       5: invokespecial #267                // Method "<init>":(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection$State;)V
+       8: areturn
+
+  public java.util.List<dev.kosmx.playerAnim.core.data.KeyframeAnimation$KeyFrame> getKeyFrames();
+    Code:
+       0: aload_0
+       1: getfield      #44                 // Field keyFrames:Ljava/util/List;
+       4: areturn
+
+  public boolean isEnabled();
+    Code:
+       0: aload_0
+       1: getfield      #46                 // Field isEnabled:Z
+       4: ireturn
+
+  private static int lambda$findAtTick$0(int, dev.kosmx.playerAnim.core.data.KeyframeAnimation$KeyFrame, dev.kosmx.playerAnim.core.data.KeyframeAnimation$KeyFrame);
+    Code:
+       0: aload_1
+       1: getfield      #115                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation$KeyFrame.tick:I
+       4: iload_0
+       5: invokestatic  #275                // Method java/lang/Integer.compare:(II)I
+       8: ireturn
+}

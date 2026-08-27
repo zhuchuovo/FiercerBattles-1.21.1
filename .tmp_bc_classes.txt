@@ -1,0 +1,222 @@
+Compiled from "AttackAnimationSubStack.java"
+public class net.bettercombat.client.animation.AttackAnimationSubStack {
+  public final net.bettercombat.client.animation.modifier.TransmissionSpeedModifier speed;
+    descriptor: Lnet/bettercombat/client/animation/modifier/TransmissionSpeedModifier;
+
+  public final dev.kosmx.playerAnim.api.layered.modifier.MirrorModifier mirror;
+    descriptor: Ldev/kosmx/playerAnim/api/layered/modifier/MirrorModifier;
+
+  public final dev.kosmx.playerAnim.api.layered.ModifierLayer base;
+    descriptor: Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+
+  public final dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier adjustmentModifier;
+    descriptor: Ldev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier;
+
+  public net.bettercombat.client.animation.AttackAnimationSubStack(dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier);
+    descriptor: (Ldev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier;)V
+    Code:
+       0: aload_0
+       1: invokespecial #18                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: new           #20                 // class net/bettercombat/client/animation/modifier/TransmissionSpeedModifier
+       8: dup
+       9: invokespecial #21                 // Method net/bettercombat/client/animation/modifier/TransmissionSpeedModifier."<init>":()V
+      12: putfield      #23                 // Field speed:Lnet/bettercombat/client/animation/modifier/TransmissionSpeedModifier;
+      15: aload_0
+      16: new           #25                 // class dev/kosmx/playerAnim/api/layered/modifier/MirrorModifier
+      19: dup
+      20: invokespecial #26                 // Method dev/kosmx/playerAnim/api/layered/modifier/MirrorModifier."<init>":()V
+      23: putfield      #28                 // Field mirror:Ldev/kosmx/playerAnim/api/layered/modifier/MirrorModifier;
+      26: aload_0
+      27: new           #30                 // class dev/kosmx/playerAnim/api/layered/ModifierLayer
+      30: dup
+      31: aconst_null
+      32: iconst_0
+      33: anewarray     #32                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      36: invokespecial #35                 // Method dev/kosmx/playerAnim/api/layered/ModifierLayer."<init>":(Ldev/kosmx/playerAnim/api/layered/IAnimation;[Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;)V
+      39: putfield      #37                 // Field base:Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+      42: aload_0
+      43: aload_1
+      44: putfield      #39                 // Field adjustmentModifier:Ldev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier;
+      47: aload_0
+      48: getfield      #28                 // Field mirror:Ldev/kosmx/playerAnim/api/layered/modifier/MirrorModifier;
+      51: iconst_0
+      52: invokevirtual #43                 // Method dev/kosmx/playerAnim/api/layered/modifier/MirrorModifier.setEnabled:(Z)V
+      55: aload_0
+      56: getfield      #37                 // Field base:Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+      59: aload_1
+      60: iconst_0
+      61: invokevirtual #47                 // Method dev/kosmx/playerAnim/api/layered/ModifierLayer.addModifier:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;I)V
+      64: aload_0
+      65: getfield      #37                 // Field base:Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+      68: aload_0
+      69: getfield      #23                 // Field speed:Lnet/bettercombat/client/animation/modifier/TransmissionSpeedModifier;
+      72: iconst_0
+      73: invokevirtual #47                 // Method dev/kosmx/playerAnim/api/layered/ModifierLayer.addModifier:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;I)V
+      76: aload_0
+      77: getfield      #37                 // Field base:Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+      80: aload_0
+      81: getfield      #28                 // Field mirror:Ldev/kosmx/playerAnim/api/layered/modifier/MirrorModifier;
+      84: iconst_0
+      85: invokevirtual #47                 // Method dev/kosmx/playerAnim/api/layered/ModifierLayer.addModifier:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;I)V
+      88: return
+}
+Compiled from "TransmissionSpeedModifier.java"
+public class net.bettercombat.client.animation.modifier.TransmissionSpeedModifier extends dev.kosmx.playerAnim.api.layered.modifier.SpeedModifier {
+  private float elapsed;
+    descriptor: F
+
+  public java.util.List<net.bettercombat.client.animation.modifier.TransmissionSpeedModifier$Gear> gears;
+    descriptor: Ljava/util/List;
+
+  public net.bettercombat.client.animation.modifier.TransmissionSpeedModifier();
+    descriptor: ()V
+    Code:
+       0: aload_0
+       1: invokespecial #17                 // Method dev/kosmx/playerAnim/api/layered/modifier/SpeedModifier."<init>":()V
+       4: aload_0
+       5: fconst_0
+       6: putfield      #19                 // Field elapsed:F
+       9: aload_0
+      10: invokestatic  #25                 // InterfaceMethod java/util/List.of:()Ljava/util/List;
+      13: putfield      #27                 // Field gears:Ljava/util/List;
+      16: return
+
+  public void set(float, java.util.List<net.bettercombat.client.animation.modifier.TransmissionSpeedModifier$Gear>);
+    descriptor: (FLjava/util/List;)V
+    Code:
+       0: aload_0
+       1: fload_1
+       2: putfield      #35                 // Field speed:F
+       5: aload_0
+       6: aload_2
+       7: putfield      #27                 // Field gears:Ljava/util/List;
+      10: aload_0
+      11: fconst_0
+      12: putfield      #19                 // Field elapsed:F
+      15: return
+
+  private float elapsed(float);
+    descriptor: (F)F
+    Code:
+       0: aload_0
+       1: getfield      #19                 // Field elapsed:F
+       4: fload_1
+       5: fadd
+       6: freturn
+
+  public void tick();
+    descriptor: ()V
+    Code:
+       0: aload_0
+       1: invokespecial #40                 // Method dev/kosmx/playerAnim/api/layered/modifier/SpeedModifier.tick:()V
+       4: aload_0
+       5: dup
+       6: getfield      #19                 // Field elapsed:F
+       9: fconst_1
+      10: fadd
+      11: putfield      #19                 // Field elapsed:F
+      14: return
+
+  public void setupAnim(float);
+    descriptor: (F)V
+    Code:
+       0: aload_0
+       1: fload_1
+       2: invokevirtual #45                 // Method elapsed:(F)F
+       5: fstore_2
+       6: aload_0
+       7: getfield      #27                 // Field gears:Ljava/util/List;
+      10: invokeinterface #49,  1           // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+      15: astore_3
+      16: aload_3
+      17: invokeinterface #55,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+      22: ifeq          58
+      25: aload_3
+      26: invokeinterface #59,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      31: checkcast     #7                  // class net/bettercombat/client/animation/modifier/TransmissionSpeedModifier$Gear
+      34: astore        4
+      36: fload_2
+      37: aload         4
+      39: getfield      #62                 // Field net/bettercombat/client/animation/modifier/TransmissionSpeedModifier$Gear.time:F
+      42: fcmpl
+      43: ifle          55
+      46: aload_0
+      47: aload         4
+      49: invokevirtual #65                 // Method net/bettercombat/client/animation/modifier/TransmissionSpeedModifier$Gear.speed:()F
+      52: putfield      #35                 // Field speed:F
+      55: goto          16
+      58: aload_0
+      59: fload_1
+      60: invokespecial #67                 // Method dev/kosmx/playerAnim/api/layered/modifier/SpeedModifier.setupAnim:(F)V
+      63: return
+}
+Compiled from "CustomAnimationPlayer.java"
+public class net.bettercombat.client.animation.CustomAnimationPlayer extends dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer {
+  public net.bettercombat.client.animation.CustomAnimationPlayer(dev.kosmx.playerAnim.core.data.KeyframeAnimation, int, boolean);
+    descriptor: (Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;IZ)V
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: iload_3
+       4: invokespecial #12                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer."<init>":(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;IZ)V
+       7: return
+
+  public net.bettercombat.client.animation.CustomAnimationPlayer(dev.kosmx.playerAnim.core.data.KeyframeAnimation, int);
+    descriptor: (Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;I)V
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: iconst_0
+       4: invokespecial #12                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer."<init>":(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;IZ)V
+       7: return
+
+  public boolean isWindingDown(float);
+    descriptor: (F)Z
+    Code:
+       0: aload_0
+       1: invokevirtual #25                 // Method getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+       4: getfield      #30                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.endTick:I
+       7: aload_0
+       8: invokevirtual #25                 // Method getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      11: getfield      #33                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.stopTick:I
+      14: aload_0
+      15: invokevirtual #25                 // Method getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      18: getfield      #30                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.endTick:I
+      21: isub
+      22: iconst_4
+      23: idiv
+      24: iadd
+      25: istore_2
+      26: aload_0
+      27: invokevirtual #37                 // Method getTick:()I
+      30: i2f
+      31: fload_1
+      32: fadd
+      33: iload_2
+      34: i2f
+      35: ldc           #38                 // float 0.5f
+      37: fadd
+      38: fcmpl
+      39: ifle          46
+      42: iconst_1
+      43: goto          47
+      46: iconst_0
+      47: ireturn
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode getFirstPersonMode(float);
+    descriptor: (F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+    Code:
+       0: aload_0
+       1: fload_1
+       2: invokevirtual #45                 // Method isWindingDown:(F)Z
+       5: ifeq          12
+       8: getstatic     #51                 // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      11: areturn
+      12: aload_0
+      13: fload_1
+      14: invokespecial #53                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      17: areturn
+}

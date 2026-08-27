@@ -1,0 +1,637 @@
+Compiled from "AnimationStack.java"
+public class dev.kosmx.playerAnim.api.layered.AnimationStack implements dev.kosmx.playerAnim.api.layered.IAnimation {
+  private final java.util.ArrayList<dev.kosmx.playerAnim.core.util.Pair<java.lang.Integer, dev.kosmx.playerAnim.api.layered.IAnimation>> layers;
+
+  public dev.kosmx.playerAnim.api.layered.AnimationStack();
+    Code:
+       0: aload_0
+       1: invokespecial #19                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: new           #21                 // class java/util/ArrayList
+       8: dup
+       9: invokespecial #22                 // Method java/util/ArrayList."<init>":()V
+      12: putfield      #24                 // Field layers:Ljava/util/ArrayList;
+      15: return
+
+  public boolean isActive();
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: invokevirtual #32                 // Method java/util/ArrayList.iterator:()Ljava/util/Iterator;
+       7: astore_1
+       8: aload_1
+       9: invokeinterface #37,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+      14: ifeq          47
+      17: aload_1
+      18: invokeinterface #41,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      23: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      26: astore_2
+      27: aload_2
+      28: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      31: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      34: invokeinterface #48,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      39: ifeq          44
+      42: iconst_1
+      43: ireturn
+      44: goto          8
+      47: iconst_0
+      48: ireturn
+
+  public void tick();
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: invokevirtual #32                 // Method java/util/ArrayList.iterator:()Ljava/util/Iterator;
+       7: astore_1
+       8: aload_1
+       9: invokeinterface #37,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+      14: ifeq          57
+      17: aload_1
+      18: invokeinterface #41,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      23: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      26: astore_2
+      27: aload_2
+      28: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      31: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      34: invokeinterface #48,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      39: ifeq          54
+      42: aload_2
+      43: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      46: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      49: invokeinterface #54,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.tick:()V
+      54: goto          8
+      57: return
+
+  public dev.kosmx.playerAnim.core.util.Vec3f get3DTransform(java.lang.String, dev.kosmx.playerAnim.api.TransformType, float, dev.kosmx.playerAnim.core.util.Vec3f);
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: invokevirtual #32                 // Method java/util/ArrayList.iterator:()Ljava/util/Iterator;
+       7: astore        5
+       9: aload         5
+      11: invokeinterface #37,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          96
+      19: aload         5
+      21: invokeinterface #41,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      26: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      29: astore        6
+      31: aload         6
+      33: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      36: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      39: invokeinterface #48,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      44: ifeq          93
+      47: invokestatic  #66                 // Method dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.isFirstPersonPass:()Z
+      50: ifeq          73
+      53: aload         6
+      55: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      58: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      61: fload_3
+      62: invokeinterface #70,  2           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      67: invokevirtual #73                 // Method dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.isEnabled:()Z
+      70: ifeq          93
+      73: aload         6
+      75: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      78: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      81: aload_1
+      82: aload_2
+      83: fload_3
+      84: aload         4
+      86: invokeinterface #75,  5           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.get3DTransform:(Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      91: astore        4
+      93: goto          9
+      96: aload         4
+      98: areturn
+
+  public void setupAnim(float);
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: invokevirtual #32                 // Method java/util/ArrayList.iterator:()Ljava/util/Iterator;
+       7: astore_2
+       8: aload_2
+       9: invokeinterface #37,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+      14: ifeq          43
+      17: aload_2
+      18: invokeinterface #41,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      23: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      26: astore_3
+      27: aload_3
+      28: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      31: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      34: fload_1
+      35: invokeinterface #83,  2           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.setupAnim:(F)V
+      40: goto          8
+      43: return
+
+  public void addAnimLayer(int, dev.kosmx.playerAnim.api.layered.IAnimation);
+    Code:
+       0: iconst_0
+       1: istore_3
+       2: aload_0
+       3: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       6: invokevirtual #90                 // Method java/util/ArrayList.size:()I
+       9: iload_3
+      10: if_icmple     43
+      13: aload_0
+      14: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+      17: iload_3
+      18: invokevirtual #94                 // Method java/util/ArrayList.get:(I)Ljava/lang/Object;
+      21: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      24: invokevirtual #97                 // Method dev/kosmx/playerAnim/core/util/Pair.getLeft:()Ljava/lang/Object;
+      27: checkcast     #99                 // class java/lang/Integer
+      30: invokevirtual #102                // Method java/lang/Integer.intValue:()I
+      33: iload_1
+      34: if_icmpge     43
+      37: iinc          3, 1
+      40: goto          2
+      43: aload_0
+      44: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+      47: iload_3
+      48: new           #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      51: dup
+      52: iload_1
+      53: invokestatic  #106                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      56: aload_2
+      57: invokespecial #109                // Method dev/kosmx/playerAnim/core/util/Pair."<init>":(Ljava/lang/Object;Ljava/lang/Object;)V
+      60: invokevirtual #113                // Method java/util/ArrayList.add:(ILjava/lang/Object;)V
+      63: return
+
+  public boolean removeLayer(dev.kosmx.playerAnim.api.layered.IAnimation);
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: aload_1
+       5: invokedynamic #138,  0            // InvokeDynamic #0:test:(Ldev/kosmx/playerAnim/api/layered/IAnimation;)Ljava/util/function/Predicate;
+      10: invokevirtual #142                // Method java/util/ArrayList.removeIf:(Ljava/util/function/Predicate;)Z
+      13: ireturn
+
+  public boolean removeLayer(int);
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: iload_1
+       5: invokedynamic #152,  0            // InvokeDynamic #1:test:(I)Ljava/util/function/Predicate;
+      10: invokevirtual #142                // Method java/util/ArrayList.removeIf:(Ljava/util/function/Predicate;)Z
+      13: ireturn
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode getFirstPersonMode(float);
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: invokevirtual #90                 // Method java/util/ArrayList.size:()I
+       7: istore_2
+       8: iload_2
+       9: ifle          71
+      12: aload_0
+      13: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+      16: iinc          2, -1
+      19: iload_2
+      20: invokevirtual #94                 // Method java/util/ArrayList.get:(I)Ljava/lang/Object;
+      23: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      26: astore_3
+      27: aload_3
+      28: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      31: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      34: invokeinterface #48,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      39: ifeq          68
+      42: aload_3
+      43: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      46: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      49: fload_1
+      50: invokeinterface #70,  2           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      55: astore        4
+      57: aload         4
+      59: getstatic     #156                // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      62: if_acmpeq     68
+      65: aload         4
+      67: areturn
+      68: goto          8
+      71: getstatic     #156                // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      74: areturn
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration getFirstPersonConfiguration(float);
+    Code:
+       0: aload_0
+       1: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+       4: invokevirtual #90                 // Method java/util/ArrayList.size:()I
+       7: istore_2
+       8: iload_2
+       9: ifle          82
+      12: aload_0
+      13: getfield      #24                 // Field layers:Ljava/util/ArrayList;
+      16: iinc          2, -1
+      19: iload_2
+      20: invokevirtual #94                 // Method java/util/ArrayList.get:(I)Ljava/lang/Object;
+      23: checkcast     #43                 // class dev/kosmx/playerAnim/core/util/Pair
+      26: astore_3
+      27: aload_3
+      28: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      31: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      34: invokeinterface #48,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      39: ifeq          79
+      42: aload_3
+      43: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      46: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      49: fload_1
+      50: invokeinterface #70,  2           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      55: astore        4
+      57: aload         4
+      59: getstatic     #156                // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      62: if_acmpeq     79
+      65: aload_3
+      66: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+      69: checkcast     #6                  // class dev/kosmx/playerAnim/api/layered/IAnimation
+      72: fload_1
+      73: invokeinterface #162,  2          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonConfiguration:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      78: areturn
+      79: goto          8
+      82: aload_0
+      83: fload_1
+      84: invokespecial #162                // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonConfiguration:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      87: areturn
+
+  private static boolean lambda$removeLayer$1(int, dev.kosmx.playerAnim.core.util.Pair);
+    Code:
+       0: aload_1
+       1: invokevirtual #97                 // Method dev/kosmx/playerAnim/core/util/Pair.getLeft:()Ljava/lang/Object;
+       4: checkcast     #99                 // class java/lang/Integer
+       7: invokevirtual #102                // Method java/lang/Integer.intValue:()I
+      10: iload_0
+      11: if_icmpne     18
+      14: iconst_1
+      15: goto          19
+      18: iconst_0
+      19: ireturn
+
+  private static boolean lambda$removeLayer$0(dev.kosmx.playerAnim.api.layered.IAnimation, dev.kosmx.playerAnim.core.util.Pair);
+    Code:
+       0: aload_1
+       1: invokevirtual #46                 // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+       4: aload_0
+       5: if_acmpne     12
+       8: iconst_1
+       9: goto          13
+      12: iconst_0
+      13: ireturn
+}
+Compiled from "ModifierLayer.java"
+public class dev.kosmx.playerAnim.api.layered.ModifierLayer<T extends dev.kosmx.playerAnim.api.layered.IAnimation> implements dev.kosmx.playerAnim.api.layered.IAnimation {
+  private final java.util.List<dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier> modifiers;
+
+  T animation;
+
+  public dev.kosmx.playerAnim.api.layered.ModifierLayer(T, dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier...);
+    Code:
+       0: aload_0
+       1: invokespecial #21                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: new           #23                 // class java/util/ArrayList
+       8: dup
+       9: invokespecial #24                 // Method java/util/ArrayList."<init>":()V
+      12: putfield      #26                 // Field modifiers:Ljava/util/List;
+      15: aload_0
+      16: aload_1
+      17: putfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      20: aload_0
+      21: getfield      #26                 // Field modifiers:Ljava/util/List;
+      24: aload_2
+      25: invokestatic  #34                 // Method java/util/Collections.addAll:(Ljava/util/Collection;[Ljava/lang/Object;)Z
+      28: pop
+      29: return
+
+  public dev.kosmx.playerAnim.api.layered.ModifierLayer();
+    Code:
+       0: aload_0
+       1: aconst_null
+       2: iconst_0
+       3: anewarray     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+       6: invokespecial #42                 // Method "<init>":(Ldev/kosmx/playerAnim/api/layered/IAnimation;[Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;)V
+       9: return
+
+  public void tick();
+    Code:
+       0: iconst_0
+       1: istore_1
+       2: iload_1
+       3: aload_0
+       4: getfield      #26                 // Field modifiers:Ljava/util/List;
+       7: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+      12: if_icmpge     48
+      15: aload_0
+      16: getfield      #26                 // Field modifiers:Ljava/util/List;
+      19: iload_1
+      20: invokeinterface #53,  2           // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      25: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      28: invokevirtual #57                 // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.canRemove:()Z
+      31: ifeq          42
+      34: aload_0
+      35: iload_1
+      36: iinc          1, -1
+      39: invokevirtual #61                 // Method removeModifier:(I)V
+      42: iinc          1, 1
+      45: goto          2
+      48: aload_0
+      49: getfield      #26                 // Field modifiers:Ljava/util/List;
+      52: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+      57: ifle          79
+      60: aload_0
+      61: getfield      #26                 // Field modifiers:Ljava/util/List;
+      64: iconst_0
+      65: invokeinterface #53,  2           // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      70: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      73: invokevirtual #63                 // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.tick:()V
+      76: goto          95
+      79: aload_0
+      80: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      83: ifnull        95
+      86: aload_0
+      87: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      90: invokeinterface #64,  1           // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.tick:()V
+      95: return
+
+  public void addModifier(dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier, int);
+    Code:
+       0: aload_1
+       1: aload_0
+       2: invokevirtual #75                 // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.setHost:(Ldev/kosmx/playerAnim/api/layered/ModifierLayer;)V
+       5: aload_0
+       6: getfield      #26                 // Field modifiers:Ljava/util/List;
+       9: iload_2
+      10: aload_1
+      11: invokeinterface #79,  3           // InterfaceMethod java/util/List.add:(ILjava/lang/Object;)V
+      16: aload_0
+      17: invokevirtual #82                 // Method linkModifiers:()V
+      20: return
+
+  public void addModifierBefore(dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iconst_0
+       3: invokevirtual #87                 // Method addModifier:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;I)V
+       6: return
+
+  public void addModifierLast(dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_0
+       3: getfield      #26                 // Field modifiers:Ljava/util/List;
+       6: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+      11: invokevirtual #87                 // Method addModifier:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;I)V
+      14: return
+
+  public void removeModifier(int);
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: iload_1
+       5: invokeinterface #91,  2           // InterfaceMethod java/util/List.remove:(I)Ljava/lang/Object;
+      10: pop
+      11: aload_0
+      12: invokevirtual #82                 // Method linkModifiers:()V
+      15: return
+
+  public void setAnimation(T);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: putfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+       5: aload_0
+       6: invokevirtual #82                 // Method linkModifiers:()V
+       9: return
+
+  public void replaceAnimationWithFade(dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier, T);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: iconst_0
+       4: invokevirtual #102                // Method replaceAnimationWithFade:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractFadeModifier;Ldev/kosmx/playerAnim/api/layered/IAnimation;Z)V
+       7: return
+
+  public void replaceAnimationWithFade(dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier, T, boolean);
+    Code:
+       0: iload_3
+       1: ifne          23
+       4: aload_0
+       5: invokevirtual #109                // Method getAnimation:()Ldev/kosmx/playerAnim/api/layered/IAnimation;
+       8: ifnull        36
+      11: aload_0
+      12: invokevirtual #109                // Method getAnimation:()Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      15: invokeinterface #112,  1          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      20: ifeq          36
+      23: aload_1
+      24: aload_0
+      25: invokevirtual #109                // Method getAnimation:()Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      28: invokevirtual #117                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractFadeModifier.setBeginAnimation:(Ldev/kosmx/playerAnim/api/layered/IAnimation;)V
+      31: aload_0
+      32: aload_1
+      33: invokevirtual #119                // Method addModifierLast:(Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;)V
+      36: aload_0
+      37: aload_2
+      38: invokevirtual #121                // Method setAnimation:(Ldev/kosmx/playerAnim/api/layered/IAnimation;)V
+      41: return
+
+  public int size();
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+       9: ireturn
+
+  protected void linkModifiers();
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: invokeinterface #126,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       9: astore_1
+      10: aload_1
+      11: invokeinterface #131,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          66
+      19: aload_1
+      20: invokeinterface #135,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      25: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      28: astore_2
+      29: aload_1
+      30: invokeinterface #131,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      35: ifeq          58
+      38: aload_1
+      39: invokeinterface #135,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      44: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      47: astore_3
+      48: aload_2
+      49: aload_3
+      50: invokevirtual #138                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.setAnim:(Ldev/kosmx/playerAnim/api/layered/IAnimation;)V
+      53: aload_3
+      54: astore_2
+      55: goto          29
+      58: aload_2
+      59: aload_0
+      60: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      63: invokevirtual #138                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.setAnim:(Ldev/kosmx/playerAnim/api/layered/IAnimation;)V
+      66: return
+
+  public boolean isActive();
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+       9: ifle          29
+      12: aload_0
+      13: getfield      #26                 // Field modifiers:Ljava/util/List;
+      16: iconst_0
+      17: invokeinterface #53,  2           // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      22: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      25: invokevirtual #144                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.isActive:()Z
+      28: ireturn
+      29: aload_0
+      30: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      33: ifnull        46
+      36: aload_0
+      37: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      40: invokeinterface #112,  1          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.isActive:()Z
+      45: ireturn
+      46: iconst_0
+      47: ireturn
+
+  public dev.kosmx.playerAnim.core.util.Vec3f get3DTransform(java.lang.String, dev.kosmx.playerAnim.api.TransformType, float, dev.kosmx.playerAnim.core.util.Vec3f);
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+       9: ifle          34
+      12: aload_0
+      13: getfield      #26                 // Field modifiers:Ljava/util/List;
+      16: iconst_0
+      17: invokeinterface #53,  2           // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      22: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      25: aload_1
+      26: aload_2
+      27: fload_3
+      28: aload         4
+      30: invokevirtual #152                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.get3DTransform:(Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      33: areturn
+      34: aload_0
+      35: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      38: ifnull        56
+      41: aload_0
+      42: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      45: aload_1
+      46: aload_2
+      47: fload_3
+      48: aload         4
+      50: invokeinterface #153,  5          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.get3DTransform:(Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      55: areturn
+      56: aload         4
+      58: areturn
+
+  public void setupAnim(float);
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: invokeinterface #49,  1           // InterfaceMethod java/util/List.size:()I
+       9: ifle          32
+      12: aload_0
+      13: getfield      #26                 // Field modifiers:Ljava/util/List;
+      16: iconst_0
+      17: invokeinterface #53,  2           // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      22: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      25: fload_1
+      26: invokevirtual #161                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.setupAnim:(F)V
+      29: goto          49
+      32: aload_0
+      33: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      36: ifnull        49
+      39: aload_0
+      40: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      43: fload_1
+      44: invokeinterface #162,  2          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.setupAnim:(F)V
+      49: return
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode getFirstPersonMode(float);
+    Code:
+       0: aload_0
+       1: invokevirtual #168                // Method getFirstPersonModifierOrDefault:()Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;
+       4: astore_2
+       5: aload_2
+       6: ifnull        15
+       9: aload_2
+      10: fload_1
+      11: invokevirtual #170                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      14: areturn
+      15: aload_0
+      16: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      19: ifnull        33
+      22: aload_0
+      23: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      26: fload_1
+      27: invokeinterface #171,  2          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      32: areturn
+      33: aload_0
+      34: fload_1
+      35: invokespecial #171                // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonMode:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      38: areturn
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration getFirstPersonConfiguration(float);
+    Code:
+       0: aload_0
+       1: invokevirtual #168                // Method getFirstPersonModifierOrDefault:()Ldev/kosmx/playerAnim/api/layered/modifier/AbstractModifier;
+       4: astore_2
+       5: aload_2
+       6: ifnull        15
+       9: aload_2
+      10: fload_1
+      11: invokevirtual #175                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.getFirstPersonConfiguration:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      14: areturn
+      15: aload_0
+      16: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      19: ifnull        33
+      22: aload_0
+      23: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      26: fload_1
+      27: invokeinterface #176,  2          // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonConfiguration:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      32: areturn
+      33: aload_0
+      34: fload_1
+      35: invokespecial #176                // InterfaceMethod dev/kosmx/playerAnim/api/layered/IAnimation.getFirstPersonConfiguration:(F)Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      38: areturn
+
+  private dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier getFirstPersonModifierOrDefault();
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field modifiers:Ljava/util/List;
+       4: invokeinterface #126,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       9: astore_1
+      10: aload_1
+      11: invokeinterface #131,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          41
+      19: aload_1
+      20: invokeinterface #135,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      25: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      28: astore_2
+      29: aload_2
+      30: instanceof    #178                // class dev/kosmx/playerAnim/api/layered/modifier/FirstPersonModifier
+      33: ifeq          38
+      36: aload_2
+      37: areturn
+      38: goto          10
+      41: aload_0
+      42: getfield      #26                 // Field modifiers:Ljava/util/List;
+      45: invokeinterface #181,  1          // InterfaceMethod java/util/List.isEmpty:()Z
+      50: ifeq          57
+      53: aconst_null
+      54: goto          70
+      57: aload_0
+      58: getfield      #26                 // Field modifiers:Ljava/util/List;
+      61: iconst_0
+      62: invokeinterface #53,  2           // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      67: checkcast     #40                 // class dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier
+      70: areturn
+
+  public T getAnimation();
+    Code:
+       0: aload_0
+       1: getfield      #28                 // Field animation:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+       4: areturn
+}

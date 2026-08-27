@@ -1,4 +1,5 @@
 {
   "key.categories.fiercerbattles": "Fiercer Battles",
-  "key.fiercerbattles.combat_skill": "Combat Skill"
+  "key.fiercerbattles.combat_skill": "Combat Skill",
+  "message.fiercerbattles.combat_skill_cooldown": "Combat skill on cooldown: %s s"
 }

@@ -1,0 +1,304 @@
+Compiled from "AdjustmentModifier.java"
+public class dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier extends dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier {
+  public boolean enabled;
+    descriptor: Z
+
+  protected java.util.function.Function<java.lang.String, java.util.Optional<dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier$PartModifier>> source;
+    descriptor: Ljava/util/function/Function;
+
+  protected int instructedFadeout;
+    descriptor: I
+
+  private int remainingFadeout;
+    descriptor: I
+
+  public dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier(java.util.function.Function<java.lang.String, java.util.Optional<dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier$PartModifier>>);
+    descriptor: (Ljava/util/function/Function;)V
+    Code:
+       0: aload_0
+       1: invokespecial #24                 // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier."<init>":()V
+       4: aload_0
+       5: iconst_1
+       6: putfield      #26                 // Field enabled:Z
+       9: aload_0
+      10: iconst_0
+      11: putfield      #28                 // Field instructedFadeout:I
+      14: aload_0
+      15: iconst_0
+      16: putfield      #30                 // Field remainingFadeout:I
+      19: aload_0
+      20: aload_1
+      21: putfield      #32                 // Field source:Ljava/util/function/Function;
+      24: return
+
+  protected float getFadeIn(float);
+    descriptor: (F)F
+    Code:
+       0: fconst_1
+       1: fstore_2
+       2: aload_0
+       3: invokevirtual #41                 // Method getAnim:()Ldev/kosmx/playerAnim/api/layered/IAnimation;
+       6: astore_3
+       7: aload_3
+       8: instanceof    #43                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer
+      11: ifeq          52
+      14: aload_0
+      15: getfield      #47                 // Field anim:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      18: checkcast     #43                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer
+      21: astore        4
+      23: aload         4
+      25: invokevirtual #51                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getTick:()I
+      28: i2f
+      29: fload_1
+      30: fadd
+      31: fstore        5
+      33: fload         5
+      35: aload         4
+      37: invokevirtual #55                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      40: getfield      #60                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.beginTick:I
+      43: i2f
+      44: fdiv
+      45: fstore_2
+      46: fload_2
+      47: fconst_1
+      48: invokestatic  #66                 // Method java/lang/Math.min:(FF)F
+      51: fstore_2
+      52: fload_2
+      53: freturn
+
+  public void tick();
+    descriptor: ()V
+    Code:
+       0: aload_0
+       1: invokespecial #77                 // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.tick:()V
+       4: aload_0
+       5: getfield      #30                 // Field remainingFadeout:I
+       8: ifle          33
+      11: aload_0
+      12: dup
+      13: getfield      #30                 // Field remainingFadeout:I
+      16: iconst_1
+      17: isub
+      18: putfield      #30                 // Field remainingFadeout:I
+      21: aload_0
+      22: getfield      #30                 // Field remainingFadeout:I
+      25: ifgt          33
+      28: aload_0
+      29: iconst_0
+      30: putfield      #28                 // Field instructedFadeout:I
+      33: return
+
+  public void fadeOut(int);
+    descriptor: (I)V
+    Code:
+       0: aload_0
+       1: iload_1
+       2: putfield      #28                 // Field instructedFadeout:I
+       5: aload_0
+       6: iload_1
+       7: iconst_1
+       8: iadd
+       9: putfield      #30                 // Field remainingFadeout:I
+      12: return
+
+  protected float getFadeOut(float);
+    descriptor: (F)F
+    Code:
+       0: fconst_1
+       1: fstore_2
+       2: aload_0
+       3: getfield      #30                 // Field remainingFadeout:I
+       6: ifle          44
+       9: aload_0
+      10: getfield      #28                 // Field instructedFadeout:I
+      13: ifle          44
+      16: aload_0
+      17: getfield      #30                 // Field remainingFadeout:I
+      20: i2f
+      21: fload_1
+      22: fsub
+      23: fconst_0
+      24: invokestatic  #83                 // Method java/lang/Math.max:(FF)F
+      27: fstore_3
+      28: fload_3
+      29: aload_0
+      30: getfield      #28                 // Field instructedFadeout:I
+      33: i2f
+      34: fdiv
+      35: fstore_2
+      36: fload_2
+      37: fconst_1
+      38: invokestatic  #66                 // Method java/lang/Math.min:(FF)F
+      41: fstore_2
+      42: fload_2
+      43: freturn
+      44: aload_0
+      45: invokevirtual #41                 // Method getAnim:()Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      48: astore_3
+      49: aload_3
+      50: instanceof    #43                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer
+      53: ifeq          131
+      56: aload_0
+      57: getfield      #47                 // Field anim:Ldev/kosmx/playerAnim/api/layered/IAnimation;
+      60: checkcast     #43                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer
+      63: astore        4
+      65: aload         4
+      67: invokevirtual #51                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getTick:()I
+      70: i2f
+      71: fload_1
+      72: fadd
+      73: fstore        5
+      75: ldc           #84                 // float -1.0f
+      77: fload         5
+      79: aload         4
+      81: invokevirtual #55                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      84: getfield      #87                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.stopTick:I
+      87: i2f
+      88: fsub
+      89: fmul
+      90: fstore        6
+      92: aload         4
+      94: invokevirtual #55                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      97: getfield      #87                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.stopTick:I
+     100: aload         4
+     102: invokevirtual #55                 // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer.getData:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+     105: getfield      #90                 // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.endTick:I
+     108: isub
+     109: i2f
+     110: fstore        7
+     112: fload         7
+     114: fconst_0
+     115: fcmpl
+     116: ifle          131
+     119: fload         6
+     121: fload         7
+     123: fdiv
+     124: fstore_2
+     125: fload_2
+     126: fconst_1
+     127: invokestatic  #66                 // Method java/lang/Math.min:(FF)F
+     130: fstore_2
+     131: fload_2
+     132: freturn
+
+  public dev.kosmx.playerAnim.core.util.Vec3f get3DTransform(java.lang.String, dev.kosmx.playerAnim.api.TransformType, float, dev.kosmx.playerAnim.core.util.Vec3f);
+    descriptor: (Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+    Code:
+       0: aload_0
+       1: getfield      #26                 // Field enabled:Z
+       4: ifne          17
+       7: aload_0
+       8: aload_1
+       9: aload_2
+      10: fload_3
+      11: aload         4
+      13: invokespecial #101                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.get3DTransform:(Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      16: areturn
+      17: aload_0
+      18: getfield      #32                 // Field source:Ljava/util/function/Function;
+      21: aload_1
+      22: invokeinterface #107,  2          // InterfaceMethod java/util/function/Function.apply:(Ljava/lang/Object;)Ljava/lang/Object;
+      27: checkcast     #109                // class java/util/Optional
+      30: astore        5
+      32: aload         4
+      34: astore        6
+      36: aload_0
+      37: fload_3
+      38: invokevirtual #111                // Method getFadeIn:(F)F
+      41: aload_0
+      42: fload_3
+      43: invokevirtual #113                // Method getFadeOut:(F)F
+      46: fmul
+      47: fstore        7
+      49: aload         5
+      51: invokevirtual #117                // Method java/util/Optional.isPresent:()Z
+      54: ifeq          86
+      57: aload_0
+      58: aload_1
+      59: aload_2
+      60: fload_3
+      61: aload         6
+      63: invokespecial #101                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.get3DTransform:(Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      66: astore        6
+      68: aload_0
+      69: aload         6
+      71: aload_2
+      72: aload         5
+      74: invokevirtual #121                // Method java/util/Optional.get:()Ljava/lang/Object;
+      77: checkcast     #9                  // class dev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$PartModifier
+      80: fload         7
+      82: invokevirtual #125                // Method transformVector:(Ldev/kosmx/playerAnim/core/util/Vec3f;Ldev/kosmx/playerAnim/api/TransformType;Ldev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$PartModifier;F)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      85: areturn
+      86: aload_0
+      87: aload_1
+      88: aload_2
+      89: fload_3
+      90: aload         4
+      92: invokespecial #101                // Method dev/kosmx/playerAnim/api/layered/modifier/AbstractModifier.get3DTransform:(Ljava/lang/String;Ldev/kosmx/playerAnim/api/TransformType;FLdev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      95: areturn
+
+  protected dev.kosmx.playerAnim.core.util.Vec3f transformVector(dev.kosmx.playerAnim.core.util.Vec3f, dev.kosmx.playerAnim.api.TransformType, dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier$PartModifier, float);
+    descriptor: (Ldev/kosmx/playerAnim/core/util/Vec3f;Ldev/kosmx/playerAnim/api/TransformType;Ldev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$PartModifier;F)Ldev/kosmx/playerAnim/core/util/Vec3f;
+    Code:
+       0: getstatic     #140                // Field dev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$1.$SwitchMap$dev$kosmx$playerAnim$api$TransformType:[I
+       3: aload_2
+       4: invokevirtual #145                // Method dev/kosmx/playerAnim/api/TransformType.ordinal:()I
+       7: iaload
+       8: tableswitch   { // 1 to 4
+                     1: 40
+                     2: 54
+                     3: 68
+                     4: 82
+               default: 82
+          }
+      40: aload_1
+      41: aload_3
+      42: invokevirtual #149                // Method dev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$PartModifier.offset:()Ldev/kosmx/playerAnim/core/util/Vec3f;
+      45: fload         4
+      47: invokevirtual #153                // Method dev/kosmx/playerAnim/core/util/Vec3f.scale:(F)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      50: invokevirtual #157                // Method dev/kosmx/playerAnim/core/util/Vec3f.add:(Ldev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      53: areturn
+      54: aload_1
+      55: aload_3
+      56: invokevirtual #160                // Method dev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$PartModifier.rotation:()Ldev/kosmx/playerAnim/core/util/Vec3f;
+      59: fload         4
+      61: invokevirtual #153                // Method dev/kosmx/playerAnim/core/util/Vec3f.scale:(F)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      64: invokevirtual #157                // Method dev/kosmx/playerAnim/core/util/Vec3f.add:(Ldev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      67: areturn
+      68: aload_1
+      69: aload_3
+      70: invokevirtual #162                // Method dev/kosmx/playerAnim/api/layered/modifier/AdjustmentModifier$PartModifier.scale:()Ldev/kosmx/playerAnim/core/util/Vec3f;
+      73: fload         4
+      75: invokevirtual #153                // Method dev/kosmx/playerAnim/core/util/Vec3f.scale:(F)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      78: invokevirtual #157                // Method dev/kosmx/playerAnim/core/util/Vec3f.add:(Ldev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      81: areturn
+      82: aload_1
+      83: areturn
+}
+Compiled from "AbstractModifier.java"
+public abstract class dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier extends dev.kosmx.playerAnim.api.layered.AnimationContainer<dev.kosmx.playerAnim.api.layered.IAnimation> {
+  protected dev.kosmx.playerAnim.api.layered.ModifierLayer host;
+    descriptor: Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+
+  public dev.kosmx.playerAnim.api.layered.modifier.AbstractModifier();
+    descriptor: ()V
+    Code:
+       0: aload_0
+       1: aconst_null
+       2: invokespecial #14                 // Method dev/kosmx/playerAnim/api/layered/AnimationContainer."<init>":(Ldev/kosmx/playerAnim/api/layered/IAnimation;)V
+       5: return
+
+  public boolean canRemove();
+    descriptor: ()Z
+    Code:
+       0: iconst_0
+       1: ireturn
+
+  public void setHost(dev.kosmx.playerAnim.api.layered.ModifierLayer);
+    descriptor: (Ldev/kosmx/playerAnim/api/layered/ModifierLayer;)V
+    Code:
+       0: aload_0
+       1: aload_1
+       2: putfield      #22                 // Field host:Ldev/kosmx/playerAnim/api/layered/ModifierLayer;
+       5: return
+}

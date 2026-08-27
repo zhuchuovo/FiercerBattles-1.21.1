@@ -1,0 +1,78 @@
+Compiled from "FirstPersonAnimationCompatibility.java"
+public class net.bettercombat.client.compat.FirstPersonAnimationCompatibility {
+  private static boolean isCameraModPresent;
+
+  public net.bettercombat.client.compat.FirstPersonAnimationCompatibility();
+    Code:
+       0: aload_0
+       1: invokespecial #13                 // Method java/lang/Object."<init>":()V
+       4: return
+
+  static void setup();
+    Code:
+       0: iconst_2
+       1: anewarray     #18                 // class java/lang/String
+       4: dup
+       5: iconst_0
+       6: ldc           #20                 // String firstperson
+       8: aastore
+       9: dup
+      10: iconst_1
+      11: ldc           #22                 // String realcamera
+      13: aastore
+      14: astore_0
+      15: aload_0
+      16: astore_1
+      17: aload_1
+      18: arraylength
+      19: istore_2
+      20: iconst_0
+      21: istore_3
+      22: iload_3
+      23: iload_2
+      24: if_icmpge     53
+      27: aload_1
+      28: iload_3
+      29: aaload
+      30: astore        4
+      32: aload         4
+      34: invokestatic  #30                 // Method net/bettercombat/Platform.isModLoaded:(Ljava/lang/String;)Z
+      37: ifeq          47
+      40: iconst_1
+      41: putstatic     #32                 // Field isCameraModPresent:Z
+      44: goto          53
+      47: iinc          3, 1
+      50: goto          22
+      53: return
+
+  public static dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode firstPersonMode();
+    Code:
+       0: getstatic     #41                 // Field net/bettercombat/client/compat/FirstPersonAnimationCompatibility$1.$SwitchMap$net$bettercombat$config$TriStateAuto:[I
+       3: getstatic     #47                 // Field net/bettercombat/client/BetterCombatClientMod.config:Lnet/bettercombat/config/ClientConfig;
+       6: getfield      #53                 // Field net/bettercombat/config/ClientConfig.firstPersonAnimations:Lnet/bettercombat/config/TriStateAuto;
+       9: invokevirtual #59                 // Method net/bettercombat/config/TriStateAuto.ordinal:()I
+      12: iaload
+      13: lookupswitch  { // 2
+
+                     1: 40
+
+                     2: 44
+               default: 48
+          }
+      40: getstatic     #65                 // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.THIRD_PERSON_MODEL:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      43: areturn
+      44: getstatic     #68                 // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      47: areturn
+      48: getstatic     #32                 // Field isCameraModPresent:Z
+      51: ifeq          60
+      54: getstatic     #68                 // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      57: goto          63
+      60: getstatic     #65                 // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.THIRD_PERSON_MODEL:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      63: areturn
+
+  static {};
+    Code:
+       0: iconst_0
+       1: putstatic     #32                 // Field isCameraModPresent:Z
+       4: return
+}

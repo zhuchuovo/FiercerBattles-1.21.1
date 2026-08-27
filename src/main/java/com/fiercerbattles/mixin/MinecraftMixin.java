@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 /**
  * BetterCombat client hooks.
@@ -33,23 +34,28 @@ public abstract class MinecraftMixin {
     @Inject(method = "startUpswing", at = @At("HEAD"), remap = false, cancellable = true)
     private void fiercerbattles$blockDuringRecovery(@Coerce Object attributes, CallbackInfo ci) {
         Minecraft minecraft = (Minecraft) (Object) this;
-        FiercerBattlesCombatSkills.clearActiveClientSkillBeforeNormalAttack();
-        if (minecraft.player != null && FiercerBattlesRuntime.isInRecovery(minecraft.player.tickCount)) {
+        // Hold-to-attack re-enters startUpswing every tick. The attack packet
+        // or cancelWeaponSwing owns skill-state cleanup, not this probe call.
+        if (minecraft.player != null
+                && FiercerBattlesRuntime.isInRecovery(minecraft.player.tickCount)
+                && !FiercerBattlesCombatSkills.isClientSkillPending()) {
             ci.cancel();
         }
     }
 
-    @Inject(method = "getCurrentHand", at = @At("RETURN"), remap = false)
+    @Inject(method = "getCurrentHand", at = @At("RETURN"), remap = false, cancellable = true)
     private void fiercerbattles$captureSelectedAttack(CallbackInfoReturnable<Object> cir) {
         Object hand = cir.getReturnValue();
         if (hand == null) {
             return;
         }
-        Object skillHand = FiercerBattlesCombatSkills.replaceArmedClientHand(hand);
-        boolean isCombatSkill = skillHand != hand;
-        hand = skillHand;
+        boolean isCombatSkill = FiercerBattlesCombatSkills.isActiveClientSkillHand(hand);
         if (isCombatSkill) {
-            cir.setReturnValue(hand);
+            FiercerBattlesCombatSkills.setActiveSkillRange(
+                    ((Minecraft) (Object) this).player,
+                    hand,
+                    FiercerBattlesCombatSkills.getActiveSkillCustomData()
+            );
         }
         try {
             Object attack = hand.getClass().getMethod("attack").invoke(hand);
@@ -137,8 +143,26 @@ public abstract class MinecraftMixin {
     }
 
     @Inject(method = "cancelWeaponSwing", at = @At("HEAD"), remap = false)
-    private void fiercerbattles$cancelMultipleHits(CallbackInfo ci) {
+    private void fiercerbattles$cancelClientAttackState(CallbackInfo ci) {
+        Minecraft minecraft = (Minecraft) (Object) this;
         FiercerBattlesRuntime.cancelMultipleHits();
+        FiercerBattlesCombatSkills.clearClientSkill();
+        FiercerBattlesCombatSkills.clearActiveSkillRange(minecraft.player);
+    }
+
+    @ModifyArg(
+            method = "cancelWeaponSwing",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/bettercombat/client/animation/PlayerAttackAnimatable;stopAttackAnimation(F)V"
+            ),
+            index = 0,
+            remap = false
+    )
+    private float fiercerbattles$cancelAttackAnimationImmediately(float fadeTicks) {
+        return FiercerBattlesRuntime.isImmediateRecoveryCancellationRequested()
+                ? 0.0F
+                : fadeTicks;
     }
     @Inject(method = "performAttack", at = @At("HEAD"), cancellable = true, remap = false)
     private void fiercerbattles$replaceDefaultAttackWithMultipleHits(CallbackInfo ci) {
@@ -146,23 +170,32 @@ public abstract class MinecraftMixin {
             ci.cancel();
         }
     }
-    @ModifyArg(
+
+    @Inject(
             method = "performAttack",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/bettercombat/network/Packets$C2S_AttackRequest;<init>(IZILnet/minecraft/world/entity/Entity;Ljava/util/List;)V"
+                    target = "Lnet/minecraft/client/player/LocalPlayer;resetAttackStrengthTicker()V",
+                    shift = At.Shift.AFTER
             ),
-            index = 0,
             remap = false
     )
-    private int fiercerbattles$markCombatSkillPacket(int comboCount) {
-        return FiercerBattlesCombatSkills.encodeAttackPacket(
-                comboCount,
-                FiercerBattlesRuntime.getExecutingMultipleHitIndex(),
-                FiercerBattlesRuntime.isExecutingFinalMultipleHit()
-        );
+    private void fiercerbattles$markDamageResolved(CallbackInfo ci) {
+        Minecraft minecraft = (Minecraft) (Object) this;
+        if (minecraft.player != null && hasAttackTargets(minecraft)) {
+            FiercerBattlesRuntime.markDamageResolved(minecraft.player.tickCount);
+        }
     }
 
+    private static boolean hasAttackTargets(Minecraft minecraft) {
+        try {
+            Method method = minecraft.getClass().getMethod("hasTargetsInReach");
+            method.setAccessible(true);
+            return Boolean.TRUE.equals(method.invoke(minecraft));
+        } catch (ReflectiveOperationException ignored) {
+            return false;
+        }
+    }
     @ModifyArg(
             method = "performAttack",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;setComboCount(I)V"),
@@ -184,6 +217,13 @@ public abstract class MinecraftMixin {
 
     private static float modifyAttackProgress(Player player, float ticks) {
         if (FiercerBattlesRuntime.isExecutingMultipleHit()) {
+            return 1.0F;
+        }
+        // A pending combat skill directly interrupts the ongoing attack, so
+        // its upswing and hit must always be allowed to start and resolve,
+        // regardless of the vanilla attack-strength ticker.
+        if (player instanceof LocalPlayer
+                && FiercerBattlesCombatSkills.isClientSkillPending()) {
             return 1.0F;
         }
         float progress = player.getAttackStrengthScale(ticks);

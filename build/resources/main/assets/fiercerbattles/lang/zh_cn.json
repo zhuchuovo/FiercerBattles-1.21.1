@@ -1,4 +1,5 @@
 {
   "key.categories.fiercerbattles": "Fiercer Battles",
-  "key.fiercerbattles.combat_skill": "战技"
+  "key.fiercerbattles.combat_skill": "战技",
+  "message.fiercerbattles.combat_skill_cooldown": "战技冷却中：%s 秒"
 }

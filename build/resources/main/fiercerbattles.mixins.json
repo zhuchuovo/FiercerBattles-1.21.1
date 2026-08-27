@@ -5,11 +5,14 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "WeaponRegistryMixin",
-    "PlayerAttackHelperCombatSkillMixin"
+    "PlayerAttackHelperCombatSkillMixin",
+    "PlayerAttackRangeMixin",
+    "ServerNetworkSkillMixin"
   ],
   "client": [
     "AbstractClientPlayerMixin",
-    "TransmissionSpeedModifierMixin",
+    "AttackRequestCombatSkillMixin",
+    "ClientPlayerAttackHelperCombatSkillMixin",
     "ClientPlayerMixin",
     "MinecraftMixin",
     "PlayerAttackHelperMixin"

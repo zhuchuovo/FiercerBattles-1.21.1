@@ -1,0 +1,33 @@
+Compiled from "LegacyGeckoJsonCodec.java"
+public class dev.kosmx.playerAnim.minecraftApi.codec.LegacyGeckoJsonCodec extends dev.kosmx.playerAnim.minecraftApi.codec.AbstractGsonCodec<dev.kosmx.playerAnim.core.data.KeyframeAnimation> {
+  public static final dev.kosmx.playerAnim.minecraftApi.codec.LegacyGeckoJsonCodec INSTANCE;
+
+  public dev.kosmx.playerAnim.minecraftApi.codec.LegacyGeckoJsonCodec();
+    Code:
+       0: aload_0
+       1: invokespecial #15                 // Method dev/kosmx/playerAnim/minecraftApi/codec/AbstractGsonCodec."<init>":()V
+       4: return
+
+  protected com.google.gson.Gson getGson();
+    Code:
+       0: getstatic     #24                 // Field dev/kosmx/playerAnim/core/data/gson/GeckoLibSerializer.GSON:Lcom/google/gson/Gson;
+       3: areturn
+
+  protected java.lang.reflect.Type getListedTypeToken();
+    Code:
+       0: invokestatic  #28                 // Method dev/kosmx/playerAnim/core/data/gson/GeckoLibSerializer.getListedTypeToken:()Ljava/lang/reflect/Type;
+       3: areturn
+
+  public java.lang.String getFormatName();
+    Code:
+       0: ldc           #33                 // String gecko_legacy
+       2: areturn
+
+  static {};
+    Code:
+       0: new           #2                  // class dev/kosmx/playerAnim/minecraftApi/codec/LegacyGeckoJsonCodec
+       3: dup
+       4: invokespecial #35                 // Method "<init>":()V
+       7: putstatic     #37                 // Field INSTANCE:Ldev/kosmx/playerAnim/minecraftApi/codec/LegacyGeckoJsonCodec;
+      10: return
+}

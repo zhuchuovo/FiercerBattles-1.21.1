@@ -1,0 +1,279 @@
+Compiled from "PlayerAnimationRegistry.java"
+public final class dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry {
+  private static final java.util.HashMap<net.minecraft.resources.ResourceLocation, dev.kosmx.playerAnim.api.IPlayable> animations;
+
+  private static final org.slf4j.Logger logger;
+
+  public dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry();
+    Code:
+       0: aload_0
+       1: invokespecial #48                 // Method java/lang/Object."<init>":()V
+       4: return
+
+  public static dev.kosmx.playerAnim.api.IPlayable getAnimation(net.minecraft.resources.ResourceLocation);
+    Code:
+       0: getstatic     #57                 // Field animations:Ljava/util/HashMap;
+       3: aload_0
+       4: invokevirtual #63                 // Method java/util/HashMap.get:(Ljava/lang/Object;)Ljava/lang/Object;
+       7: checkcast     #65                 // class dev/kosmx/playerAnim/api/IPlayable
+      10: areturn
+
+  public static java.util.Optional<dev.kosmx.playerAnim.api.IPlayable> getAnimationOptional(net.minecraft.resources.ResourceLocation);
+    Code:
+       0: aload_0
+       1: invokestatic  #71                 // Method getAnimation:(Lnet/minecraft/resources/ResourceLocation;)Ldev/kosmx/playerAnim/api/IPlayable;
+       4: invokestatic  #77                 // Method java/util/Optional.ofNullable:(Ljava/lang/Object;)Ljava/util/Optional;
+       7: areturn
+
+  public static java.util.Map<net.minecraft.resources.ResourceLocation, dev.kosmx.playerAnim.api.IPlayable> getAnimations();
+    Code:
+       0: getstatic     #57                 // Field animations:Ljava/util/HashMap;
+       3: invokestatic  #84                 // InterfaceMethod java/util/Map.copyOf:(Ljava/util/Map;)Ljava/util/Map;
+       6: areturn
+
+  public static java.util.Map<java.lang.String, dev.kosmx.playerAnim.api.IPlayable> getModAnimations(java.lang.String);
+    Code:
+       0: new           #59                 // class java/util/HashMap
+       3: dup
+       4: invokespecial #89                 // Method java/util/HashMap."<init>":()V
+       7: astore_1
+       8: getstatic     #57                 // Field animations:Ljava/util/HashMap;
+      11: invokevirtual #93                 // Method java/util/HashMap.entrySet:()Ljava/util/Set;
+      14: invokeinterface #99,  1           // InterfaceMethod java/util/Set.iterator:()Ljava/util/Iterator;
+      19: astore_2
+      20: aload_2
+      21: invokeinterface #105,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      26: ifeq          87
+      29: aload_2
+      30: invokeinterface #109,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      35: checkcast     #11                 // class java/util/Map$Entry
+      38: astore_3
+      39: aload_3
+      40: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+      45: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+      48: invokevirtual #118                // Method net/minecraft/resources/ResourceLocation.getNamespace:()Ljava/lang/String;
+      51: aload_0
+      52: invokevirtual #124                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      55: ifeq          84
+      58: aload_1
+      59: aload_3
+      60: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+      65: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+      68: invokevirtual #127                // Method net/minecraft/resources/ResourceLocation.getPath:()Ljava/lang/String;
+      71: aload_3
+      72: invokeinterface #130,  1          // InterfaceMethod java/util/Map$Entry.getValue:()Ljava/lang/Object;
+      77: checkcast     #65                 // class dev/kosmx/playerAnim/api/IPlayable
+      80: invokevirtual #134                // Method java/util/HashMap.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      83: pop
+      84: goto          20
+      87: aload_1
+      88: areturn
+
+  public static void resourceLoaderCallback(net.minecraft.server.packs.resources.ResourceManager);
+    Code:
+       0: getstatic     #57                 // Field animations:Ljava/util/HashMap;
+       3: invokevirtual #149                // Method java/util/HashMap.clear:()V
+       6: aload_0
+       7: ldc           #151                // String player_animations
+       9: invokedynamic #169,  0            // InvokeDynamic #0:test:()Ljava/util/function/Predicate;
+      14: invokeinterface #175,  3          // InterfaceMethod net/minecraft/server/packs/resources/ResourceManager.listResources:(Ljava/lang/String;Ljava/util/function/Predicate;)Ljava/util/Map;
+      19: invokeinterface #176,  1          // InterfaceMethod java/util/Map.entrySet:()Ljava/util/Set;
+      24: invokeinterface #99,  1           // InterfaceMethod java/util/Set.iterator:()Ljava/util/Iterator;
+      29: astore_1
+      30: aload_1
+      31: invokeinterface #105,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      36: ifeq          189
+      39: aload_1
+      40: invokeinterface #109,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      45: checkcast     #11                 // class java/util/Map$Entry
+      48: astore_2
+      49: aload_2
+      50: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+      55: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+      58: invokevirtual #127                // Method net/minecraft/resources/ResourceLocation.getPath:()Ljava/lang/String;
+      61: invokestatic  #182                // Method dev/kosmx/playerAnim/minecraftApi/codec/AnimationCodecs.getExtension:(Ljava/lang/String;)Ljava/lang/String;
+      64: astore_3
+      65: aload_3
+      66: ifnonnull     72
+      69: goto          30
+      72: aload_3
+      73: aload_2
+      74: invokedynamic #193,  0            // InvokeDynamic #1:get:(Ljava/util/Map$Entry;)Ljava/util/function/Supplier;
+      79: invokestatic  #197                // Method dev/kosmx/playerAnim/minecraftApi/codec/AnimationCodecs.deserialize:(Ljava/lang/String;Ljava/util/function/Supplier;)Ljava/util/Collection;
+      82: astore        4
+      84: aload         4
+      86: invokeinterface #200,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+      91: astore        5
+      93: aload         5
+      95: invokeinterface #105,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+     100: ifeq          186
+     103: aload         5
+     105: invokeinterface #109,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     110: checkcast     #65                 // class dev/kosmx/playerAnim/api/IPlayable
+     113: astore        6
+     115: getstatic     #57                 // Field animations:Ljava/util/HashMap;
+     118: aload_2
+     119: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+     124: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+     127: invokevirtual #118                // Method net/minecraft/resources/ResourceLocation.getNamespace:()Ljava/lang/String;
+     130: aload         6
+     132: invokeinterface #203,  1          // InterfaceMethod dev/kosmx/playerAnim/api/IPlayable.getName:()Ljava/lang/String;
+     137: invokestatic  #206                // Method serializeTextToString:(Ljava/lang/String;)Ljava/lang/String;
+     140: invokestatic  #210                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+     143: aload         6
+     145: invokevirtual #134                // Method java/util/HashMap.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     148: pop
+     149: goto          183
+     152: astore        7
+     154: getstatic     #212                // Field logger:Lorg/slf4j/Logger;
+     157: ldc           #214                // String Failed to load animation with name space {} and name {}. Either a PAL animation or has an invalid name.
+     159: aload_2
+     160: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+     165: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+     168: invokevirtual #118                // Method net/minecraft/resources/ResourceLocation.getNamespace:()Ljava/lang/String;
+     171: aload         6
+     173: invokeinterface #203,  1          // InterfaceMethod dev/kosmx/playerAnim/api/IPlayable.getName:()Ljava/lang/String;
+     178: invokeinterface #220,  4          // InterfaceMethod org/slf4j/Logger.debug:(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+     183: goto          93
+     186: goto          30
+     189: aload_0
+     190: ldc           #222                // String player_animation
+     192: invokedynamic #227,  0            // InvokeDynamic #2:test:()Ljava/util/function/Predicate;
+     197: invokeinterface #175,  3          // InterfaceMethod net/minecraft/server/packs/resources/ResourceManager.listResources:(Ljava/lang/String;Ljava/util/function/Predicate;)Ljava/util/Map;
+     202: invokeinterface #176,  1          // InterfaceMethod java/util/Map.entrySet:()Ljava/util/Set;
+     207: invokeinterface #99,  1           // InterfaceMethod java/util/Set.iterator:()Ljava/util/Iterator;
+     212: astore_1
+     213: aload_1
+     214: invokeinterface #105,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+     219: ifeq          360
+     222: aload_1
+     223: invokeinterface #109,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     228: checkcast     #11                 // class java/util/Map$Entry
+     231: astore_2
+     232: aload_2
+     233: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+     238: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+     241: invokevirtual #127                // Method net/minecraft/resources/ResourceLocation.getPath:()Ljava/lang/String;
+     244: invokestatic  #182                // Method dev/kosmx/playerAnim/minecraftApi/codec/AnimationCodecs.getExtension:(Ljava/lang/String;)Ljava/lang/String;
+     247: astore_3
+     248: aload_3
+     249: ifnonnull     255
+     252: goto          213
+     255: getstatic     #212                // Field logger:Lorg/slf4j/Logger;
+     258: ldc           #229                // String [WARNING FOR MOD DEVS] Animation {} is in wrong directory: \"player_animation\", please place it in \"player_animations\".
+     260: aload_2
+     261: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+     266: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+     269: invokevirtual #127                // Method net/minecraft/resources/ResourceLocation.getPath:()Ljava/lang/String;
+     272: invokeinterface #233,  3          // InterfaceMethod org/slf4j/Logger.warn:(Ljava/lang/String;Ljava/lang/Object;)V
+     277: aload_3
+     278: aload_2
+     279: invokedynamic #238,  0            // InvokeDynamic #3:get:(Ljava/util/Map$Entry;)Ljava/util/function/Supplier;
+     284: invokestatic  #197                // Method dev/kosmx/playerAnim/minecraftApi/codec/AnimationCodecs.deserialize:(Ljava/lang/String;Ljava/util/function/Supplier;)Ljava/util/Collection;
+     287: astore        4
+     289: aload         4
+     291: invokeinterface #200,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+     296: astore        5
+     298: aload         5
+     300: invokeinterface #105,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+     305: ifeq          357
+     308: aload         5
+     310: invokeinterface #109,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     315: checkcast     #65                 // class dev/kosmx/playerAnim/api/IPlayable
+     318: astore        6
+     320: getstatic     #57                 // Field animations:Ljava/util/HashMap;
+     323: aload_2
+     324: invokeinterface #112,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+     329: checkcast     #114                // class net/minecraft/resources/ResourceLocation
+     332: invokevirtual #118                // Method net/minecraft/resources/ResourceLocation.getNamespace:()Ljava/lang/String;
+     335: aload         6
+     337: invokeinterface #203,  1          // InterfaceMethod dev/kosmx/playerAnim/api/IPlayable.getName:()Ljava/lang/String;
+     342: invokestatic  #206                // Method serializeTextToString:(Ljava/lang/String;)Ljava/lang/String;
+     345: invokestatic  #210                // Method net/minecraft/resources/ResourceLocation.fromNamespaceAndPath:(Ljava/lang/String;Ljava/lang/String;)Lnet/minecraft/resources/ResourceLocation;
+     348: aload         6
+     350: invokevirtual #134                // Method java/util/HashMap.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     353: pop
+     354: goto          298
+     357: goto          213
+     360: return
+    Exception table:
+       from    to  target type
+         115   149   152   Class java/lang/Throwable
+
+  public static java.lang.String serializeTextToString(java.lang.String);
+    Code:
+       0: aload_0
+       1: getstatic     #256                // Field net/minecraft/core/RegistryAccess.EMPTY:Lnet/minecraft/core/RegistryAccess$Frozen;
+       4: invokestatic  #260                // Method net/minecraft/network/chat/Component$Serializer.fromJson:(Ljava/lang/String;Lnet/minecraft/core/HolderLookup$Provider;)Lnet/minecraft/network/chat/MutableComponent;
+       7: astore_1
+       8: aload_1
+       9: ifnull        17
+      12: aload_1
+      13: invokevirtual #265                // Method net/minecraft/network/chat/MutableComponent.getString:()Ljava/lang/String;
+      16: areturn
+      17: goto          21
+      20: astore_1
+      21: aload_0
+      22: ldc_w         #267                // String \"
+      25: ldc_w         #269                // String
+      28: invokevirtual #273                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+      31: areturn
+    Exception table:
+       from    to  target type
+           0    16    20   Class java/lang/Exception
+
+  private static java.io.InputStream lambda$resourceLoaderCallback$3(java.util.Map$Entry);
+    Code:
+       0: aload_0
+       1: invokeinterface #130,  1          // InterfaceMethod java/util/Map$Entry.getValue:()Ljava/lang/Object;
+       6: checkcast     #279                // class net/minecraft/server/packs/resources/Resource
+       9: invokevirtual #282                // Method net/minecraft/server/packs/resources/Resource.open:()Ljava/io/InputStream;
+      12: areturn
+      13: astore_1
+      14: new           #284                // class java/lang/RuntimeException
+      17: dup
+      18: aload_1
+      19: invokespecial #287                // Method java/lang/RuntimeException."<init>":(Ljava/lang/Throwable;)V
+      22: athrow
+    Exception table:
+       from    to  target type
+           0    12    13   Class java/io/IOException
+
+  private static boolean lambda$resourceLoaderCallback$2(net.minecraft.resources.ResourceLocation);
+    Code:
+       0: iconst_1
+       1: ireturn
+
+  private static java.io.InputStream lambda$resourceLoaderCallback$1(java.util.Map$Entry);
+    Code:
+       0: aload_0
+       1: invokeinterface #130,  1          // InterfaceMethod java/util/Map$Entry.getValue:()Ljava/lang/Object;
+       6: checkcast     #279                // class net/minecraft/server/packs/resources/Resource
+       9: invokevirtual #282                // Method net/minecraft/server/packs/resources/Resource.open:()Ljava/io/InputStream;
+      12: areturn
+      13: astore_1
+      14: new           #284                // class java/lang/RuntimeException
+      17: dup
+      18: aload_1
+      19: invokespecial #287                // Method java/lang/RuntimeException."<init>":(Ljava/lang/Throwable;)V
+      22: athrow
+    Exception table:
+       from    to  target type
+           0    12    13   Class java/io/IOException
+
+  private static boolean lambda$resourceLoaderCallback$0(net.minecraft.resources.ResourceLocation);
+    Code:
+       0: iconst_1
+       1: ireturn
+
+  static {};
+    Code:
+       0: new           #59                 // class java/util/HashMap
+       3: dup
+       4: invokespecial #89                 // Method java/util/HashMap."<init>":()V
+       7: putstatic     #57                 // Field animations:Ljava/util/HashMap;
+      10: ldc           #2                  // class dev/kosmx/playerAnim/minecraftApi/PlayerAnimationRegistry
+      12: invokestatic  #296                // Method org/slf4j/LoggerFactory.getLogger:(Ljava/lang/Class;)Lorg/slf4j/Logger;
+      15: putstatic     #212                // Field logger:Lorg/slf4j/Logger;
+      18: return
+}

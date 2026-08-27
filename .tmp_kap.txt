@@ -1,0 +1,399 @@
+Compiled from "KeyframeAnimationPlayer.java"
+public class dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer implements dev.kosmx.playerAnim.api.layered.IActualAnimation<dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer> {
+  private final dev.kosmx.playerAnim.core.data.KeyframeAnimation data;
+
+  private boolean isRunning;
+
+  private int currentTick;
+
+  private boolean isLoopStarted;
+
+  protected float tickDelta;
+
+  public final java.util.HashMap<java.lang.String, dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer$BodyPart> bodyParts;
+
+  public int perspective;
+
+  private dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration firstPersonConfiguration;
+
+  private dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode firstPersonMode;
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration getFirstPersonConfiguration(float);
+    Code:
+       0: aload_0
+       1: getfield      #51                 // Field firstPersonConfiguration:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+       4: areturn
+
+  public dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode getFirstPersonMode(float);
+    Code:
+       0: aload_0
+       1: getfield      #57                 // Field firstPersonMode:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+       4: areturn
+
+  public dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer(dev.kosmx.playerAnim.core.data.KeyframeAnimation, int, boolean);
+    Code:
+       0: aload_0
+       1: invokespecial #65                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: iconst_1
+       6: putfield      #67                 // Field isRunning:Z
+       9: aload_0
+      10: iconst_0
+      11: putfield      #69                 // Field isLoopStarted:Z
+      14: aload_0
+      15: iconst_0
+      16: putfield      #71                 // Field perspective:I
+      19: aload_0
+      20: new           #73                 // class dev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration
+      23: dup
+      24: invokespecial #74                 // Method dev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration."<init>":()V
+      27: putfield      #51                 // Field firstPersonConfiguration:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      30: aload_0
+      31: getstatic     #79                 // Field dev/kosmx/playerAnim/api/firstPerson/FirstPersonMode.NONE:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      34: putfield      #57                 // Field firstPersonMode:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      37: aload_1
+      38: ifnonnull     51
+      41: new           #81                 // class java/lang/IllegalArgumentException
+      44: dup
+      45: ldc           #83                 // String Animation can not be null
+      47: invokespecial #86                 // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+      50: athrow
+      51: aload_0
+      52: aload_1
+      53: putfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      56: aload_0
+      57: new           #90                 // class java/util/HashMap
+      60: dup
+      61: aload_1
+      62: invokevirtual #94                 // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation.getBodyParts:()Ljava/util/Map;
+      65: invokeinterface #98,  1           // InterfaceMethod java/util/Map.size:()I
+      70: invokespecial #101                // Method java/util/HashMap."<init>":(I)V
+      73: putfield      #103                // Field bodyParts:Ljava/util/HashMap;
+      76: aload_1
+      77: invokevirtual #94                 // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation.getBodyParts:()Ljava/util/Map;
+      80: invokeinterface #107,  1          // InterfaceMethod java/util/Map.entrySet:()Ljava/util/Set;
+      85: invokeinterface #113,  1          // InterfaceMethod java/util/Set.iterator:()Ljava/util/Iterator;
+      90: astore        4
+      92: aload         4
+      94: invokeinterface #119,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      99: ifeq          173
+     102: aload         4
+     104: invokeinterface #123,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     109: checkcast     #18                 // class java/util/Map$Entry
+     112: astore        5
+     114: aload_0
+     115: getfield      #103                // Field bodyParts:Ljava/util/HashMap;
+     118: aload         5
+     120: invokeinterface #126,  1          // InterfaceMethod java/util/Map$Entry.getKey:()Ljava/lang/Object;
+     125: checkcast     #128                // class java/lang/String
+     128: new           #16                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart
+     131: dup
+     132: aload_0
+     133: iload_3
+     134: ifeq          153
+     137: aload         5
+     139: invokeinterface #131,  1          // InterfaceMethod java/util/Map$Entry.getValue:()Ljava/lang/Object;
+     144: checkcast     #24                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection
+     147: invokevirtual #135                // Method dev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection.copy:()Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection;
+     150: goto          163
+     153: aload         5
+     155: invokeinterface #131,  1          // InterfaceMethod java/util/Map$Entry.getValue:()Ljava/lang/Object;
+     160: checkcast     #24                 // class dev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection
+     163: invokespecial #138                // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart."<init>":(Ldev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer;Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection;)V
+     166: invokevirtual #142                // Method java/util/HashMap.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     169: pop
+     170: goto          92
+     173: aload_0
+     174: iload_2
+     175: putfield      #144                // Field currentTick:I
+     178: aload_0
+     179: invokevirtual #147                // Method isInfinite:()Z
+     182: ifeq          235
+     185: iload_2
+     186: aload_0
+     187: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+     190: getfield      #150                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.returnToTick:I
+     193: if_icmple     235
+     196: aload_0
+     197: iload_2
+     198: aload_0
+     199: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+     202: getfield      #150                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.returnToTick:I
+     205: isub
+     206: aload_0
+     207: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+     210: getfield      #153                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.endTick:I
+     213: aload_0
+     214: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+     217: getfield      #150                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.returnToTick:I
+     220: isub
+     221: iconst_1
+     222: iadd
+     223: irem
+     224: aload_0
+     225: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+     228: getfield      #150                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.returnToTick:I
+     231: iadd
+     232: putfield      #144                // Field currentTick:I
+     235: return
+
+  public dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer(dev.kosmx.playerAnim.core.data.KeyframeAnimation, int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: iconst_0
+       4: invokespecial #159                // Method "<init>":(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;IZ)V
+       7: return
+
+  public dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer(dev.kosmx.playerAnim.core.data.KeyframeAnimation);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iconst_0
+       3: invokespecial #162                // Method "<init>":(Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;I)V
+       6: return
+
+  public void tick();
+    Code:
+       0: aload_0
+       1: getfield      #67                 // Field isRunning:Z
+       4: ifeq          75
+       7: aload_0
+       8: dup
+       9: getfield      #144                // Field currentTick:I
+      12: iconst_1
+      13: iadd
+      14: putfield      #144                // Field currentTick:I
+      17: aload_0
+      18: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      21: getfield      #165                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.isInfinite:Z
+      24: ifeq          57
+      27: aload_0
+      28: getfield      #144                // Field currentTick:I
+      31: aload_0
+      32: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      35: getfield      #153                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.endTick:I
+      38: if_icmple     57
+      41: aload_0
+      42: aload_0
+      43: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      46: getfield      #150                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.returnToTick:I
+      49: putfield      #144                // Field currentTick:I
+      52: aload_0
+      53: iconst_1
+      54: putfield      #69                 // Field isLoopStarted:Z
+      57: aload_0
+      58: getfield      #144                // Field currentTick:I
+      61: aload_0
+      62: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+      65: getfield      #168                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.stopTick:I
+      68: if_icmplt     75
+      71: aload_0
+      72: invokevirtual #171                // Method stop:()V
+      75: return
+
+  public int getTick();
+    Code:
+       0: aload_0
+       1: getfield      #144                // Field currentTick:I
+       4: ireturn
+
+  public void stop();
+    Code:
+       0: aload_0
+       1: iconst_0
+       2: putfield      #67                 // Field isRunning:Z
+       5: return
+
+  public boolean isActive();
+    Code:
+       0: aload_0
+       1: getfield      #67                 // Field isRunning:Z
+       4: ireturn
+
+  public dev.kosmx.playerAnim.core.util.Vec3f get3DTransform(java.lang.String, dev.kosmx.playerAnim.api.TransformType, float, dev.kosmx.playerAnim.core.util.Vec3f);
+    Code:
+       0: aload_0
+       1: getfield      #103                // Field bodyParts:Ljava/util/HashMap;
+       4: aload_1
+       5: invokevirtual #182                // Method java/util/HashMap.get:(Ljava/lang/Object;)Ljava/lang/Object;
+       8: checkcast     #16                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart
+      11: astore        5
+      13: aload         5
+      15: ifnonnull     21
+      18: aload         4
+      20: areturn
+      21: getstatic     #186                // Field dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$1.$SwitchMap$dev$kosmx$playerAnim$api$TransformType:[I
+      24: aload_2
+      25: invokevirtual #191                // Method dev/kosmx/playerAnim/api/TransformType.ordinal:()I
+      28: iaload
+      29: tableswitch   { // 1 to 4
+
+                     1: 60
+
+                     2: 68
+
+                     3: 118
+
+                     4: 179
+               default: 187
+          }
+      60: aload         5
+      62: aload         4
+      64: invokevirtual #195                // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart.getBodyOffset:(Ldev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      67: areturn
+      68: aload         5
+      70: aload         4
+      72: invokevirtual #198                // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart.getBodyRotation:(Ldev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+      75: astore        6
+      77: new           #200                // class dev/kosmx/playerAnim/core/util/Vec3f
+      80: dup
+      81: aload         6
+      83: invokevirtual #206                // Method dev/kosmx/playerAnim/core/util/Vector3.getX:()Ljava/lang/Number;
+      86: checkcast     #208                // class java/lang/Float
+      89: invokevirtual #212                // Method java/lang/Float.floatValue:()F
+      92: aload         6
+      94: invokevirtual #215                // Method dev/kosmx/playerAnim/core/util/Vector3.getY:()Ljava/lang/Number;
+      97: checkcast     #208                // class java/lang/Float
+     100: invokevirtual #212                // Method java/lang/Float.floatValue:()F
+     103: aload         6
+     105: invokevirtual #218                // Method dev/kosmx/playerAnim/core/util/Vector3.getZ:()Ljava/lang/Number;
+     108: checkcast     #208                // class java/lang/Float
+     111: invokevirtual #212                // Method java/lang/Float.floatValue:()F
+     114: invokespecial #221                // Method dev/kosmx/playerAnim/core/util/Vec3f."<init>":(FFF)V
+     117: areturn
+     118: aload         5
+     120: new           #223                // class dev/kosmx/playerAnim/core/util/Pair
+     123: dup
+     124: aload         4
+     126: invokevirtual #224                // Method dev/kosmx/playerAnim/core/util/Vec3f.getX:()Ljava/lang/Number;
+     129: checkcast     #208                // class java/lang/Float
+     132: aload         4
+     134: invokevirtual #225                // Method dev/kosmx/playerAnim/core/util/Vec3f.getY:()Ljava/lang/Number;
+     137: checkcast     #208                // class java/lang/Float
+     140: invokespecial #228                // Method dev/kosmx/playerAnim/core/util/Pair."<init>":(Ljava/lang/Object;Ljava/lang/Object;)V
+     143: invokevirtual #232                // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart.getBend:(Ldev/kosmx/playerAnim/core/util/Pair;)Ldev/kosmx/playerAnim/core/util/Pair;
+     146: astore        7
+     148: new           #200                // class dev/kosmx/playerAnim/core/util/Vec3f
+     151: dup
+     152: aload         7
+     154: invokevirtual #235                // Method dev/kosmx/playerAnim/core/util/Pair.getLeft:()Ljava/lang/Object;
+     157: checkcast     #208                // class java/lang/Float
+     160: invokevirtual #212                // Method java/lang/Float.floatValue:()F
+     163: aload         7
+     165: invokevirtual #238                // Method dev/kosmx/playerAnim/core/util/Pair.getRight:()Ljava/lang/Object;
+     168: checkcast     #208                // class java/lang/Float
+     171: invokevirtual #212                // Method java/lang/Float.floatValue:()F
+     174: fconst_0
+     175: invokespecial #221                // Method dev/kosmx/playerAnim/core/util/Vec3f."<init>":(FFF)V
+     178: areturn
+     179: aload         5
+     181: aload         4
+     183: invokevirtual #241                // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart.getScale:(Ldev/kosmx/playerAnim/core/util/Vec3f;)Ldev/kosmx/playerAnim/core/util/Vec3f;
+     186: areturn
+     187: aload         4
+     189: areturn
+
+  public void setupAnim(float);
+    Code:
+       0: aload_0
+       1: fload_1
+       2: putfield      #255                // Field tickDelta:F
+       5: return
+
+  public boolean isLoopStarted();
+    Code:
+       0: aload_0
+       1: getfield      #69                 // Field isLoopStarted:Z
+       4: ireturn
+
+  public dev.kosmx.playerAnim.core.data.KeyframeAnimation getData();
+    Code:
+       0: aload_0
+       1: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+       4: areturn
+
+  public dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer$BodyPart getPart(java.lang.String);
+    Code:
+       0: aload_0
+       1: getfield      #103                // Field bodyParts:Ljava/util/HashMap;
+       4: aload_1
+       5: invokevirtual #182                // Method java/util/HashMap.get:(Ljava/lang/Object;)Ljava/lang/Object;
+       8: checkcast     #16                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart
+      11: astore_2
+      12: aload_2
+      13: ifnonnull     28
+      16: new           #16                 // class dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart
+      19: dup
+      20: aload_0
+      21: aconst_null
+      22: invokespecial #138                // Method dev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer$BodyPart."<init>":(Ldev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer;Ldev/kosmx/playerAnim/core/data/KeyframeAnimation$StateCollection;)V
+      25: goto          29
+      28: aload_2
+      29: areturn
+
+  public int getStopTick();
+    Code:
+       0: aload_0
+       1: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+       4: getfield      #168                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.stopTick:I
+       7: ireturn
+
+  public int getCurrentTick();
+    Code:
+       0: aload_0
+       1: getfield      #144                // Field currentTick:I
+       4: ireturn
+
+  public boolean isInfinite();
+    Code:
+       0: aload_0
+       1: getfield      #88                 // Field data:Ldev/kosmx/playerAnim/core/data/KeyframeAnimation;
+       4: getfield      #165                // Field dev/kosmx/playerAnim/core/data/KeyframeAnimation.isInfinite:Z
+       7: ireturn
+
+  public dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer setFirstPersonConfiguration(dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration);
+    Code:
+       0: aload_1
+       1: ifnonnull     15
+       4: new           #266                // class java/lang/NullPointerException
+       7: dup
+       8: ldc_w         #268                // String firstPersonConfiguration is marked non-null but is null
+      11: invokespecial #269                // Method java/lang/NullPointerException."<init>":(Ljava/lang/String;)V
+      14: athrow
+      15: aload_0
+      16: aload_1
+      17: putfield      #51                 // Field firstPersonConfiguration:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;
+      20: aload_0
+      21: areturn
+
+  public dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer setFirstPersonMode(dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode);
+    Code:
+       0: aload_1
+       1: ifnonnull     15
+       4: new           #266                // class java/lang/NullPointerException
+       7: dup
+       8: ldc_w         #273                // String firstPersonMode is marked non-null but is null
+      11: invokespecial #269                // Method java/lang/NullPointerException."<init>":(Ljava/lang/String;)V
+      14: athrow
+      15: aload_0
+      16: aload_1
+      17: putfield      #57                 // Field firstPersonMode:Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;
+      20: aload_0
+      21: areturn
+
+  public dev.kosmx.playerAnim.api.layered.IActualAnimation setFirstPersonConfiguration(dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #276                // Method setFirstPersonConfiguration:(Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonConfiguration;)Ldev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer;
+       5: areturn
+
+  public dev.kosmx.playerAnim.api.layered.IActualAnimation setFirstPersonMode(dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #279                // Method setFirstPersonMode:(Ldev/kosmx/playerAnim/api/firstPerson/FirstPersonMode;)Ldev/kosmx/playerAnim/api/layered/KeyframeAnimationPlayer;
+       5: areturn
+}
