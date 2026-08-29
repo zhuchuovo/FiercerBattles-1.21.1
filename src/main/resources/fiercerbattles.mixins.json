@@ -7,7 +7,8 @@
     "WeaponRegistryMixin",
     "PlayerAttackHelperCombatSkillMixin",
     "PlayerAttackRangeMixin",
-    "ServerNetworkSkillMixin"
+    "ServerNetworkSkillMixin",
+    "ServerNetworkMultipleHitsMixin"
   ],
   "client": [
     "AbstractClientPlayerMixin",
@@ -16,9 +17,6 @@
     "ClientPlayerMixin",
     "MinecraftMixin",
     "PlayerAttackHelperMixin"
-  ],
-  "server": [
-    "ServerNetworkMultipleHitsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

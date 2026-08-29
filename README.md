@@ -71,7 +71,8 @@ data/example/fiercerbattles/combat_skills/debug.json
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `Combatskill` | 布尔值 | 是 | 设为 `true` 后，该武器启用战技。也兼容小写别名 `combat_skill`。|
-| `json` | 字符串 | 是 | 战技文件名或资源位置。`"debug.json"` 表示 `data/<命名空间>/fiercerbattles/combat_skills/debug.json`。|
+| `json` | 字符串 | 否* | 战技文件名或资源位置。`"debug.json"` 表示 `data/<命名空间>/fiercerbattles/combat_skills/debug.json`。没有 `skills` 时仍为必填；有 `skills` 时作为默认回退战技。|
+| `skills` | 数组 | 否 | 条件战技变体列表，让同一把武器按手持状态引用不同的战技文件，详见下文“按手持状态选择战技”。|
 | `attributes` | 对象 | 是 | 武器的常规 Better Combat 属性；其普通 `attacks` 仍由左键攻击使用。|
 | `parent` | 字符串 | 否 | Better Combat 原有继承目标，例如 `"bettercombat:dagger"`。|
 
@@ -80,6 +81,42 @@ data/example/fiercerbattles/combat_skills/debug.json
 ```json
 "json": "example:fiercerbattles/combat_skills/debug.json"
 ```
+
+### 按手持状态选择战技（`skills` 变体）
+
+`skills` 让同一把武器引用**多个相互独立的战技文件**，按玩家当前手持状态选择。每个变体可以有自己的 `skill` 效果（冷却、音效、药水、增伤等）和 `attributes`，与“一个文件内多个连击段共享同一份效果”完全不同。
+
+```json
+{
+  "Combatskill": true,
+  "json": "axe_combat_art.json",
+  "skills": [
+    { "when": ["NOT_DUAL_WIELDING"], "json": "axe_single_hand.json" },
+    { "when": ["DUAL_WIELDING_ANY"], "json": "axe_dual_wield.json" }
+  ],
+  "attributes": {
+    "attack_range": 3.2,
+    "two_handed": true,
+    "category": "sword",
+    "attacks": [
+      { "hitbox": "FORWARD_BOX", "angle": 180, "damage_multiplier": 1.0, "upswing": 0.6, "animation": "bettercombat:two_handed_slash_vertical_left" }
+    ]
+  }
+}
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `when` | 字符串或字符串数组 | 可选。所有条件必须同时满足才会选中该变体；条件取值与攻击段的 `conditions` 完全一致（如 `NOT_DUAL_WIELDING`、`DUAL_WIELDING_ANY`、`DUAL_WIELDING_SAME`、`MAIN_HAND_ONLY`、`OFF_HAND_ONLY`、`NO_OFFHAND_ITEM`、`OFF_HAND_SHIELD` 等）。不写或为空表示无条件，始终匹配。|
+| `json` | 字符串，必填 | 该变体的战技文件名或资源位置，解析规则与 `json` 相同。|
+
+选择规则：
+
+- 按 `skills` 数组顺序逐个检查，**第一个 `when` 全部满足的变体**胜出。
+- 所有变体都不满足时，回退到 `json` 指定的默认战技（若填写）。
+- 只填 `skills` 不填 `json` 时，没有变体匹配就没有战技。
+- 每个变体按普通战技文件解析：支持 `skill` 效果块、`action_json`、稀疏 `attacks`（`null` 占位）、攻击段 `conditions`。
+- 变体选择与攻击段 `conditions` 可以叠加：先按手持状态选中战技文件，再按连击段和段内条件选出具体攻击。
 
 ## 4. 战技 JSON 与连击段选择
 
@@ -125,7 +162,7 @@ data/example/fiercerbattles/combat_skills/debug.json
 
 因此，用户示例中的需求应写成第三种形式：第一段和第三段各写一个战技，中间用 `null` 占位。不要删除中间元素，否则第三个对象会变成第二段战技。
 
-如果普通武器只有两段攻击，就无法通过第三段触发战技；普通武器的连击段数必须覆盖要使用的战技下标。
+一次成功释放后，战技会**连锁覆盖整个 `attacks` 数组对应的连击段**：数组有几个元素（含 `null` 占位），这次释放就会持续几段挥击，每一段都使用该段对应的战技攻击（含其 `hitbox`、`angle`、`Multiplehits` 等全部判定），伤害判定完全一致。例如 `[战技1, null]` 的第一次释放会覆盖连击第 1、2 段，两段都用战技1 的命中框；连锁段结束后恢复普通攻击，按战技键可再次释放。连锁段沿用同一次释放，不会重复结算冷却与释放效果。若普通武器只有两段攻击，就无法通过第三段触发战技；普通武器的连击段数必须覆盖要使用的战技下标。
 
 战技攻击段也可以写 `conditions`。数组中的所有条件必须同时满足，否则该战技段不会触发。例如，下面的段只会在主手双持相同武器时触发：
 
@@ -180,6 +217,7 @@ data/example/fiercerbattles/combat_skills/debug.json
 | `cooldown` | 数字，默认 `0` | 该战技自己的释放冷却，单位秒。每次成功释放后开始计时，不与普通攻击冷却共用。服务端会强制校验。 |
 | `action_json` | 字符串，可选 | 额外动作 JSON 的文件名或资源位置。填写空字符串或不填写时不播放额外动作。 |
 | `sound` | 字符串/对象，可选 | 释放时播放的声音；省略时不播放。对象支持 `id`、`volume`、`pitch`。 |
+| `interrupt_attack` | 布尔值或数字，默认 `true` | 战技打断进行中攻击动作的规则。`true`（默认）：按战技键立刻取消当前挥击/后摇并开始战技动画；`false`：进行中有攻击动画时按战技键无效，必须等当前攻击完全结束才能释放；写数字 `N`（如 `30`）：攻击动画**已播放到第 `N` 帧及以后**（按动画资源帧 0..stopTick 计算）才允许打断，之前按战技键无效。|
 
 例如，下面的战技不会给释放者施加药水效果，而会给每个实际被命中的目标施加 5 秒缓慢 II：
 
@@ -210,18 +248,20 @@ data/example/fiercerbattles/combat_skills/debug.json
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `recovery_cancel_frames` | 字符串或数组 | 未设置 | 写在主武器普通攻击段中，按该主动画资源的剩余帧数设置抢断区间，端点包含在内。`"0,20"` 或 `[0,20]` 都表示剩余 `0~20` 帧时允许打断普通攻击后摇并强制开始任意可用战技。范围会以动画 JSON 的 `emote.stopTick` 为总帧数计算，而不是直接使用游戏 tick。|
+| `recovery_cancel_frames` | 字符串或数组 | 未设置 | 写在主武器普通攻击段中，按该主动画资源的**已播放帧位置**设置抢断区间，端点包含在内。`"50,60"` 或 `[50,60]` 都表示动画播放到第 `50~60` 帧时允许打断普通攻击后摇并强制开始任意可用战技。帧以动画 JSON 的 `emote.stopTick` 为总帧数计算，而不是直接使用游戏 tick。|
+| `recovery_cancel_frames_unit` | 字符串 | `played` | 帧窗口的语义。默认 `played`：数值是动画**已播放到的帧位置**（0..stopTick），例如 `[50,60]` 覆盖长动画的后段；旧版按"剩余帧数"理解，写 `"remaining"` 可恢复（此时 `[0,20]` 表示剩余 `0~20` 帧）。|
 | `interrupt_recovery_frames` | 字符串或数组 | 未设置 | `recovery_cancel_frames` 的兼容别名。|
+| `interrupt_recovery_frames_unit` | 字符串 | `played` | `recovery_cancel_frames_unit` 的兼容别名。|
 | `recovery_cancel_ticks` | 整数 | `0` | 旧版兼容字段，按游戏 tick 判断最大剩余后摇；新配置优先使用 `recovery_cancel_frames`。|
 | `interrupt_recovery_ticks` | 整数 | `0` | `recovery_cancel_ticks` 的兼容别名。|
 | `recovery_cancel_seconds` | 数字 | `0` | 用秒填写抢断额度，例如 `0.4` 等于 `8` tick。|
 | `recovery_cancel` | 数字 | `0` | `recovery_cancel_seconds` 的兼容别名。|
 
-注意：这些字段必须写在主武器属性 JSON 的具体普通攻击 `attacks` 段中，而不是战技 JSON 的 `skill` 对象或战技攻击段中。`recovery_cancel_frames` 是主动画自己的动画帧抢断窗口；它不会改变战技自身的 `cooldown`。普通攻击必须已经完成伤害判定，且当前主动画剩余帧落在指定区间内，按战技键才会取消挥击并立即开始战技。战技仍可在普通攻击完全冷却后正常释放。
+注意：这些字段必须写在主武器属性 JSON 的具体普通攻击 `attacks` 段中，而不是战技 JSON 的 `skill` 对象或战技攻击段中。`recovery_cancel_frames` 是主动画自己的动画帧抢断窗口；它不会改变战技自身的 `cooldown`。普通攻击必须已经完成伤害判定，且当前主动画播放位置落在指定帧区间内，按战技键才会取消挥击并立即开始战技。战技仍可在普通攻击完全冷却后正常释放。
 
 抢断成功时，模组会同时取消 Better Combat 的挥击状态并将旧攻击动画以 `0` 帧淡出，战技动画会立即接管，不会等待原攻击动作播放完毕。
 
-动画资源的总帧数来自 Better Combat 动画 JSON 的 `emote.stopTick`。例如 `one_handed_stab` 的 `stopTick` 为 `30`，当动画播放到第 `10` 帧时剩余 `20` 帧，配置 `"0,20"` 即可抢断；如果剩余 `21` 帧则不会触发。若动画资源没有 `stopTick`，模组会回退到 Better Combat 传入的动画播放长度进行估算。
+动画资源的总帧数来自 Better Combat 动画 JSON 的 `emote.stopTick`。例如 `one_handed_stab` 的 `stopTick` 为 `30`，配置 `"0,20"` 表示动画播放到第 `0~20` 帧时允许抢断（整个动画大部分时间都满足）；想只在动画末尾后摇段抢断，用 `"20,30"`。数值写的是**已播放帧位置**，不会再出现"剩余帧数永远达不到 50"这类不生效的情况；确实需要旧版剩余帧语义时，加 `"recovery_cancel_frames_unit": "remaining"`。若动画资源没有 `stopTick`，模组会回退到 Better Combat 传入的动画播放长度进行估算。
 
 ### 强制按原始动画播放
 
@@ -292,6 +332,8 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `category` | 字符串 | 武器类别，供 Better Combat 的条件和兼容逻辑使用。|
 | `attacks` | 数组 | 攻击/战技段列表。普通武器中每项必须是完整的有效攻击；战技文件允许用 `null` 做空位。|
 | `trail_appearance` | 对象 | 武器拖影外观。结构见第 8 节。|
+| `fixed_damage` | 数字，默认 `0` | 战技所有攻击段的默认固定伤害（点）；攻击段内直接写的值优先。|
+| `knockback` | 数字，默认 `0` | 战技所有攻击段的默认额外击退（格）；攻击段内直接写的值优先。|
 
 ## 7. `attacks` 攻击段参数
 
@@ -340,6 +382,8 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `after_cooldown` | 数字，默认 `0` | 本段攻击结束后的额外等待时间，单位秒。|
 | `attack_displacement` | 字符串 | 攻击时向视线方向突进，格式为 `"持续秒数,位移格数"`，如 `"0.2,1.0"` 表示 0.2 秒内前移 1 格。两个数都必须大于 0。|
 | `Multiplehits` | 字符串 | 多段命中帧与每段独立伤害倍率，格式为 `"[帧1,帧2],[倍率1,倍率2]"`。完整规则见下一节。|
+| `fixed_damage` | 数字，默认 `0` | 这一段攻击**每次命中**额外造成的固定伤害（点），在护甲等减伤结算后直接加算：最终伤害 = 面板伤害经过减伤后的部分 + 固定伤害。固定部分不会被暴击、附魔或战技增伤放大。只想用固定伤害、不要面板时，把该段的 `damage_multiplier` 写成 `0` 即可。也兼容别名 `flat_damage`；可写在武器/战技 JSON 的 `attributes` 根级（作用于全部段），或 `config/fiercerbattles.json` 按动画覆盖。|
+| `knockback` | 数字，默认 `0` | 这一段攻击**每次命中**额外增加的击退距离（格），直接叠加在 Better Combat 的普通击退之上，与攻击是否满蓄力无关。`1` 大约额外击退 1 格。也兼容别名 `knockback_bonus`；同样支持根级默认值与 `config/fiercerbattles.json` 按动画覆盖。|
 
 `upswing`、`movement_speed_multiplier`、`range_multiplier` 既是 Better Combat 原生参数，也会被 Fiercer Battles 的现有配置覆盖逻辑读取；直接写在战技段中即可。
 
@@ -356,16 +400,19 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 }
 ```
 
-`Multiplehits` 使用一个字符串，包含两个等长数组：前一组是动画开始后的命中帧，后一组是对应帧的独立武器伤害倍率。
+`Multiplehits` 使用一个字符串，包含两个数组：前一组是动画开始后的命中帧，后一组是对应帧的独立武器伤害倍率。
 
 - `"[10,20,30],[1.0,1.0,0.5]"` 表示动画第 10、20、30 帧各结算一次命中，伤害依次为武器基础攻击伤害的 100%、100%、50%。
 - 帧以游戏逻辑 tick 计数，`20` 帧约等于 1 秒；数值必须是从小到大排列的非负整数。
 - 倍率必须为非负数；`0.5` 即 50%，`2.0` 即 200%。
+- **倍率数组可以比帧数组短**：缺省的后段自动沿用最后一个倍率。例如 `"[10,12,15],[0.5,1.25]"` 等价于 `"[10,12,15],[0.5,1.25,1.25]"`，第 15 帧仍按 125% 结算；不会因为少写一个倍率而整条失效。
 - 配置 `Multiplehits` 后，Better Combat 原本由 `upswing` 触发的单次命中会被替换，不会额外造成一次普通伤害。
-- 每一次多段命中都使用该攻击段的 `hitbox`、`angle`、`range_multiplier`、音效、粒子和目标筛选。
+- 每一次多段命中都使用该攻击段的 `hitbox`、`angle`、`range_multiplier`、音效、粒子和目标筛选；`fixed_damage` 与 `knockback` 也会按每一次多段命中分别结算。
 - **多段伤害倍率完全忽略该攻击段的 `damage_multiplier`。** 例如 `damage_multiplier: 3.0` 和 `Multiplehits: "[10],[1.0]"` 仍只造成武器基础伤害的 100%。
 - 多段命中整体只推进一次普通连击段，不会每一段都让连击额外前进。
 - 所有命中帧必须落在当前攻击动画/冷却尚未结束的时间内；超出挥击结束后的帧不会命中。
+- **帧单位**：默认按游戏逻辑 tick 计数（20 tick/秒）。在同一攻击段写 `"MultiplehitsUnit": "animation"`（也兼容小写 `multiplehits_unit`）可改为按**动画资源帧**计数——帧值对应 PlayerAnimator 动画资源的 `stopTick` 帧，客户端按实际播放进度映射，写 `"Multiplehits":"[7,11,14,15,17],..."` 就精确在第 7、11、14、15、17 资源帧各命中一次，不受挥击时长拉伸影响（帧值需小于动画的 `stopTick`）。
+- **战技的多段帧同理**：默认 tick 单位下，挥击长度等于攻击冷却（由武器攻速决定），要让靠后的帧生效（如第 17 tick），在战技攻击段写 `"attack_speed_multiplier": 0.6` 把挥击拉长到约 1.7 倍即可（`0.6` ≈ 冷却 ÷ 0.6）。使用 `MultiplehitsUnit: "animation"` 后无需再拉长挥击。
 
 ## 8. `config/fiercerbattles.json` 全局覆盖参数
 
@@ -400,6 +447,8 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `after_cooldown` | 额外后摇（秒）。|
 | `attack_displacement` | 突进，格式 `"持续秒数,位移格数"`。|
 | `Multiplehits` | 多段命中覆盖，格式 `"[帧列表],[伤害倍率列表]"`；行为与攻击段中的同名字段相同。|
+| `fixed_damage` | 固定伤害覆盖（点）；行为与攻击段中的同名字段相同。兼容别名 `flat_damage`。|
+| `knockback` | 额外击退覆盖（格）；行为与攻击段中的同名字段相同。兼容别名 `knockback_bonus`。|
 
 攻击段内直接写的同名 Fiercer Battles 参数优先于全局 `config/fiercerbattles.json`。
 
@@ -407,9 +456,16 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 ## 9. 常见问题
 
 - **按战技键没有反应**：确认武器属性文件有 `"Combatskill": true`，`json` 路径正确，当前连击段之前存在至少一个非 `null` 的战技攻击。
+- **同一武器想按手持状态用不同战技（如单持/双持）**：在武器属性文件用 `skills` 变体列表，每个变体写 `when` 条件和独立的 `json` 战技文件；`when` 条件与攻击段 `conditions` 相同。注意 `DUAL_WIELDING_*` 系列条件要求两只手都持非双手武器。
 - **第三段战技提前释放**：检查数组中是否保留了 `null` 占位；数组元素会按下标对应连击段，不能省略中间段。
 - **第三段按键无反应**：确认普通武器的 `attributes.attacks` 至少有三段，而且没有被 `conditions` 过滤掉第三段。
-- **多段伤害只命中一次**：确认 `Multiplehits` 的两组数组长度相同、帧递增，且所有帧都在攻击动画结束前。
+- **多段伤害只命中一次、只命中前几段或完全没有多段命中**：确认 `Multiplehits` 的帧数组递增、帧数不为 0。倍率数组可以比帧数组短（缺省的后段沿用最后一个倍率）；但帧数组必须完整。若整条 `Multiplehits` 无效（例如帧数组为空），模组会回退为普通的单次上挥命中。旧版本会在挥击窗口结束时直接丢弃尚未结算的多段状态，导致排在挥击末尾（帧值恰好等于或超过挥击长度）的那一段永远不触发——例如双持武器攻速加成下挥击被 `attack_speed_multiplier: 0.75` 拉长到约 15.2 tick（窗口取整为 15），第 15 tick 的第三段会在窗口判定处被吞掉，只结算前两段。最新版本保证已配置的每一帧都会触发，之后再清除多段状态。
+- **战技+`Multiplehits` 只结算第一段**：战技的多段命中由客户端按帧逐个发送攻击请求，服务端只对第一段请求校验战技冷却与效果，后续各段沿用同一次激活（旧版本会把后续段误判为冷却未到而拒绝）。确认使用最新版本。
+- **多段倍率不生效（每段都造成 100% 伤害）**：旧版本把伤害倍率注入点放在了仅服务器环境生效的 Mixin 中，单人游戏（客户端环境）永远不会加载它；最新版本已将该逻辑移入通用 Mixin，并跟随 Better Combat 2.4.0 的实际调用位置（`handleAttackRequest` 的服务器线程任务）注入。确认使用最新版本。
+- **战技第二段命中框和第一段不一样大**：确认战技 `attacks` 数组中第二段写了 `null` 占位（表示沿用第一段战技）。一次释放会连锁覆盖整个数组对应的连击段，每一段都使用对应战技攻击的命中框；若数组只有一段而连击进入第二段，第二段会恢复为普通攻击。
+- **战技多段命中后面几段伤害偏低**：旧版本只有第一段命中会把攻击强度条强制拉满，后续各段会因普通攻击重置强度条而只造成部分伤害；最新版本对同一释放的每一段命中都强制满蓄力。确认使用最新版本。
+- **战技挥击莫名没有伤害，重进游戏才能恢复**：该问题由**战技挥击进行中切换武器或死亡**触发。旧版本在战技无法被服务端接受时（冷却未到、连锁窗口过期、武器已切换、客户端/服务端数据包不同步等）会直接丢弃整次攻击请求，导致挥击动画正常播放但没有伤害；死亡/换武器会让客户端仍按旧战技发包而服务端持续拒绝，于是所有后续挥击都无伤害，直到重进游戏重置状态。最新版本即使战技被拒绝也始终按**战技自身的数据**结算这一击（倍率、固定伤害、击退、距离），只是跳过激活效果与冷却计时；多段命中状态不再能越过所属挥击存活，玩家实体被替换（死亡重生导致 tick 计数归零）或多段帧已全部结算时自动清除，武器切换后也会丢弃已失效的战技选择。确认使用最新版本。
+- **使用战技时角色/游戏卡住**：旧版本在战技处于待发状态时会把攻击强度门槛一并放开，按住攻击键时 Better Combat 会在每个 tick 重新开始战技挥击并重播动画，角色卡在前摇姿势并持续重复发包。最新版本只在没有进行中的挥击时（例如刚按下战技键）放开起手门槛，进行中挥击仍按真实攻击强度自然衔接；同时死亡重生后不再沿用旧实体的后摇窗口、位移和冷却截止时间，角色不会在重生后被旧状态锁死。确认使用最新版本。
 - **战技处于冷却时仍能发送请求**：客户端会提前拦截，服务端也会按战技 JSON 的 `cooldown` 再次校验；确认客户端和服务器使用相同的战技 JSON。
 - **增伤或护甲没有持续到结束**：确认 `duration_seconds` 大于 0；治疗是释放时一次性生效，不需要持续时间。
 - **动作没有播放但音效正常**：`action_json` 为空时不会加载额外动作；同时检查战技 `attributes.attacks` 中是否存在 Better Combat 的 `animation`。

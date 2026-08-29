@@ -23,6 +23,10 @@ public final class FiercerBattlesConfig {
         public Double after_cooldown;
         public String attack_displacement;
         public String Multiplehits;
+        public Double fixed_damage;
+        public Double flat_damage;
+        public Double knockback;
+        public Double knockback_bonus;
     }
 
     public static class Displacement {
@@ -40,13 +44,21 @@ public final class FiercerBattlesConfig {
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static Root root;
+    private static volatile Root root;
 
     public static Root get() {
-        if (root == null) {
-            root = load();
+        Root current = root;
+        if (current != null) {
+            return current;
         }
-        return root;
+        synchronized (FiercerBattlesConfig.class) {
+            current = root;
+            if (current == null) {
+                current = load();
+                root = current;
+            }
+            return current;
+        }
     }
 
     private static Root load() {
@@ -57,7 +69,9 @@ public final class FiercerBattlesConfig {
                 if (loaded != null) {
                     return loaded;
                 }
-            } catch (IOException ignored) {
+            } catch (IOException | RuntimeException ignored) {
+                // A malformed or half-written config file must never crash an
+                // attack; fall back to an empty configuration.
             }
         }
         Root empty = new Root();
@@ -148,5 +162,35 @@ public final class FiercerBattlesConfig {
             }
         }
         return null;
+    }
+
+    /** Flat damage for the animation from the global config, or 0 when unset. */
+    public static double getFixedDamage(String animation) {
+        for (Entry entry : get().entries) {
+            if (entry.animation != null && entry.animation.equals(animation)) {
+                if (entry.fixed_damage != null) {
+                    return Math.max(0, entry.fixed_damage);
+                }
+                if (entry.flat_damage != null) {
+                    return Math.max(0, entry.flat_damage);
+                }
+            }
+        }
+        return 0;
+    }
+
+    /** Extra knockback (blocks) for the animation from the global config, or 0 when unset. */
+    public static double getKnockback(String animation) {
+        for (Entry entry : get().entries) {
+            if (entry.animation != null && entry.animation.equals(animation)) {
+                if (entry.knockback != null) {
+                    return Math.max(0, entry.knockback);
+                }
+                if (entry.knockback_bonus != null) {
+                    return Math.max(0, entry.knockback_bonus);
+                }
+            }
+        }
+        return 0;
     }
 }

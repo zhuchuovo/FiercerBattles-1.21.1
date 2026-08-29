@@ -1,0 +1,75 @@
+[288月2026 21:28:19.437] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserverdev, --gameDir, ., --fml.fmlVersion, 4.0.43, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.241, --fml.neoFormVersion, 20240808.144430, --nogui]
+[288月2026 21:28:19.440] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Microsoft OpenJDK 64-Bit Server VM 21.0.7+6-LTS
+[288月2026 21:28:19.442] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.7 by Microsoft; OS Windows 11 arch amd64 version 10.0
+[288月2026 21:28:19.720] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserverdev
+[288月2026 21:28:19.778] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Users/admin/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%2394!/ Service=ModLauncher Env=SERVER
+[288月2026 21:28:20.287] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 3 dependencies adding them to mods collection
+[288月2026 21:28:20.290] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		Better Combat 2.4.0+1.21.1 (bettercombat)
+		Cloth Config v15 API 15.0.130 (cloth_config)
+		Fiercer Battles 1.0.0 (fiercerbattles)
+		Mantle 1.12.5 (mantle)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.241 (neoforge)
+		Player Animator 2.0.4+1.21.1 (playeranimator)
+		Tinkers' Construct 3.12.6 (tconstruct)
+		Tiny Config 3.1.0 (tiny_config)
+[288月2026 21:28:21.440] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[288月2026 21:28:21.454] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserverdev' with arguments [--gameDir, ., --nogui]
+[288月2026 21:28:23.219] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+[288月2026 21:28:33.222] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[288月2026 21:28:33.224] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[288月2026 21:28:33.229] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[288月2026 21:28:33.231] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[288月2026 21:28:33.232] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[288月2026 21:28:33.336] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.241, for MC 1.21.1
+[288月2026 21:28:37.742] [modloading-sync-worker/WARN] [Mantle/]: Registered deprecated recipe serializer null, use the tconstruct:material_repair modifier module instead
+[288月2026 21:28:37.744] [modloading-sync-worker/WARN] [Mantle/]: Registered deprecated recipe serializer null, use the tconstruct:material_repair modifier module instead
+[288月2026 21:28:38.981] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[288月2026 21:28:39.081] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/code/mcmod/FiercerBattles-1.21.1/build/moddev/artifacts/neoforge-21.1.241.jar%23131!/assets/.mcassetsroot' uses unexpected schema
+[288月2026 21:28:39.083] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/code/mcmod/FiercerBattles-1.21.1/build/moddev/artifacts/neoforge-21.1.241.jar%23131!/data/.mcassetsroot' uses unexpected schema
+[288月2026 21:28:40.180] [Worker-Main-9/INFO] [Mantle/]: Loaded 21 loot table injectors injecting into 19 tables in 30.2532 ms
+[288月2026 21:28:40.667] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 3302 recipes
+[288月2026 21:28:40.914] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 1815 advancements
+[288月2026 21:28:40.918] [main/INFO] [slimeknights.mantle.fluid.transfer.FluidContainerTransferManager/]: Loaded 26 dynamic modifiers in 2.3547 ms
+[288月2026 21:28:40.932] [main/INFO] [slimeknights.tconstruct.library.materials.definition.MaterialManager/]: Loaded 77 materials in 9.5004 ms
+[288月2026 21:28:40.939] [main/INFO] [slimeknights.tconstruct.library.materials.definition.MaterialManager/]: Loaded 17 material tags for 61 materials in 6.7908 ms
+[288月2026 21:28:40.958] [main/INFO] [slimeknights.tconstruct.library.materials.stats.MaterialStatsManager/]: 548 stats loaded for 93 materials in 18.4168 ms
+[288月2026 21:28:40.972] [main/INFO] [slimeknights.tconstruct.library.materials.traits.MaterialTraitsManager/]: 590 traits loaded for 93 materials in 13.9301 ms
+[288月2026 21:28:40.979] [main/INFO] [tconstruct/]: Loaded 5 mob equipment replacements targeting 9 mobs in 5.829 ms
+[288月2026 21:28:41.058] [main/INFO] [slimeknights.tconstruct.library.modifiers.ModifierManager/]: Loaded 283 dynamic modifiers and 6 modifier redirects in 77.856094 ms
+[288月2026 21:28:41.062] [main/INFO] [slimeknights.tconstruct.library.modifiers.ModifierManager/]: Loaded 55 modifier tags for 168 modifiers in 3.6313 ms
+[288月2026 21:28:41.074] [main/INFO] [slimeknights.tconstruct.library.modifiers.ModifierManager/]: Loaded 57 enchantment to modifier mappings in 12.9342 ms
+[288月2026 21:28:41.078] [main/INFO] [tconstruct/]: Loaded 45 spilling fluids in 2.9202 ms
+[288月2026 21:28:41.088] [main/INFO] [slimeknights.tconstruct.library.tools.definition.ToolDefinitionLoader/]: Loaded 45 tool definitions in 10.0694 ms
+[288月2026 21:28:41.095] [main/INFO] [slimeknights.tconstruct.library.tools.layout.StationSlotLayoutLoader/]: Loaded 23 station slot layouts in 6.2232 ms
+[288月2026 21:28:42.246] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
+[288月2026 21:28:42.247] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
+[288月2026 21:28:42.248] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: SURVIVAL
+[288月2026 21:28:42.248] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[288月2026 21:28:42.348] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on *:25565
+[288月2026 21:28:42.436] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using default channel type
+[288月2026 21:28:42.491] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[288月2026 21:28:42.492] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
+[288月2026 21:28:42.492] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[288月2026 21:28:42.492] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
+[288月2026 21:28:42.573] [Server thread/INFO] [com.fiercerbattles.FiercerBattlesCombatSkills/]: Loaded 4 Fiercer Battles combat skill definition(s), 0 conditional variant(s)
+[288月2026 21:28:42.677] [Server thread/INFO] [net.bettercombat.logic.WeaponRegistry/]: Encoded Weapon Attribute registry size (with package overhead): 5111 bytes (in 1 string chunks with the size of 10000)
+[288月2026 21:28:42.677] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
+[288月2026 21:28:43.899] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[288月2026 21:28:43.992] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[288月2026 21:28:44.876] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:44.970] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:46.038] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:46.039] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:46.409] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:46.901] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:47.403] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:47.910] [worldgen/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[288月2026 21:28:48.331] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 4432 ms
+[288月2026 21:28:48.332] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (5.823s)! For help, type "help"
+[288月2026 21:28:48.382] [Server thread/INFO] [net.neoforged.neoforge.gametest.GameTestHooks/]: Enabled Gametest Namespaces: []
+[288月2026 21:28:48.390] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler

@@ -1,0 +1,73 @@
+[248月2026 04:51:07.285] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeclientdev, --version, 21.1.241, --assetIndex, 17, --assetsDir, C:\\Users\\admin\\.gradle\\caches\\neoformruntime\\assets, --gameDir, ., --fml.fmlVersion, 4.0.43, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.241, --fml.neoFormVersion, 20240808.144430]
+[248月2026 04:51:07.289] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Microsoft OpenJDK 64-Bit Server VM 21.0.7+6-LTS
+[248月2026 04:51:07.290] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.7 by Microsoft; OS Windows 11 arch amd64 version 10.0
+[248月2026 04:51:07.449] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: Loading ImmediateWindowProvider fmlearlywindow
+[248月2026 04:51:07.590] [main/INFO] [EARLYDISPLAY/]: Trying GL version 4.6
+[248月2026 04:51:07.748] [main/INFO] [EARLYDISPLAY/]: Requested GL version 4.6 got version 4.6
+[248月2026 04:51:07.852] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Users/admin/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%23138!/ Service=ModLauncher Env=CLIENT
+[248月2026 04:51:08.221] [pool-2-thread-1/INFO] [EARLYDISPLAY/]: GL info: NVIDIA GeForce RTX 2080 Super/PCIe/SSE2 GL version 4.6.0 NVIDIA 610.47, NVIDIA Corporation
+[248月2026 04:51:08.397] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 3 dependencies adding them to mods collection
+[248月2026 04:51:08.398] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		Better Combat 2.4.0+1.21.1 (bettercombat)
+		Cloth Config v15 API 15.0.130 (cloth_config)
+		Fiercer Battles 1.0.0 (fiercerbattles)
+		Mantle 1.12.5 (mantle)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.241 (neoforge)
+		Player Animator 2.0.4+1.21.1 (playeranimator)
+		Tinkers' Construct 3.12.6 (tconstruct)
+		Tiny Config 3.1.0 (tiny_config)
+[248月2026 04:51:09.188] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[248月2026 04:51:09.201] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeclientdev' with arguments [--version, 21.1.241, --gameDir, ., --assetsDir, C:\Users\admin\.gradle\caches\neoformruntime\assets, --assetIndex, 17]
+[248月2026 04:51:09.798] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+[248月2026 04:51:11.539] [Datafixer Bootstrap/INFO] [com.mojang.datafixers.DataFixerBuilder/]: 229 Datafixer optimizations took 332 milliseconds
+[248月2026 04:51:16.244] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[248月2026 04:51:16.247] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[248月2026 04:51:16.250] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[248月2026 04:51:16.251] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[248月2026 04:51:16.252] [main/WARN] [net.minecraft.commands.Commands/]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[248月2026 04:51:16.443] [Render thread/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/code/mcmod/FiercerBattles-1.21.1/build/moddev/artifacts/neoforge-21.1.241.jar%23195!/assets/.mcassetsroot' uses unexpected schema
+[248月2026 04:51:16.444] [Render thread/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/code/mcmod/FiercerBattles-1.21.1/build/moddev/artifacts/neoforge-21.1.241.jar%23195!/data/.mcassetsroot' uses unexpected schema
+[248月2026 04:51:16.471] [Render thread/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[248月2026 04:51:16.481] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Setting user: Dev
+[248月2026 04:51:16.565] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Backend library: LWJGL version 3.3.3+5
+[248月2026 04:51:16.755] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.241, for MC 1.21.1
+[248月2026 04:51:19.997] [modloading-sync-worker/WARN] [Mantle/]: Registered deprecated recipe serializer null, use the tconstruct:material_repair modifier module instead
+[248月2026 04:51:19.998] [modloading-sync-worker/WARN] [Mantle/]: Registered deprecated recipe serializer null, use the tconstruct:material_repair modifier module instead
+[248月2026 04:51:21.066] [Render thread/INFO] [net.neoforged.neoforge.gametest.GameTestHooks/]: Enabled Gametest Namespaces: []
+[248月2026 04:51:21.355] [Render thread/INFO] [net.minecraft.server.packs.resources.ReloadableResourceManager/]: Reloading ResourceManager: vanilla, mod_resources, mod/tiny_config, mod/cloth_config, mod/mantle, mod/tconstruct, mod/playeranimator, mod/bettercombat, mod/fiercerbattles, mod/neoforge
+[248月2026 04:51:21.455] [Worker-Main-4/INFO] [net.minecraft.client.gui.font.providers.UnihexProvider/]: Found unifont_jp_patch-15.1.05.hex, loading
+[248月2026 04:51:21.455] [Worker-Main-2/INFO] [net.minecraft.client.gui.font.providers.UnihexProvider/]: Found unifont_all_no_pua-15.1.05.hex, loading
+[248月2026 04:51:21.554] [Worker-Main-13/INFO] [Mantle/]: Loaded 72 fluid textures in 6.5108 ms
+[248月2026 04:51:21.580] [Worker-Main-6/INFO] [tconstruct/]: 77 modifier model maps in 15.5603 ms
+[248月2026 04:51:22.829] [Worker-Main-4/INFO] [slimeknights.tconstruct.library.client.materials.MaterialRenderInfoLoader/]: 139 material render infos loaded
+[248月2026 04:51:25.521] [Render thread/WARN] [net.minecraft.client.sounds.SoundEngine/]: Missing sound for event: minecraft:item.goat_horn.play
+[248月2026 04:51:25.521] [Render thread/WARN] [net.minecraft.client.sounds.SoundEngine/]: Missing sound for event: minecraft:entity.goat.screaming.horn_break
+[248月2026 04:51:25.576] [Render thread/INFO] [com.mojang.blaze3d.audio.Library/]: OpenAL initialized on device OpenAL Soft on 扬声器 (SIMGOT GEW1)
+[248月2026 04:51:25.577] [Render thread/INFO] [net.minecraft.client.sounds.SoundEngine/SOUNDS]: Sound engine started
+[248月2026 04:51:25.657] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 4096x2048x4 minecraft:textures/atlas/blocks.png-atlas
+[248月2026 04:51:25.689] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
+[248月2026 04:51:25.689] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+[248月2026 04:51:25.690] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
+[248月2026 04:51:25.690] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 2048x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
+[248月2026 04:51:25.695] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
+[248月2026 04:51:25.695] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
+[248月2026 04:51:25.696] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
+[248月2026 04:51:25.696] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
+[248月2026 04:51:25.779] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 2048x1024x0 minecraft:textures/atlas/particles.png-atlas
+[248月2026 04:51:25.783] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[248月2026 04:51:25.783] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x128x0 minecraft:textures/atlas/mob_effects.png-atlas
+[248月2026 04:51:25.784] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 64x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[248月2026 04:51:25.784] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 1024x512x0 minecraft:textures/atlas/gui.png-atlas
+[248月2026 04:51:25.808] [Render thread/WARN] [net.minecraft.client.renderer.ShaderInstance/]: Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
+[248月2026 04:51:25.859] [Render thread/INFO] [slimeknights.mantle.fluid.tooltip.FluidTooltipHandler/]: Loaded 18 fluid unit lists in 2.816 ms
+[248月2026 04:51:25.879] [Render thread/INFO] [Mantle/]: Finished loading 1588 Block entity fluids in 4.0805 ms
+[248月2026 04:51:25.879] [Render thread/INFO] [Mantle/]: Finished loading 0 Block entity items in 0.3704 ms
+[248月2026 04:51:25.881] [Render thread/INFO] [Mantle/]: Finished loading 1348 Block entity items in 1.4241 ms
+[248月2026 04:51:25.911] [Render thread/INFO] [tconstruct/]: Loaded 5 armor models in 5.0143 ms
+[248月2026 04:51:25.914] [Render thread/INFO] [Mantle/]: Finished loading 712 Faucet Fluids in 1.7209 ms
+[248月2026 04:51:25.916] [Render thread/INFO] [Mantle/]: Finished loading 2 Channel fluids in 1.0931 ms
+[248月2026 04:51:25.969] [Render thread/INFO] [net.neoforged.neoforge.client.entity.animation.json.AnimationLoader/]: Loaded 0 entity animations

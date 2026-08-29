@@ -60,8 +60,21 @@ public final class FiercerBattlesClient {
             return;
         }
         // A ready combat skill directly interrupts whatever attack animation
-        // is still playing instead of waiting for it to finish.
+        // is still playing instead of waiting for it to finish — unless the
+        // skill opts out via "interrupt_attack": false (wait for the attack
+        // to finish) or a frame number N (only interrupt once the attack
+        // animation has played N frames).
         if (invokeNoArg(minecraft, "getCurrentAttackHand") != null) {
+            if (candidate.skillEffect != null && !candidate.skillEffect.interruptAttack) {
+                return;
+            }
+            if (candidate.skillEffect != null && candidate.skillEffect.interruptAfterFrame > 0
+                    && !FiercerBattlesRuntime.hasAttackPlayedAtLeast(
+                            minecraft.player.tickCount,
+                            candidate.skillEffect.interruptAfterFrame
+                    )) {
+                return;
+            }
             FiercerBattlesRuntime.beginImmediateRecoveryCancellation();
             try {
                 // Better Combat's cancelWeaponSwing normally fades the old

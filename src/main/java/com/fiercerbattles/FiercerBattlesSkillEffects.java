@@ -1,5 +1,6 @@
 package com.fiercerbattles;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,7 +14,9 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -23,17 +26,27 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
 
 /**
  * Server-authoritative combat-skill effects and cooldowns.
  */
 @EventBusSubscriber(modid = FiercerBattles.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public final class FiercerBattlesSkillEffects {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<UUID, Map<String, Long>> SERVER_COOLDOWNS = new ConcurrentHashMap<>();
     private static final Map<UUID, Map<String, ActiveSkill>> ACTIVE_SKILLS = new ConcurrentHashMap<>();
     private static final Map<String, Long> CLIENT_COOLDOWNS = new HashMap<>();
     /** Accepted skill requests waiting for Better Combat's server-thread task. */
     private static final Map<UUID, PendingSkill> PENDING_SERVER_SKILLS = new ConcurrentHashMap<>();
+    /**
+     * One accepted skill activation per player. Multiple-hit skills send one
+     * attack request per hit frame; the continuation requests are accepted
+     * within this window without re-running the cooldown that the first
+     * request just started.
+     */
+    private static final Map<UUID, ActivationWindow> LAST_SKILL_ACTIVATION = new ConcurrentHashMap<>();
+    private static final long SKILL_ACTIVATION_WINDOW_TICKS = 100;
     /** The player whose skill attack is currently being resolved. */
     private static final ThreadLocal<ServerPlayer> SERVER_SKILL_REQUEST = new ThreadLocal<>();
     /** Custom data for that attack, used by server-side on-hit effects. */
@@ -65,6 +78,7 @@ public final class FiercerBattlesSkillEffects {
         if (pending != null) {
             if (pending.skillId.equals(skillId) && now <= pending.expiresAt) {
                 activateOnServerThread(player, pending);
+                markSkillActivation(player, skillId);
                 return true;
             }
             if (now > pending.expiresAt) {
@@ -79,6 +93,14 @@ public final class FiercerBattlesSkillEffects {
         // returning the skill attack instead of being rejected by its newly
         // started cooldown.
         if (SERVER_SKILL_REQUEST.get() == player) {
+            // The marker can also still be set when a new activation request
+            // arrives before the previous request's marker was cleared. Either
+            // way the hit must resolve at full attack strength: the ticker may
+            // already have been consumed by an earlier Player.attack(), and
+            // without the boost the vanilla damage formula (0.2 + f*f*0.8)
+            // would turn the skill hit into a ~20% scratch.
+            beginServerSkillAttack(player, attackData);
+            markSkillActivation(player, skillId);
             return true;
         }
         FiercerBattlesCustomData.SkillEffectData effect = effectOf(attackData);
@@ -116,7 +138,43 @@ public final class FiercerBattlesSkillEffects {
                 applyEffect(player, attackData, effect, now);
             }
         }
+        markSkillActivation(player, skillId);
         return true;
+    }
+
+    /**
+     * True when the given skill was activated by the player within the short
+     * multiple-hit window. Used to accept the continuation hit requests of a
+     * multi-hit skill without re-checking its cooldown. A matching
+     * continuation refreshes the window so chained combo swings of a
+     * multi-stage skill keep being accepted while the chain is still live.
+     */
+    public static boolean isSameSkillActivation(
+            ServerPlayer player,
+            FiercerBattlesCustomData.AttackData attackData
+    ) {
+        ActivationWindow window = LAST_SKILL_ACTIVATION.get(player.getUUID());
+        if (window == null) {
+            return false;
+        }
+        long now = player.level().getGameTime();
+        if (now > window.expiresAt) {
+            LAST_SKILL_ACTIVATION.remove(player.getUUID(), window);
+            return false;
+        }
+        if (window.skillId.equals(skillIdOf(attackData))) {
+            markSkillActivation(player, window.skillId);
+            return true;
+        }
+        return false;
+    }
+
+    private static void markSkillActivation(ServerPlayer player, String skillId) {
+        long now = player.level().getGameTime();
+        LAST_SKILL_ACTIVATION.put(player.getUUID(), new ActivationWindow(
+                skillId,
+                now + SKILL_ACTIVATION_WINDOW_TICKS
+        ));
     }
 
     /**
@@ -126,6 +184,35 @@ public final class FiercerBattlesSkillEffects {
         SERVER_SKILL_REQUEST.remove();
         SERVER_SKILL_ATTACK.remove();
         SERVER_REQUEST_THREAD.set(Boolean.TRUE);
+    }
+
+    /**
+     * Resolves the current skill attack at full attack strength, regardless of
+     * the vanilla attack-strength ticker. Continuation requests (later
+     * multiple-hit frames or chained combo swings of the same activation)
+     * must boost the ticker again: the previous hit's
+     * {@code Player.attack()} reset it, and a half-charged ticker would cut
+     * the configured damage multiplier short.
+     */
+    public static void beginServerSkillAttack(
+            ServerPlayer player,
+            FiercerBattlesCustomData.AttackData attackData
+    ) {
+        SERVER_SKILL_REQUEST.set(player);
+        SERVER_SKILL_ATTACK.set(attackData);
+        setAttackStrengthTicker(player, Math.max(1, (int) Math.ceil(player.getCurrentItemAttackStrengthDelay())));
+    }
+
+    /**
+     * Lifts the vanilla attack-strength ticker to full without marking the
+     * request as an accepted skill activation. Used when a skill request is
+     * rejected (cooldown still running, chain window expired) but the swing
+     * still resolves with the skill's own attack data: the hit must deal its
+     * configured damage at full strength, yet must not trigger the
+     * activation effects or hit-target potions.
+     */
+    public static void boostServerAttackStrength(ServerPlayer player) {
+        setAttackStrengthTicker(player, Math.max(1, (int) Math.ceil(player.getCurrentItemAttackStrengthDelay())));
     }
 
     /**
@@ -139,20 +226,14 @@ public final class FiercerBattlesSkillEffects {
         // Player.attack(). Resetting from this callback can happen first and
         // makes the skill hit use a partially charged attack.
         SERVER_REQUEST_THREAD.remove();
-    }
-
-    /**
-     * Combat skills interrupt the ongoing attack, so their hit resolves at
-     * full attack strength even while the vanilla attack-strength ticker is
-     * still recovering from the interrupted swing.
-     */
-    private static void beginServerSkillAttack(
-            ServerPlayer player,
-            FiercerBattlesCustomData.AttackData attackData
-    ) {
-        SERVER_SKILL_REQUEST.set(player);
-        SERVER_SKILL_ATTACK.set(attackData);
-        setAttackStrengthTicker(player, Math.max(1, (int) Math.ceil(player.getCurrentItemAttackStrengthDelay())));
+        // All duplicate lookups of this request have already run by the time
+        // handleAttackRequest returns (its attack task executes synchronously
+        // on the server thread). Drop the request marker so a later request
+        // can never be misidentified as part of this one; the queued clear in
+        // activateOnServerThread remains as a safety net for the deferred
+        // task case.
+        SERVER_SKILL_REQUEST.remove();
+        SERVER_SKILL_ATTACK.remove();
     }
 
     private static void activateOnServerThread(ServerPlayer player, PendingSkill pending) {
@@ -198,7 +279,17 @@ public final class FiercerBattlesSkillEffects {
             return 0;
         }
         long readyAt = CLIENT_COOLDOWNS.getOrDefault(skillIdOf(attackData), 0L);
-        return Math.max(0, readyAt - currentTick);
+        long remaining = readyAt - currentTick;
+        // The deadline is stored as an absolute tickCount. A remaining time
+        // longer than the skill's own cooldown can only mean the deadline was
+        // recorded against a previous player entity whose tickCount was higher
+        // (death respawn resets tickCount to zero); treat it as expired so the
+        // skill key can never be blocked for minutes.
+        long maxRemaining = secondsToTicks(effectOf(attackData).cooldownSeconds);
+        if (remaining > maxRemaining) {
+            return 0;
+        }
+        return Math.max(0, remaining);
     }
 
     public static void markClientCooldown(FiercerBattlesCustomData.AttackData attackData, int currentTick) {
@@ -238,19 +329,72 @@ public final class FiercerBattlesSkillEffects {
         SERVER_COOLDOWNS.remove(playerId);
         ACTIVE_SKILLS.remove(playerId);
         PENDING_SERVER_SKILLS.remove(playerId);
+        LAST_SKILL_ACTIVATION.remove(playerId);
         FiercerBattlesCombatSkills.clearActiveSkillRange(player);
     }
 
     @SubscribeEvent
     public static void onIncomingDamage(LivingIncomingDamageEvent event) {
-        DamageSource source = event.getSource();
-        if (!(source.getEntity() instanceof ServerPlayer attacker)) {
-            return;
+        try {
+            DamageSource source = event.getSource();
+            if (!(source.getEntity() instanceof ServerPlayer attacker)) {
+                return;
+            }
+            applyHitTargetPotionEffect(attacker, event.getEntity());
+            double multiplier = damageMultiplier(attacker);
+            if (multiplier != 1.0) {
+                event.setAmount((float) (event.getAmount() * multiplier));
+            }
+        } catch (RuntimeException exception) {
+            // Damage events run inside the attack processing; an unexpected
+            // failure must never crash the game over one hit.
+            LOGGER.warn("Fiercer Battles failed to process incoming damage", exception);
         }
-        applyHitTargetPotionEffect(attacker, event.getEntity());
-        double multiplier = damageMultiplier(attacker);
-        if (multiplier != 1.0) {
-            event.setAmount((float) (event.getAmount() * multiplier));
+    }
+
+    /**
+     * One block of configured extra knockback equals this much vanilla
+     * knockback strength. A full-strength vanilla attack (strength 0.4)
+     * sends a standing target roughly 2.6 blocks, so 0.15 strength adds
+     * about one block of distance.
+     */
+    private static final double KNOCKBACK_STRENGTH_PER_BLOCK = 0.15;
+
+    /**
+     * Applies the attack segment's flat {@code fixed_damage}. Fired after
+     * armor and potion reductions, so the result is exactly
+     * "reduced panel damage + fixed damage"; the fixed part is not affected
+     * by crits, enchantments or skill damage bonuses.
+     */
+    @SubscribeEvent
+    public static void onFinalDamage(LivingDamageEvent.Pre event) {
+        try {
+            DamageSource source = event.getSource();
+            if (!(source.getEntity() instanceof ServerPlayer)) {
+                return;
+            }
+            double fixedDamage = FiercerBattlesMultipleHits.getServerFixedDamage();
+            if (fixedDamage > 0) {
+                event.setNewDamage(event.getNewDamage() + (float) fixedDamage);
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Fiercer Battles failed to apply fixed damage", exception);
+        }
+    }
+
+    /**
+     * Applies the attack segment's extra {@code knockback} on top of the
+     * vanilla knockback of every hit.
+     */
+    @SubscribeEvent
+    public static void onKnockback(LivingKnockBackEvent event) {
+        try {
+            double extra = FiercerBattlesMultipleHits.getServerExtraKnockback();
+            if (extra > 0) {
+                event.setStrength((float) (event.getStrength() + extra * KNOCKBACK_STRENGTH_PER_BLOCK));
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Fiercer Battles failed to apply extra knockback", exception);
         }
     }
 
@@ -439,5 +583,8 @@ public final class FiercerBattlesSkillEffects {
             FiercerBattlesCustomData.SkillEffectData effect,
             long expiresAt
     ) {
+    }
+
+    private record ActivationWindow(String skillId, long expiresAt) {
     }
 }

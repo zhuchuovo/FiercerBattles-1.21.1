@@ -33,9 +33,40 @@ import org.slf4j.Logger;
 public final class FiercerBattlesCombatSkills {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int COMBAT_SKILL_COMBO_MARKER = 1_000_000;
+    /**
+     * Marks the continuation swings of a multi-stage combat skill. The
+     * activation swing itself (the one started right after arming the skill)
+     * is not flagged; every following swing covered by the skill's
+     * {@code attacks} array is, so the server accepts it without re-running
+     * the activation cooldown or effects.
+     */
+    private static final int CHAIN_SKILL_FLAG = 250_000_000;
+    /**
+     * How long a multi-stage skill chain stays valid, in ticks. Mirrors the
+     * server's {@code SKILL_ACTIVATION_WINDOW_TICKS} so the client stops
+     * chaining before the server would reject the continuation.
+     */
+    private static final int SKILL_CHAIN_WINDOW_TICKS = 100;
     private static final Gson GSON = new Gson();
-    private static final Map<String, Definition> DEFINITIONS = new HashMap<>();
-    private static final Map<String, String> ALIASES = new HashMap<>();
+    /**
+     * Loaded skill definitions per item id, published atomically by
+     * {@link #load}. In singleplayer the integrated server and the client
+     * can reload the datapack from different threads; readers always see a
+     * complete snapshot instead of a half-cleared map.
+     */
+    private static volatile Map<String, Definition> DEFINITIONS = Map.of();
+    /**
+     * Conditional combat-skill variants per item id, in marker-file order.
+     * The first variant whose conditions match the current player/hand state
+     * wins; when none matches, the plain {@code json} definition is used as
+     * the fallback.
+     */
+    private static volatile Map<String, List<VariantDefinition>> VARIANT_DEFINITIONS = Map.of();
+    /**
+     * Written from the registry resolution path and read from the attack
+     * path on both sides, so it must tolerate concurrent access.
+     */
+    private static final Map<String, String> ALIASES = new ConcurrentHashMap<>();
     /**
      * Better Combat receives only the item stack in getRangeForItem(). Keep the
      * currently selected skill range keyed by player so both the client and the
@@ -45,13 +76,24 @@ public final class FiercerBattlesCombatSkills {
 
     private static Selection armedClientSelection;
     private static Selection activeClientSelection;
+    /**
+     * Multi-stage skill chain state. {@code skillChainTotal} is the number of
+     * swings the skill's {@code attacks} array covers; each swing consumes one
+     * {@code skillChainRemaining} slot and the selection is dropped once the
+     * chain is exhausted or the {@code skillChainExpiresAtTick} deadline (a
+     * safety bound matching the server activation window) passes.
+     */
+    private static int skillChainTotal = 0;
+    private static int skillChainRemaining = 0;
+    private static int skillChainExpiresAtTick = Integer.MAX_VALUE;
 
     private FiercerBattlesCombatSkills() {
     }
 
     public static void load(ResourceManager resourceManager) {
-        DEFINITIONS.clear();
         ALIASES.clear();
+        Map<String, Definition> definitions = new HashMap<>();
+        Map<String, List<VariantDefinition>> variants = new HashMap<>();
         Map<ResourceLocation, Resource> resources = resourceManager.listResources(
                 "weapon_attributes",
                 location -> location.getPath().endsWith(".json")
@@ -60,31 +102,122 @@ public final class FiercerBattlesCombatSkills {
             try (InputStream input = entry.getValue().open();
                  InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
                 JsonObject marker = JsonParser.parseReader(reader).getAsJsonObject();
-                if (!isEnabled(marker) || !marker.has("json") || !marker.get("json").isJsonPrimitive()) {
+                if (!isEnabled(marker)) {
                     continue;
                 }
-                LoadedJson loadedSkill = readSkillFile(resourceManager, entry.getKey(), marker.get("json").getAsString());
-                if (loadedSkill == null || !loadedSkill.root.has("attributes")
-                        || !loadedSkill.root.get("attributes").isJsonObject()) {
+                String itemId = itemId(entry.getKey());
+                if (itemId == null) {
                     continue;
                 }
-                JsonObject skillRoot = loadedSkill.root;
-                JsonObject attributes = skillRoot.getAsJsonObject("attributes").deepCopy();
-                FiercerBattlesCustomData.SkillEffectData skillEffect =
-                        FiercerBattlesCustomData.SkillEffectData.parse(skillRoot);
-                if (skillEffect != null && !skillEffect.actionJson.isBlank()) {
-                    LoadedJson action = readSkillFile(resourceManager, loadedSkill.location, skillEffect.actionJson);
-                    if (action != null) {
-                        applyActionJson(attributes, action.root);
+                // Backward-compatible single reference: the fallback skill
+                // used when no conditional variant matches.
+                if (marker.has("json") && marker.get("json").isJsonPrimitive()) {
+                    Definition definition = loadDefinition(
+                            resourceManager,
+                            entry.getKey(),
+                            marker.get("json").getAsString()
+                    );
+                    if (definition != null) {
+                        definitions.put(itemId, definition);
                     }
                 }
-                String skillId = loadedSkill.location.toString();
-                DEFINITIONS.put(itemId(entry.getKey()), new Definition(attributes, skillEffect, skillId));
+                // Conditional variants: independent skill files per hand
+                // state, selected by the same conditions as attack segments.
+                if (marker.has("skills") && marker.get("skills").isJsonArray()) {
+                    List<VariantDefinition> variantList = new ArrayList<>();
+                    for (JsonElement element : marker.getAsJsonArray("skills")) {
+                        if (!element.isJsonObject()) {
+                            continue;
+                        }
+                        JsonObject variant = element.getAsJsonObject();
+                        if (!variant.has("json") || !variant.get("json").isJsonPrimitive()) {
+                            continue;
+                        }
+                        Definition definition = loadDefinition(
+                                resourceManager,
+                                entry.getKey(),
+                                variant.get("json").getAsString()
+                        );
+                        if (definition != null) {
+                            variantList.add(new VariantDefinition(
+                                    parseConditions(variant.get("when")),
+                                    definition
+                            ));
+                        }
+                    }
+                    if (!variantList.isEmpty()) {
+                        variants.put(itemId, variantList);
+                    }
+                }
             } catch (Exception exception) {
                 LOGGER.warn("Failed to load combat skill marker {}", entry.getKey(), exception);
             }
         }
-        LOGGER.info("Loaded {} Fiercer Battles combat skill definition(s)", DEFINITIONS.size());
+        // Publish complete snapshots atomically so readers on the other
+        // thread (client vs integrated server) never observe a half-loaded
+        // map.
+        DEFINITIONS = definitions;
+        VARIANT_DEFINITIONS = variants;
+        int variantCount = variants.values().stream()
+                .mapToInt(List::size)
+                .sum();
+        LOGGER.info("Loaded {} Fiercer Battles combat skill definition(s), {} conditional variant(s)",
+                definitions.size(), variantCount);
+    }
+
+    /**
+     * Loads one skill file into a Definition, applying the optional
+     * {@code skill.action_json} animation overrides like the original loader.
+     */
+    private static Definition loadDefinition(
+            ResourceManager resourceManager,
+            ResourceLocation markerLocation,
+            String reference
+    ) {
+        LoadedJson loadedSkill = readSkillFile(resourceManager, markerLocation, reference);
+        if (loadedSkill == null || !loadedSkill.root.has("attributes")
+                || !loadedSkill.root.get("attributes").isJsonObject()) {
+            return null;
+        }
+        JsonObject skillRoot = loadedSkill.root;
+        JsonObject attributes = skillRoot.getAsJsonObject("attributes").deepCopy();
+        // The skill file may also declare segment-wide defaults at its top
+        // level (outside `attributes`); apply them when the attributes root
+        // does not define them itself.
+        inheritRootDefault(skillRoot, attributes, "fixed_damage", "flat_damage");
+        inheritRootDefault(skillRoot, attributes, "knockback", "knockback_bonus");
+        inheritRootDefault(skillRoot, attributes, "damage_multiplier", null);
+        FiercerBattlesCustomData.SkillEffectData skillEffect =
+                FiercerBattlesCustomData.SkillEffectData.parse(skillRoot);
+        if (skillEffect != null && !skillEffect.actionJson.isBlank()) {
+            LoadedJson action = readSkillFile(resourceManager, loadedSkill.location, skillEffect.actionJson);
+            if (action != null) {
+                applyActionJson(attributes, action.root);
+            }
+        }
+        return new Definition(attributes, skillEffect, loadedSkill.location.toString());
+    }
+
+    /** Copies a numeric root-level field into the attributes root when absent. */
+    private static void inheritRootDefault(
+            JsonObject root,
+            JsonObject attributes,
+            String primary,
+            String alias
+    ) {
+        if (!attributes.has(primary) && root.has(primary)) {
+            JsonElement value = root.get(primary);
+            if (value != null && value.isJsonPrimitive()) {
+                attributes.add(primary, value);
+                return;
+            }
+        }
+        if (alias != null && !attributes.has(primary) && !attributes.has(alias) && root.has(alias)) {
+            JsonElement value = root.get(alias);
+            if (value != null && value.isJsonPrimitive()) {
+                attributes.add(primary, value);
+            }
+        }
     }
 
     public static void registerAlias(String itemId, String sourceId) {
@@ -108,16 +241,30 @@ public final class FiercerBattlesCombatSkills {
         // upswing and the actual hit); waiting for getCurrentAttack() leaves
         // the first query on the vanilla/TConstruct reach value.
         setActiveSkillRange(player, hand, selection.customData);
+        // A multi-stage skill covers as many swings as its attacks array has
+        // entries; the activation swing is the first one.
+        int chain = Math.max(1, selection.chainSwings());
+        skillChainTotal = chain;
+        skillChainRemaining = chain;
+        skillChainExpiresAtTick = player instanceof Player actualPlayer
+                ? actualPlayer.tickCount + SKILL_CHAIN_WINDOW_TICKS
+                : Integer.MAX_VALUE;
         return selection.attributes;
     }
 
     public static void clearArmedClientSkill() {
         armedClientSelection = null;
+        skillChainTotal = 0;
+        skillChainRemaining = 0;
+        skillChainExpiresAtTick = Integer.MAX_VALUE;
     }
 
     public static void clearClientSkill() {
         armedClientSelection = null;
         activeClientSelection = null;
+        skillChainTotal = 0;
+        skillChainRemaining = 0;
+        skillChainExpiresAtTick = Integer.MAX_VALUE;
     }
 
     /**
@@ -139,6 +286,9 @@ public final class FiercerBattlesCombatSkills {
     }
 
     public static Object replaceArmedClientHand(Object normalHand, Object player) {
+        if (isSkillChainExpired(player)) {
+            endSkillChain();
+        }
         Selection selection = armedClientSelection;
         if (selection != null) {
             armedClientSelection = null;
@@ -158,8 +308,15 @@ public final class FiercerBattlesCombatSkills {
 
         selection = activeClientSelection;
         if (selection != null) {
-            if (!conditionsMatch(player, normalHand, selection.attack, selection.customData)) {
+            if (!conditionsMatch(player, normalHand, selection.attack, selection.customData)
+                    || selectionForHand(normalHand, player) == null) {
+                // The carried-over skill no longer applies to the current
+                // hand (weapon switched to one without this skill, or the
+                // conditions changed). Drop it so following attacks use the
+                // weapon's normal attack instead of a stale skill request.
                 activeClientSelection = null;
+                skillChainTotal = 0;
+                skillChainRemaining = 0;
                 return normalHand;
             }
             Object skillHand = createSkillHand(normalHand, selection);
@@ -179,19 +336,24 @@ public final class FiercerBattlesCombatSkills {
         int safeComboCount = Math.max(comboCount, 0);
         if (multipleHitIndex >= 0) {
             boolean combatSkill = activeClientSelection != null;
-            if (finalMultipleHit) {
-                activeClientSelection = null;
+            boolean chain = combatSkill && isSkillChainContinuation();
+            if (finalMultipleHit && combatSkill) {
+                consumeChainSwing();
             }
             return MULTIPLE_HIT_COMBO_MARKER
                     + (combatSkill ? MULTIPLE_HIT_SKILL_FLAG : 0)
+                    + (chain ? CHAIN_SKILL_FLAG : 0)
                     + multipleHitIndex * MULTIPLE_HIT_INDEX_FACTOR
                     + Math.min(safeComboCount, MULTIPLE_HIT_INDEX_FACTOR - 1);
         }
         if (activeClientSelection == null) {
             return safeComboCount;
         }
-        activeClientSelection = null;
-        return COMBAT_SKILL_COMBO_MARKER + safeComboCount;
+        boolean chain = isSkillChainContinuation();
+        consumeChainSwing();
+        return COMBAT_SKILL_COMBO_MARKER
+                + (chain ? CHAIN_SKILL_FLAG : 0)
+                + safeComboCount;
     }
 
     public static boolean isMultipleHitCombo(int comboCount) {
@@ -205,15 +367,40 @@ public final class FiercerBattlesCombatSkills {
         return comboCount >= COMBAT_SKILL_COMBO_MARKER;
     }
 
+    /**
+     * True for the continuation swings of a multi-stage skill activation.
+     * The activation swing itself is not flagged; every later swing covered
+     * by the skill's attacks array is. The server treats flagged packets as
+     * continuations of the last activation instead of new activations.
+     */
+    public static boolean isChainSkillCombo(int comboCount) {
+        if (isMultipleHitCombo(comboCount)) {
+            int payload = comboCount - MULTIPLE_HIT_COMBO_MARKER;
+            if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
+                payload -= MULTIPLE_HIT_SKILL_FLAG;
+            }
+            return payload >= CHAIN_SKILL_FLAG;
+        }
+        return comboCount >= COMBAT_SKILL_COMBO_MARKER
+                && comboCount - COMBAT_SKILL_COMBO_MARKER >= CHAIN_SKILL_FLAG;
+    }
+
     public static int decodeCombatSkillCombo(int comboCount) {
         if (isMultipleHitCombo(comboCount)) {
             int payload = comboCount - MULTIPLE_HIT_COMBO_MARKER;
             if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
                 payload -= MULTIPLE_HIT_SKILL_FLAG;
             }
+            if (payload >= CHAIN_SKILL_FLAG) {
+                payload -= CHAIN_SKILL_FLAG;
+            }
             return payload % MULTIPLE_HIT_INDEX_FACTOR;
         }
-        return isCombatSkillCombo(comboCount) ? comboCount - COMBAT_SKILL_COMBO_MARKER : comboCount;
+        int payload = isCombatSkillCombo(comboCount) ? comboCount - COMBAT_SKILL_COMBO_MARKER : comboCount;
+        if (payload >= CHAIN_SKILL_FLAG) {
+            payload -= CHAIN_SKILL_FLAG;
+        }
+        return payload;
     }
 
     public static int getMultipleHitIndex(int comboCount) {
@@ -224,7 +411,47 @@ public final class FiercerBattlesCombatSkills {
         if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
             payload -= MULTIPLE_HIT_SKILL_FLAG;
         }
+        if (payload >= CHAIN_SKILL_FLAG) {
+            payload -= CHAIN_SKILL_FLAG;
+        }
         return payload / MULTIPLE_HIT_INDEX_FACTOR;
+    }
+
+    /**
+     * Whether the current swing is a continuation of a multi-stage skill:
+     * at least one swing of the chain has already been consumed, so the
+     * selection that is about to be used was not armed by the skill key but
+     * carried over from the previous swing.
+     */
+    private static boolean isSkillChainContinuation() {
+        return skillChainTotal > 0 && skillChainRemaining < skillChainTotal;
+    }
+
+    private static void consumeChainSwing() {
+        if (skillChainRemaining > 0) {
+            skillChainRemaining -= 1;
+        }
+        if (skillChainRemaining <= 0) {
+            skillChainTotal = 0;
+            activeClientSelection = null;
+        }
+    }
+
+    private static boolean isSkillChainExpired(Object player) {
+        if (skillChainRemaining <= 0) {
+            return false;
+        }
+        if (player instanceof Player actualPlayer) {
+            return actualPlayer.tickCount >= skillChainExpiresAtTick;
+        }
+        return false;
+    }
+
+    private static void endSkillChain() {
+        skillChainTotal = 0;
+        skillChainRemaining = 0;
+        skillChainExpiresAtTick = Integer.MAX_VALUE;
+        activeClientSelection = null;
     }
 
     public static Object replaceEncodedSkillHand(Object normalHand, int encodedComboCount) {
@@ -322,7 +549,7 @@ public final class FiercerBattlesCombatSkills {
         if (hand == null) {
             return null;
         }
-        Definition definition = definitionForHand(hand);
+        Definition definition = definitionForHand(hand, player);
         if (definition == null) {
             return null;
         }
@@ -337,15 +564,73 @@ public final class FiercerBattlesCombatSkills {
         if (attack == null || !conditionsMatch(player, hand, attack, customData)) {
             return null;
         }
-        return new Selection(attributes, attack, customData);
+        return new Selection(attributes, attack, customData, definition.chainLength());
     }
 
-    private static Definition definitionForHand(Object hand) {
-        Definition definition = definitionFor(itemIdForHand(hand));
+    private static Definition definitionForHand(Object hand, Object player) {
+        String itemId = itemIdForHand(hand);
+        Definition variant = variantDefinitionFor(itemId, player, hand);
+        if (variant != null) {
+            return variant;
+        }
+        Definition definition = definitionFor(itemId);
         if (definition != null) {
             return definition;
         }
-        return definitionFor(registryItemIdForHand(hand));
+        String registryId = registryItemIdForHand(hand);
+        variant = variantDefinitionFor(registryId, player, hand);
+        if (variant != null) {
+            return variant;
+        }
+        return definitionFor(registryId);
+    }
+
+    /**
+     * Picks the first conditional variant whose conditions match the current
+     * player/hand state. Variants without conditions always match, so a
+     * single-entry {@code skills} list behaves like a plain {@code json}
+     * reference.
+     */
+    private static Definition variantDefinitionFor(String itemId, Object player, Object hand) {
+        List<VariantDefinition> variants = VARIANT_DEFINITIONS.get(itemId);
+        if (variants == null) {
+            String alias = ALIASES.get(itemId);
+            if (alias != null) {
+                variants = VARIANT_DEFINITIONS.get(alias);
+            }
+        }
+        if (variants == null) {
+            return null;
+        }
+        for (VariantDefinition variant : variants) {
+            if (variant.matches(player, hand)) {
+                return variant.definition;
+            }
+        }
+        return null;
+    }
+
+    private static List<String> parseConditions(JsonElement element) {
+        List<String> conditions = new ArrayList<>();
+        if (element == null || element.isJsonNull()) {
+            return conditions;
+        }
+        if (element.isJsonArray()) {
+            for (JsonElement item : element.getAsJsonArray()) {
+                if (item.isJsonPrimitive()) {
+                    String value = item.getAsString().trim();
+                    if (!value.isEmpty()) {
+                        conditions.add(value);
+                    }
+                }
+            }
+        } else if (element.isJsonPrimitive()) {
+            String value = element.getAsString().trim();
+            if (!value.isEmpty()) {
+                conditions.add(value);
+            }
+        }
+        return conditions;
     }
 
     public static FiercerBattlesCustomData.AttackData getCombatSkillDataForHand(Object hand) {
@@ -709,10 +994,10 @@ public final class FiercerBattlesCombatSkills {
             if (attributes == null) {
                 try {
                     Class<?> attributesClass = Class.forName("net.bettercombat.api.WeaponAttributes");
-                    attributes = GSON.fromJson(attributesJson, attributesClass);
+                    Object parsed = GSON.fromJson(attributesJson, attributesClass);
                     Field attacksField = attributesClass.getDeclaredField("attacks");
                     attacksField.setAccessible(true);
-                    Object[] attacks = (Object[]) attacksField.get(attributes);
+                    Object[] attacks = (Object[]) attacksField.get(parsed);
                     if (attacks != null) {
                         for (int index = 0; index < attacks.length; index++) {
                             if (attacks[index] != null) {
@@ -720,7 +1005,11 @@ public final class FiercerBattlesCombatSkills {
                             }
                         }
                     }
-                } catch (ReflectiveOperationException ignored) {
+                    attributes = parsed;
+                } catch (ReflectiveOperationException | RuntimeException exception) {
+                    // A malformed skill file must never take down the game;
+                    // the skill simply resolves as unavailable.
+                    LOGGER.warn("Failed to parse combat skill attributes", exception);
                     attributes = null;
                 }
             }
@@ -769,6 +1058,19 @@ public final class FiercerBattlesCombatSkills {
             return index >= 0 && index < customData.size() ? customData.get(index) : null;
         }
 
+        /**
+         * Number of swings one activation of this skill covers: one per
+         * {@code attacks} array entry. {@code null} entries are placeholders
+         * that keep the previous skill attack available, so they still count
+         * towards the chain.
+         */
+        private int chainLength() {
+            if (attributesJson.has("attacks") && attributesJson.get("attacks").isJsonArray()) {
+                return Math.max(1, attributesJson.getAsJsonArray("attacks").size());
+            }
+            return 1;
+        }
+
         private static List<FiercerBattlesCustomData.AttackData> parseCustomData(
                 JsonObject attributes,
                 FiercerBattlesCustomData.SkillEffectData skillEffect,
@@ -782,6 +1084,20 @@ public final class FiercerBattlesCombatSkills {
                     && attributes.get("attack_range").isJsonPrimitive()
                     ? attributes.get("attack_range").getAsDouble()
                     : 0;
+            // Root-level defaults applied to every attack segment; a value
+            // written directly on the segment wins.
+            double fixedDamage = attributes.has("fixed_damage")
+                    && attributes.get("fixed_damage").isJsonPrimitive()
+                    ? Math.max(0, attributes.get("fixed_damage").getAsDouble())
+                    : 0;
+            double knockback = attributes.has("knockback")
+                    && attributes.get("knockback").isJsonPrimitive()
+                    ? Math.max(0, attributes.get("knockback").getAsDouble())
+                    : 0;
+            double damageMultiplier = attributes.has("damage_multiplier")
+                    && attributes.get("damage_multiplier").isJsonPrimitive()
+                    ? Math.max(0, attributes.get("damage_multiplier").getAsDouble())
+                    : 0;
             JsonArray attacks = attributes.getAsJsonArray("attacks");
             for (JsonElement attack : attacks) {
                 if (!attack.isJsonObject()) {
@@ -791,6 +1107,15 @@ public final class FiercerBattlesCombatSkills {
                 FiercerBattlesCustomData.AttackData data =
                         FiercerBattlesCustomData.parseAttackData(attack.getAsJsonObject());
                 data.attackRange = attackRange;
+                if (data.fixedDamage == 0) {
+                    data.fixedDamage = fixedDamage;
+                }
+                if (data.knockback == 0) {
+                    data.knockback = knockback;
+                }
+                if (data.damageMultiplier == 0) {
+                    data.damageMultiplier = damageMultiplier;
+                }
                 data.skillEffect = skillEffect;
                 data.skillId = skillId;
                 values.add(data);
@@ -822,6 +1147,30 @@ public final class FiercerBattlesCombatSkills {
     private record RangeKey(UUID playerId, boolean server) {
     }
 
-    private record Selection(Object attributes, Object attack, FiercerBattlesCustomData.AttackData customData) {
+    private record Selection(
+            Object attributes,
+            Object attack,
+            FiercerBattlesCustomData.AttackData customData,
+            int chainSwings
+    ) {
+    }
+
+    /**
+     * One conditional combat-skill variant: a list of conditions (AND
+     * semantics, same values as attack-segment conditions) plus the loaded
+     * skill definition. An empty condition list always matches.
+     */
+    private record VariantDefinition(List<String> conditions, Definition definition) {
+        private boolean matches(Object player, Object hand) {
+            if (conditions == null || conditions.isEmpty()) {
+                return true;
+            }
+            for (String condition : conditions) {
+                if (!evaluateCondition(condition, player, hand)) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import com.fiercerbattles.config.FiercerBattlesConfig;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
@@ -19,6 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Reads custom FiercerBattles fields from BetterCombat weapon_attributes JSON files.
@@ -44,11 +46,15 @@ public final class FiercerBattlesCustomData {
         public double afterCooldown = 0;
         /**
          * New animation-resource recovery window. Values are inclusive and
-         * describe the remaining PlayerAnimator frames, for example [0, 20].
+         * describe the animation's PLAYED frame position (0..stopTick) by
+         * default; set {@code recovery_cancel_frames_unit: "remaining"} to
+         * interpret them as remaining frames instead.
          */
         public int recoveryCancelMinFrames = 0;
         public int recoveryCancelMaxFrames = 0;
         public boolean hasRecoveryCancelFrames = false;
+        /** True when the frame window uses played-frame positions (default). */
+        public boolean recoveryCancelFramesPlayed = true;
 
         /** Maximum remaining recovery (in ticks) that this skill segment may cancel (legacy). */
         public int recoveryCancelTicks = 0;
@@ -58,6 +64,18 @@ public final class FiercerBattlesCustomData {
         public float movementSpeedMultiplier = 0;
         public float rangeMultiplier = 0;
         public MultipleHits multipleHits;
+
+        /** Flat damage added to every hit of this segment, after armor reduction. */
+        public double fixedDamage = 0;
+        /** Extra knockback in blocks, added to the vanilla knockback of every hit. */
+        public double knockback = 0;
+        /**
+         * The segment's own Better Combat damage multiplier (0 when the
+         * segment did not write one). Recorded per request so the server can
+         * always resolve the skill's own multiplier instead of whatever
+         * normal attack the decoded combo happened to select.
+         */
+        public double damageMultiplier = 0;
 
         /** Optional effect payload inherited from a combat-skill JSON root. */
         public SkillEffectData skillEffect;
@@ -79,6 +97,20 @@ public final class FiercerBattlesCustomData {
         public float soundVolume = 1.0F;
         public float soundPitch = 1.0F;
         public PotionEffectData potionEffect;
+        /**
+         * Whether releasing the skill is allowed to interrupt the ongoing
+         * attack animation. Defaults to {@code true}; set
+         * {@code "interrupt_attack": false} to require the current attack to
+         * finish before the skill can start, or a number N to only allow the
+         * interrupt once the attack animation has played N frames.
+         */
+        public boolean interruptAttack = true;
+        /**
+         * When greater than zero, the attack animation must have PLAYED at
+         * least this many frames (0..stopTick) before the skill may interrupt
+         * it. Ignored when {@link #interruptAttack} is {@code false}.
+         */
+        public int interruptAfterFrame = 0;
 
         public static SkillEffectData parse(JsonObject root) {
             JsonObject skill = root.has("skill") && root.get("skill").isJsonObject()
@@ -94,6 +126,25 @@ public final class FiercerBattlesCustomData {
             data.damageBonus = nonNegative(number(skill, "damage_bonus", "damage_percent", 0));
             data.armorBonus = nonNegative(number(skill, "armor_bonus", "armor_percent", 0));
             data.healPercent = nonNegative(number(skill, "heal_percent", "healing_percent", 0));
+            if (skill.has("interrupt_attack") && skill.get("interrupt_attack").isJsonPrimitive()) {
+                JsonPrimitive interrupt = skill.getAsJsonPrimitive("interrupt_attack");
+                if (interrupt.isNumber()) {
+                    // "interrupt_attack": 30 — only allow the interrupt once
+                    // the attack animation has played 30 frames.
+                    data.interruptAttack = true;
+                    data.interruptAfterFrame = Math.max(0, interrupt.getAsInt());
+                } else if (interrupt.isBoolean()) {
+                    data.interruptAttack = interrupt.getAsBoolean();
+                } else if (interrupt.isString()) {
+                    String raw = interrupt.getAsString().trim().toLowerCase(java.util.Locale.ROOT);
+                    try {
+                        data.interruptAttack = true;
+                        data.interruptAfterFrame = Math.max(0, Integer.parseInt(raw));
+                    } catch (NumberFormatException ignored) {
+                        data.interruptAttack = !raw.equals("false");
+                    }
+                }
+            }
 
             if (skill.has("action_json") && skill.get("action_json").isJsonPrimitive()) {
                 data.actionJson = skill.get("action_json").getAsString().trim();
@@ -137,6 +188,7 @@ public final class FiercerBattlesCustomData {
                     || object.has("damage_bonus") || object.has("damage_percent")
                     || object.has("armor_bonus") || object.has("armor_percent")
                     || object.has("heal_percent") || object.has("healing_percent")
+                    || object.has("interrupt_attack")
                     || object.has("potion_effect") || object.has("effect")
                     || object.has("action_json") || object.has("action") || object.has("sound");
         }
@@ -184,25 +236,45 @@ public final class FiercerBattlesCustomData {
     public static final class MultipleHits {
         public final int[] frames;
         public final float[] damageMultipliers;
+        /**
+         * True when {@link #frames} are PlayerAnimator resource frames of the
+         * attack animation (0..stopTick) instead of game ticks since the swing
+         * started. The client maps the live animation playback position onto
+         * the resource frames.
+         */
+        public final boolean animationFrames;
 
         public MultipleHits(int[] frames, float[] damageMultipliers) {
+            this(frames, damageMultipliers, false);
+        }
+
+        public MultipleHits(int[] frames, float[] damageMultipliers, boolean animationFrames) {
             this.frames = frames;
             this.damageMultipliers = damageMultipliers;
+            this.animationFrames = animationFrames;
         }
 
         public boolean isValidIndex(int index) {
             return index >= 0 && index < frames.length;
         }
     }
-    private static final Map<String, List<AttackData>> DATA = new HashMap<>();
+    /**
+     * Per-item attack data, published atomically by {@link #load}. In
+     * singleplayer the integrated server and the client can both reload the
+     * datapack (server thread and render thread); readers always see a
+     * complete, immutable-enough snapshot instead of a half-cleared map.
+     */
+    private static volatile Map<String, List<AttackData>> DATA = Map.of();
 
     /**
      * Maps item ids whose attributes were resolved from another weapon
      * attributes container (for example daggers assigned the
      * `bettercombat:dagger` preset through BetterCombat's fallback
      * compatibility) to the container id that holds the custom data.
+     * Written from the registry resolution path, read from the attack path,
+     * so it must tolerate concurrent access.
      */
-    private static final Map<String, String> ALIASES = new HashMap<>();
+    private static final Map<String, String> ALIASES = new ConcurrentHashMap<>();
 
     /**
      * Raw (pre-inheritance) content of one weapon_attributes file.
@@ -218,7 +290,6 @@ public final class FiercerBattlesCustomData {
     }
 
     public static void load(ResourceManager resourceManager) {
-        DATA.clear();
         ALIASES.clear();
         Map<String, ContainerData> containers = new HashMap<>();
         Map<ResourceLocation, Resource> resources = resourceManager.listResources(
@@ -242,12 +313,26 @@ public final class FiercerBattlesCustomData {
                 List<AttackData> attacks = new ArrayList<>();
                 if (root.has("attributes") && root.get("attributes").isJsonObject()) {
                     JsonObject attributes = root.getAsJsonObject("attributes");
+                    // Root-level defaults applied to every attack segment; a
+                    // value written directly on the segment wins.
+                    double fixedDamage = positiveNumber(attributes, "fixed_damage", "flat_damage");
+                    double knockback = positiveNumber(attributes, "knockback", "knockback_bonus");
+                    double damageMultiplier = positiveNumber(attributes, "damage_multiplier", null);
                     if (attributes.has("attacks") && attributes.get("attacks").isJsonArray()) {
                         JsonArray attackArray = attributes.getAsJsonArray("attacks");
                         for (JsonElement element : attackArray) {
                             AttackData data = new AttackData();
                             if (element.isJsonObject()) {
                                 parseAttack(element.getAsJsonObject(), data);
+                            }
+                            if (data.fixedDamage == 0) {
+                                data.fixedDamage = fixedDamage;
+                            }
+                            if (data.knockback == 0) {
+                                data.knockback = knockback;
+                            }
+                            if (data.damageMultiplier == 0) {
+                                data.damageMultiplier = damageMultiplier;
                             }
                             attacks.add(data);
                         }
@@ -257,9 +342,14 @@ public final class FiercerBattlesCustomData {
             } catch (Exception ignored) {
             }
         }
+        // Publish a complete snapshot atomically so readers on the other
+        // thread (client vs integrated server) never observe a half-loaded
+        // map.
+        Map<String, List<AttackData>> resolved = new HashMap<>(containers.size());
         for (String itemId : containers.keySet()) {
-            DATA.put(itemId, resolveInheritance(itemId, containers, new HashSet<>()));
+            resolved.put(itemId, resolveInheritance(itemId, containers, new HashSet<>()));
         }
+        DATA = resolved;
     }
 
     /**
@@ -316,10 +406,16 @@ public final class FiercerBattlesCustomData {
         merged.recoveryCancelMaxFrames = child.hasRecoveryCancelFrames
                 ? child.recoveryCancelMaxFrames
                 : parent.recoveryCancelMaxFrames;
+        merged.recoveryCancelFramesPlayed = child.hasRecoveryCancelFrames
+                ? child.recoveryCancelFramesPlayed
+                : parent.recoveryCancelFramesPlayed;
         merged.recoveryCancelTicks = child.recoveryCancelTicks != 0
                 ? child.recoveryCancelTicks
                 : parent.recoveryCancelTicks;
         merged.multipleHits = child.multipleHits != null ? child.multipleHits : parent.multipleHits;
+        merged.fixedDamage = child.fixedDamage != 0 ? child.fixedDamage : parent.fixedDamage;
+        merged.knockback = child.knockback != 0 ? child.knockback : parent.knockback;
+        merged.damageMultiplier = child.damageMultiplier != 0 ? child.damageMultiplier : parent.damageMultiplier;
         merged.skillEffect = child.skillEffect != null ? child.skillEffect : parent.skillEffect;
         merged.skillId = child.skillId != null ? child.skillId : parent.skillId;
         if (child.hasDisplacement) {
@@ -342,6 +438,17 @@ public final class FiercerBattlesCustomData {
         }
         String name = path.substring(prefix.length(), path.length() - ".json".length());
         return location.getNamespace() + ":" + name;
+    }
+
+    /** Reads a non-negative numeric field, honoring an alias. */
+    private static double positiveNumber(JsonObject object, String primary, String alias) {
+        if (object.has(primary) && object.get(primary).isJsonPrimitive()) {
+            return Math.max(0, object.get(primary).getAsDouble());
+        }
+        if (alias != null && object.has(alias) && object.get(alias).isJsonPrimitive()) {
+            return Math.max(0, object.get(alias).getAsDouble());
+        }
+        return 0;
     }
 
     private static void parseAttack(JsonObject attack, AttackData data) {
@@ -381,10 +488,35 @@ public final class FiercerBattlesCustomData {
             data.movementSpeedMultiplier = attack.get("movement_speed_multiplier").getAsFloat();
         }
         if (attack.has("Multiplehits") && attack.get("Multiplehits").isJsonPrimitive()) {
-            data.multipleHits = parseMultipleHits(attack.get("Multiplehits").getAsString());
+            data.multipleHits = parseMultipleHits(
+                    attack.get("Multiplehits").getAsString(),
+                    isAnimationFrameUnit(attack)
+            );
         }        if (attack.has("range_multiplier") && attack.get("range_multiplier").isJsonPrimitive()) {
             data.rangeMultiplier = attack.get("range_multiplier").getAsFloat();
         }
+        if (attack.has("fixed_damage") && attack.get("fixed_damage").isJsonPrimitive()) {
+            data.fixedDamage = Math.max(0, attack.get("fixed_damage").getAsDouble());
+        } else if (attack.has("flat_damage") && attack.get("flat_damage").isJsonPrimitive()) {
+            data.fixedDamage = Math.max(0, attack.get("flat_damage").getAsDouble());
+        }
+        if (attack.has("knockback") && attack.get("knockback").isJsonPrimitive()) {
+            data.knockback = Math.max(0, attack.get("knockback").getAsDouble());
+        } else if (attack.has("knockback_bonus") && attack.get("knockback_bonus").isJsonPrimitive()) {
+            data.knockback = Math.max(0, attack.get("knockback_bonus").getAsDouble());
+        }
+        if (attack.has("damage_multiplier") && attack.get("damage_multiplier").isJsonPrimitive()) {
+            data.damageMultiplier = Math.max(0, attack.get("damage_multiplier").getAsDouble());
+        }
+    }
+
+    private static boolean isAnimationFrameUnit(JsonObject attack) {
+        JsonElement unit = attack.get("MultiplehitsUnit");
+        if (unit == null) {
+            unit = attack.get("multiplehits_unit");
+        }
+        return unit != null && unit.isJsonPrimitive()
+                && "animation".equalsIgnoreCase(unit.getAsString().trim());
     }
 
     private static void parseRecoveryCancelWindow(JsonObject attack, AttackData data) {
@@ -397,9 +529,30 @@ public final class FiercerBattlesCustomData {
             data.recoveryCancelMinFrames = range[0];
             data.recoveryCancelMaxFrames = range[1];
             data.hasRecoveryCancelFrames = true;
+            data.recoveryCancelFramesPlayed = isPlayedFrameUnit(attack);
             return;
         }
         data.recoveryCancelTicks = parseRecoveryCancelTicks(attack);
+    }
+
+    /**
+     * The frame window is interpreted as the animation's PLAYED frame
+     * position (0..stopTick) unless the file explicitly requests the old
+     * "remaining frames" meaning via {@code recovery_cancel_frames_unit:
+     * "remaining"}.
+     */
+    private static boolean isPlayedFrameUnit(JsonObject attack) {
+        JsonElement unit = attack.get("recovery_cancel_frames_unit");
+        if (unit == null) {
+            unit = attack.get("interrupt_recovery_frames_unit");
+        }
+        if (unit != null && unit.isJsonPrimitive()) {
+            String value = unit.getAsString().trim().toLowerCase(java.util.Locale.ROOT);
+            if (value.equals("remaining")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static int[] parseFrameRange(JsonElement value) {
@@ -466,6 +619,10 @@ public final class FiercerBattlesCustomData {
         return FiercerBattlesConfig.getMultipleHits(animation);
     }
     public static MultipleHits parseMultipleHits(String raw) {
+        return parseMultipleHits(raw, false);
+    }
+
+    public static MultipleHits parseMultipleHits(String raw, boolean animationFrames) {
         if (raw == null) {
             return null;
         }
@@ -480,15 +637,22 @@ public final class FiercerBattlesCustomData {
         }
         String[] frameParts = frameText.split(",", -1);
         String[] multiplierParts = multiplierText.split(",", -1);
-        if (frameParts.length != multiplierParts.length || frameParts.length == 0) {
+        if (frameParts.length == 0) {
             return null;
         }
+        // The multiplier list may be shorter than the frame list: the missing
+        // tail stages inherit the last configured multiplier. Without this,
+        // one missing multiplier used to invalidate the whole Multiplehits
+        // setting and silently disabled every hit stage.
+        String lastMultiplier = multiplierParts[multiplierParts.length - 1];
         int[] frames = new int[frameParts.length];
-        float[] multipliers = new float[multiplierParts.length];
+        float[] multipliers = new float[frameParts.length];
         try {
             for (int index = 0; index < frameParts.length; index++) {
                 frames[index] = Integer.parseInt(frameParts[index].trim());
-                multipliers[index] = Float.parseFloat(multiplierParts[index].trim());
+                multipliers[index] = Float.parseFloat(
+                        (index < multiplierParts.length ? multiplierParts[index] : lastMultiplier).trim()
+                );
                 if (frames[index] < 0 || multipliers[index] < 0 || index > 0 && frames[index] <= frames[index - 1]) {
                     return null;
                 }
@@ -496,7 +660,7 @@ public final class FiercerBattlesCustomData {
         } catch (NumberFormatException ignored) {
             return null;
         }
-        return new MultipleHits(frames, multipliers);
+        return new MultipleHits(frames, multipliers, animationFrames);
     }
     public static AttackData parseAttackData(JsonObject attack) {
         AttackData data = new AttackData();

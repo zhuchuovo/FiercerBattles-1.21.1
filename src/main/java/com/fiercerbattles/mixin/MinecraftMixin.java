@@ -207,7 +207,7 @@ public abstract class MinecraftMixin {
     }
     @Redirect(method = "startUpswing", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getAttackStrengthScale(F)F"), remap = false)
     private float fiercerbattles$modifyStartProgress(LocalPlayer player, float ticks) {
-        return modifyAttackProgress(player, ticks);
+        return modifyStartProgress(player, ticks);
     }
 
     @Redirect(method = "performAttack", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getAttackStrengthScale(F)F"), remap = false)
@@ -215,22 +215,55 @@ public abstract class MinecraftMixin {
         return modifyAttackProgress(player, ticks);
     }
 
+    /**
+     * The hit gate: multiple-hit frames and pending combat skills must always
+     * resolve, regardless of the vanilla attack-strength ticker.
+     */
     private static float modifyAttackProgress(Player player, float ticks) {
         if (FiercerBattlesRuntime.isExecutingMultipleHit()) {
             return 1.0F;
         }
         // A pending combat skill directly interrupts the ongoing attack, so
-        // its upswing and hit must always be allowed to start and resolve,
-        // regardless of the vanilla attack-strength ticker.
+        // its hit must always be allowed to resolve, regardless of the
+        // vanilla attack-strength ticker.
         if (player instanceof LocalPlayer
                 && FiercerBattlesCombatSkills.isClientSkillPending()) {
             return 1.0F;
         }
+        return plainProgress(player, ticks);
+    }
+
+    /**
+     * The swing-start gate. A freshly armed combat skill (the skill key was
+     * pressed) may start immediately, but while a swing is already live the
+     * real attack strength must gate new swings: otherwise hold-to-attack
+     * would restart the skill swing and its animation on every tick, leaving
+     * the character stuck in the upswing and spamming attack requests.
+     */
+    private static float modifyStartProgress(Player player, float ticks) {
+        if (player instanceof LocalPlayer
+                && FiercerBattlesCombatSkills.isClientSkillPending()
+                && !hasOngoingSwing()) {
+            return 1.0F;
+        }
+        return plainProgress(player, ticks);
+    }
+
+    private static float plainProgress(Player player, float ticks) {
         float progress = player.getAttackStrengthScale(ticks);
         float multiplier = FiercerBattlesRuntime.getCurrentAttackSpeedMultiplier();
         if (multiplier > 1.0F) {
             return Math.min(1.0F, progress * multiplier);
         }
         return progress;
+    }
+
+    private static boolean hasOngoingSwing() {
+        Minecraft minecraft = Minecraft.getInstance();
+        try {
+            return minecraft.getClass().getMethod("getCurrentAttackHand").invoke(minecraft) != null;
+        } catch (ReflectiveOperationException ignored) {
+            return false;
+        }
     }
 }

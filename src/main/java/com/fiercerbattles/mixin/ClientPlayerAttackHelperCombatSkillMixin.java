@@ -26,7 +26,7 @@ public abstract class ClientPlayerAttackHelperCombatSkillMixin {
         if (hand == null) {
             return;
         }
-        Object skillHand = FiercerBattlesCombatSkills.replaceArmedClientHand(hand);
+        Object skillHand = FiercerBattlesCombatSkills.replaceArmedClientHand(hand, player);
         if (skillHand != hand) {
             // Better Combat resolves the target range from the item stack, so
             // the skill's own attack_range must be published here for

@@ -1,6 +1,7 @@
 package com.fiercerbattles;
 
 import com.fiercerbattles.config.FiercerBattlesConfig;
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
@@ -12,6 +13,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -21,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 
 public final class FiercerBattlesRuntime {
     private FiercerBattlesRuntime() {}
+    private static final org.slf4j.Logger LOGGER = LogUtils.getLogger();
 
     private static String currentAnimation = "";
     private static FiercerBattlesConfig.Displacement displacement = null;
@@ -46,6 +49,7 @@ public final class FiercerBattlesRuntime {
     private static boolean immediateRecoveryCancellationRequested;
     private static final Map<String, Integer> ANIMATION_STOP_FRAMES = new ConcurrentHashMap<>();
     private static final Map<String, Boolean> FORCE_ORIGINAL_PLAYBACK = new ConcurrentHashMap<>();
+    private static final Set<String> ITEM_CHANNEL_WARNINGS = ConcurrentHashMap.newKeySet();
     private static final int UNKNOWN_ANIMATION = Integer.MIN_VALUE;
 
     /** Clears attack state when Minecraft replaces the client player on respawn. */
@@ -206,6 +210,19 @@ public final class FiercerBattlesRuntime {
         }
         if (windowData.hasRecoveryCancelFrames) {
             int remainingFrames = getAnimationRemainingFrames(currentTick);
+            if (windowData.recoveryCancelFramesPlayed) {
+                // Played-frame semantics: the values are positions 0..stopTick
+                // the animation has reached. A window like [50, 60] therefore
+                // covers the late part of a long animation, right after its
+                // damage frames, instead of being unreachable on short
+                // animations (remaining frames can never exceed stopTick).
+                int totalFrames = animationResourceStopFrame > 0
+                        ? animationResourceStopFrame
+                        : Math.max(1, Math.round(animationPlaybackLengthTicks));
+                int playedFrames = Math.max(0, totalFrames - remainingFrames);
+                return playedFrames >= windowData.recoveryCancelMinFrames
+                        && playedFrames <= windowData.recoveryCancelMaxFrames;
+            }
             return remainingFrames >= windowData.recoveryCancelMinFrames
                     && remainingFrames <= windowData.recoveryCancelMaxFrames;
         }
@@ -272,6 +289,24 @@ public final class FiercerBattlesRuntime {
                 Math.max(0, Math.round(elapsedTicks * totalFrames / animationPlaybackLengthTicks))
         );
         return Math.max(0, totalFrames - currentFrame);
+    }
+
+    /**
+     * Whether the current attack animation has already PLAYED at least
+     * {@code frame} resource frames (0..stopTick). Used by the
+     * {@code interrupt_attack: N} option: the skill may only interrupt the
+     * ongoing attack once the animation reached frame N.
+     */
+    public static boolean hasAttackPlayedAtLeast(int currentTick, int frame) {
+        if (frame <= 0) {
+            return true;
+        }
+        int remainingFrames = getAnimationRemainingFrames(currentTick);
+        int totalFrames = animationResourceStopFrame > 0
+                ? animationResourceStopFrame
+                : Math.max(1, Math.round(animationPlaybackLengthTicks));
+        int playedFrames = Math.max(0, totalFrames - remainingFrames);
+        return playedFrames >= frame;
     }
 
     /**
@@ -406,6 +441,26 @@ public final class FiercerBattlesRuntime {
         nextMultipleHitIndex = 0;
         executingMultipleHitIndex = -1;
     }
+
+    /**
+     * How long pending multiple-hit frames may outlive the swing window that
+     * armed them before the whole state is dropped. Frames slightly past the
+     * rounded window are legitimate (for example a 15-tick frame on a swing
+     * stretched to ~15.2 ticks), but frames beyond the grace can never fire
+     * and must not keep suppressing the default attack forever.
+     */
+    private static final int MULTIPLE_HIT_WINDOW_GRACE_TICKS = 4;
+
+    /**
+     * The default upswing hit is replaced by the configured multiple hits.
+     * Once every configured frame has been dispatched the suppression must
+     * end, so a stale multiple-hit state can never keep eating later attacks.
+     *
+     * tickMultipleHits is guaranteed to cancel the state once the swing
+     * window (plus a grace) is over, even when configured frames can never
+     * fire, so this suppression is always bounded and the player can never
+     * get stuck in a no-damage swing loop.
+     */
     public static boolean shouldSuppressDefaultAttack() {
         return currentMultipleHits != null && !isExecutingMultipleHit();
     }
@@ -423,20 +478,113 @@ public final class FiercerBattlesRuntime {
     }
 
     public static void tickMultipleHits(LocalPlayer player) {
-        if (currentMultipleHits == null || nextMultipleHitIndex >= currentMultipleHits.frames.length) {
+        if (currentMultipleHits == null) {
             return;
         }
         int elapsed = player.tickCount - multipleHitsStartTick;
-        while (nextMultipleHitIndex < currentMultipleHits.frames.length
-                && elapsed >= currentMultipleHits.frames[nextMultipleHitIndex]) {
+        // The player entity was replaced (death/respawn resets tickCount) or
+        // the timing is otherwise broken: a negative elapsed means the armed
+        // multiple hits can never fire, so drop them instead of letting them
+        // suppress the default attack forever.
+        if (elapsed < 0) {
+            cancelMultipleHits();
+            return;
+        }
+        int swingLengthTicks = Math.max(1, Math.round(animationPlaybackLengthTicks));
+        // The multiple hits belong to one swing; once the swing's window is
+        // over AND every configured frame has been dispatched the state is
+        // stale and must not linger (it would keep suppressing the default
+        // attack of later swings forever). Cancelling while frames are still
+        // pending would eat frames configured at or just past the swing
+        // window: for example a 15-tick frame on a dual-wield swing stretched
+        // to ~15.2 ticks (rounds to a 15-tick window) cancels at
+        // elapsed == 15 before that frame can fire. Pending frames always
+        // come due eventually because frames are strictly ascending, and a
+        // new swing re-arms the state before it can misapply.
+        int windowEndTicks = swingLengthTicks + MULTIPLE_HIT_WINDOW_GRACE_TICKS;
+        if (nextMultipleHitIndex >= currentMultipleHits.frames.length) {
+            if (elapsed >= swingLengthTicks) {
+                cancelMultipleHits();
+            }
+            return;
+        }
+        // Frames configured beyond the swing window (or beyond the
+        // animation's playable frame range) can never fire. Without this
+        // bound the state would stay armed forever and suppress every later
+        // performAttack, soft-locking the player into a no-damage swing loop.
+        if (elapsed >= windowEndTicks) {
+            dropUnreachableMultipleHits();
+            return;
+        }
+        int currentFrame = currentMultipleHits.animationFrames
+                ? currentAnimationFrame(player.tickCount)
+                : elapsed;
+        if (currentMultipleHits.animationFrames) {
+            int totalFrames = animationResourceStopFrame > 0
+                    ? animationResourceStopFrame
+                    : swingLengthTicks;
+            if (currentFrame >= totalFrames
+                    && currentMultipleHits.frames[nextMultipleHitIndex] > totalFrames) {
+                dropUnreachableMultipleHits();
+                return;
+            }
+        }
+        while (currentMultipleHits != null
+                && nextMultipleHitIndex < currentMultipleHits.frames.length
+                && currentFrame >= currentMultipleHits.frames[nextMultipleHitIndex]) {
             executingMultipleHitIndex = nextMultipleHitIndex;
             try {
                 invokePerformAttack();
             } finally {
                 executingMultipleHitIndex = -1;
             }
+            // performAttack may cancel the swing (for example the feint key),
+            // which clears the multiple-hit state; never touch it again then.
+            if (currentMultipleHits == null) {
+                return;
+            }
             nextMultipleHitIndex += 1;
         }
+    }
+
+    /**
+     * Drops the armed multiple-hit state because at least one configured
+     * frame lies outside the swing window / animation range and can never
+     * fire. Keeping the state would suppress all later attacks.
+     */
+    private static void dropUnreachableMultipleHits() {
+        if (currentMultipleHits != null) {
+            LOGGER.warn(
+                    "Dropping pending multiple-hit frame {} (of {}) of animation '{}': "
+                            + "configured beyond the swing window, it can never fire",
+                    nextMultipleHitIndex + 1,
+                    currentMultipleHits.frames.length,
+                    currentAnimation
+            );
+        }
+        cancelMultipleHits();
+    }
+
+    /**
+     * Maps the current swing position onto the animation resource's frame
+     * number (0..stopTick). Prefers Better Combat's live PlayerAnimator
+     * playback position so both the stretched playback and the upswing speed
+     * ramp are reflected; falls back to a linear tick-to-frame estimate when
+     * the live player is unavailable.
+     */
+    private static int currentAnimationFrame(int currentTick) {
+        int totalFrames = animationResourceStopFrame > 0
+                ? animationResourceStopFrame
+                : Math.max(1, Math.round(animationPlaybackLengthTicks));
+        Integer renderedRemaining = getRenderedAnimationRemainingFrames();
+        if (renderedRemaining != null) {
+            return Math.min(totalFrames, Math.max(0, totalFrames - renderedRemaining));
+        }
+        int elapsedTicks = Math.max(0, currentTick - multipleHitsStartTick);
+        return Math.min(
+                totalFrames,
+                Math.max(0, Math.round(elapsedTicks * totalFrames / animationPlaybackLengthTicks))
+        );
     }
 
     private static void invokePerformAttack() {
@@ -449,7 +597,10 @@ public final class FiercerBattlesRuntime {
                     return;
                 }
             }
-        } catch (ReflectiveOperationException ignored) {
+        } catch (ReflectiveOperationException exception) {
+            // Never let a failed frame silently eat the hit: report it so the
+            // missing damage is diagnosable instead of vanishing.
+            LOGGER.warn("Failed to perform multiple-hit attack frame", exception);
         }
     }
     public static double getCurrentRangeBonus() {
@@ -459,7 +610,13 @@ public final class FiercerBattlesRuntime {
     public static boolean isInRecovery(int currentTick) {
         // The ordinary Better Combat cooldown already controls normal attacks.
         // This extra gate is kept only for explicitly configured after_cooldown.
-        return currentAfterCooldown > 0 && recoveryUntil > 0 && currentTick < recoveryUntil;
+        // A recorded recovery window whose start tick lies in the future
+        // belongs to a previous player entity (death respawn resets tickCount)
+        // and must never block the new one.
+        return currentAfterCooldown > 0
+                && recoveryUntil > 0
+                && currentTick < recoveryUntil
+                && animationStartTick <= currentTick;
     }
 
     public static String getCurrentAnimation() {
@@ -518,6 +675,9 @@ public final class FiercerBattlesRuntime {
                         value = booleanField(root, "forceOriginalPlayback", "force_original_playback");
                     }
                     enabled = Boolean.TRUE.equals(value);
+                    if (enabled && !hasItemChannel(emote)) {
+                        warnMissingItemChannel(animation);
+                    }
                 }
             }
         } catch (RuntimeException | java.io.IOException ignored) {
@@ -525,6 +685,38 @@ public final class FiercerBattlesRuntime {
         }
         FORCE_ORIGINAL_PLAYBACK.put(animation, enabled);
         return enabled;
+    }
+
+    /**
+     * Better Combat only moves a held item independently when the animation
+     * contains rightItem or leftItem keyframes. Keep this diagnostic next to
+     * the playback flag so a missing export channel is visible immediately.
+     */
+    private static boolean hasItemChannel(JsonObject animation) {
+        JsonElement moves = animation.get("moves");
+        if (moves == null || !moves.isJsonArray()) {
+            return false;
+        }
+        for (JsonElement move : moves.getAsJsonArray()) {
+            if (!move.isJsonObject()) {
+                continue;
+            }
+            JsonObject moveObject = move.getAsJsonObject();
+            if (moveObject.has("rightItem") || moveObject.has("leftItem")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void warnMissingItemChannel(String animation) {
+        if (ITEM_CHANNEL_WARNINGS.add(animation)) {
+            LOGGER.warn(
+                    "Animation {} enables forceOriginalPlayback but has no rightItem/leftItem channel; "
+                            + "the held item cannot move independently until the animation is re-exported with an item channel",
+                    animation
+            );
+        }
     }
 
     private static Boolean booleanField(JsonObject object, String primary, String alias) {
@@ -557,6 +749,10 @@ public final class FiercerBattlesRuntime {
         }
         int elapsed = player.tickCount - displacementStartTick;
         if (elapsed < 0) {
+            // The player entity was replaced (death respawn resets tickCount);
+            // the displacement belongs to the old entity and must not keep
+            // pushing the new one forever.
+            displacementActive = false;
             return;
         }
         int durationTicks = (int) Math.max(1, Math.ceil(displacement.durationTicks));
