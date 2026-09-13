@@ -1,5 +1,7 @@
 {
   "key.categories.fiercerbattles": "Fiercer Battles",
   "key.fiercerbattles.combat_skill": "战技",
-  "message.fiercerbattles.combat_skill_cooldown": "战技冷却中：%s 秒"
+  "message.fiercerbattles.combat_skill_cooldown": "战技冷却中：%s 秒",
+  "effect.fiercerbattles.scar_strike": "伤痕打击",
+  "death.attack.scar_strike": "%1$s 在伤痕打击下丧命"
 }

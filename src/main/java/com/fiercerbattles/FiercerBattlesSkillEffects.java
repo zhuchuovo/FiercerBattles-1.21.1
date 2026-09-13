@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -78,7 +79,7 @@ public final class FiercerBattlesSkillEffects {
         if (pending != null) {
             if (pending.skillId.equals(skillId) && now <= pending.expiresAt) {
                 activateOnServerThread(player, pending);
-                markSkillActivation(player, skillId);
+                markSkillActivation(player, skillId, attackData);
                 return true;
             }
             if (now > pending.expiresAt) {
@@ -100,7 +101,7 @@ public final class FiercerBattlesSkillEffects {
             // without the boost the vanilla damage formula (0.2 + f*f*0.8)
             // would turn the skill hit into a ~20% scratch.
             beginServerSkillAttack(player, attackData);
-            markSkillActivation(player, skillId);
+            markSkillActivation(player, skillId, attackData);
             return true;
         }
         FiercerBattlesCustomData.SkillEffectData effect = effectOf(attackData);
@@ -138,7 +139,7 @@ public final class FiercerBattlesSkillEffects {
                 applyEffect(player, attackData, effect, now);
             }
         }
-        markSkillActivation(player, skillId);
+        markSkillActivation(player, skillId, attackData);
         return true;
     }
 
@@ -163,17 +164,22 @@ public final class FiercerBattlesSkillEffects {
             return false;
         }
         if (window.skillId.equals(skillIdOf(attackData))) {
-            markSkillActivation(player, window.skillId);
+            markSkillActivation(player, window.skillId, attackData);
             return true;
         }
         return false;
     }
 
-    private static void markSkillActivation(ServerPlayer player, String skillId) {
+    private static void markSkillActivation(
+            ServerPlayer player,
+            String skillId,
+            FiercerBattlesCustomData.AttackData attackData
+    ) {
         long now = player.level().getGameTime();
         LAST_SKILL_ACTIVATION.put(player.getUUID(), new ActivationWindow(
                 skillId,
-                now + SKILL_ACTIVATION_WINDOW_TICKS
+                now + SKILL_ACTIVATION_WINDOW_TICKS,
+                attackData
         ));
     }
 
@@ -446,13 +452,28 @@ public final class FiercerBattlesSkillEffects {
     }
 
     private static void applyHitTargetPotionEffect(ServerPlayer attacker, LivingEntity target) {
-        if (SERVER_SKILL_REQUEST.get() != attacker) {
+        // The skill's request state is written while Better Combat resolves
+        // the packet (which may run on the network thread), while this damage
+        // event fires on the server thread inside the deferred attack task.
+        // ThreadLocal markers are therefore unreliable here; the per-player
+        // activation window is thread-safe and is refreshed on every hit of
+        // the activation, so it is the authoritative "this damage belongs to
+        // a live skill" check.
+        ActivationWindow window = LAST_SKILL_ACTIVATION.get(attacker.getUUID());
+        if (window == null) {
+            // Normal (non-skill) hits land here constantly; keep this quiet.
             return;
         }
-        FiercerBattlesCustomData.AttackData attackData = SERVER_SKILL_ATTACK.get();
-        FiercerBattlesCustomData.SkillEffectData effect = effectOf(attackData);
+        long now = attacker.level().getGameTime();
+        if (now > window.expiresAt) {
+            LAST_SKILL_ACTIVATION.remove(attacker.getUUID(), window);
+            return;
+        }
+        FiercerBattlesCustomData.AttackData attackData = window.attackData;
+        FiercerBattlesCustomData.SkillEffectData effect = attackData != null ? attackData.skillEffect : null;
         if (effect == null || effect.potionEffect == null
                 || effect.potionEffect.target() != FiercerBattlesCustomData.PotionEffectTarget.HIT_TARGET) {
+            LOGGER.debug("Fiercer Battles: skill hit target has no hit-target potion configured");
             return;
         }
         applyPotionEffect(target, effect.potionEffect, secondsToTicks(effect.durationSeconds));
@@ -468,18 +489,27 @@ public final class FiercerBattlesSkillEffects {
         }
         ResourceLocation effectId = ResourceLocation.tryParse(potionEffect.id());
         if (effectId == null) {
+            LOGGER.warn("Fiercer Battles: potion effect id '{}' is not a valid resource location", potionEffect.id());
             return;
         }
         int durationTicks = potionEffect.durationTicks() > 0
                 ? potionEffect.durationTicks()
                 : (int) Math.max(1, fallbackDurationTicks);
-        BuiltInRegistries.MOB_EFFECT.getHolder(effectId).ifPresent(holder ->
-                target.addEffect(new MobEffectInstance(
-                        holder,
-                        durationTicks,
-                        potionEffect.amplifier()
-                ), SERVER_SKILL_REQUEST.get())
-        );
+        java.util.Optional<net.minecraft.core.Holder.Reference<MobEffect>> holder =
+                BuiltInRegistries.MOB_EFFECT.getHolder(effectId);
+        if (holder.isEmpty()) {
+            // Most common cause: the running mod jar predates the effect
+            // (or the id is misspelled). Fail loudly instead of silently
+            // skipping so datapack authors can see the mistake in the log.
+            LOGGER.warn("Fiercer Battles: potion effect '{}' is not registered in this game; "
+                    + "skill potion skipped (running an outdated mod jar?)", effectId);
+            return;
+        }
+        target.addEffect(new MobEffectInstance(
+                holder.get(),
+                durationTicks,
+                potionEffect.amplifier()
+        ), SERVER_SKILL_REQUEST.get());
     }
 
     private static void clearServerSkillAttack() {
@@ -585,6 +615,10 @@ public final class FiercerBattlesSkillEffects {
     ) {
     }
 
-    private record ActivationWindow(String skillId, long expiresAt) {
+    private record ActivationWindow(
+            String skillId,
+            long expiresAt,
+            FiercerBattlesCustomData.AttackData attackData
+    ) {
     }
 }

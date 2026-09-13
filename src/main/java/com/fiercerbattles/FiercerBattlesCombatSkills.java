@@ -437,6 +437,20 @@ public final class FiercerBattlesCombatSkills {
         }
     }
 
+    /**
+     * Consumes one chain slot when a skill swing's multiple-hit frames can
+     * never fire (the client dropped the frame state as unreachable). Chain
+     * slots are normally consumed by the final multiple-hit packet of each
+     * swing; if the frames never fire the chain would otherwise stay armed,
+     * making every later swing use the skill again until the tick-count
+     * expiry — which reads as "normal attacks are stuck".
+     */
+    public static void consumeBrokenSkillSwing() {
+        if (FiercerBattlesRuntime.isCurrentCombatSkill()) {
+            consumeChainSwing();
+        }
+    }
+
     private static boolean isSkillChainExpired(Object player) {
         if (skillChainRemaining <= 0) {
             return false;

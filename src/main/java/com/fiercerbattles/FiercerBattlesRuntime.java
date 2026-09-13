@@ -442,6 +442,11 @@ public final class FiercerBattlesRuntime {
         executingMultipleHitIndex = -1;
     }
 
+    /** True when the currently prepared attack belongs to a combat skill. */
+    public static boolean isCurrentCombatSkill() {
+        return currentCombatSkill;
+    }
+
     /**
      * How long pending multiple-hit frames may outlive the swing window that
      * armed them before the whole state is dropped. Frames slightly past the
@@ -456,13 +461,23 @@ public final class FiercerBattlesRuntime {
      * Once every configured frame has been dispatched the suppression must
      * end, so a stale multiple-hit state can never keep eating later attacks.
      *
+     * The suppression only applies while at least one configured frame is
+     * still pending. After the last frame fired the state may linger for up
+     * to the swing window before {@link #tickMultipleHits} cancels it, but
+     * that lingering state must never swallow the natural hit of a following
+     * swing: that would leave the player attacking with no damage and, for
+     * skill chains whose chain-slot consumption happens on the final
+     * multiple-hit packet, would keep later swings locked into the skill.
+     *
      * tickMultipleHits is guaranteed to cancel the state once the swing
      * window (plus a grace) is over, even when configured frames can never
      * fire, so this suppression is always bounded and the player can never
      * get stuck in a no-damage swing loop.
      */
     public static boolean shouldSuppressDefaultAttack() {
-        return currentMultipleHits != null && !isExecutingMultipleHit();
+        return currentMultipleHits != null
+                && nextMultipleHitIndex < currentMultipleHits.frames.length
+                && !isExecutingMultipleHit();
     }
 
     public static boolean isExecutingMultipleHit() {
@@ -488,6 +503,7 @@ public final class FiercerBattlesRuntime {
         // suppress the default attack forever.
         if (elapsed < 0) {
             cancelMultipleHits();
+            FiercerBattlesCombatSkills.consumeBrokenSkillSwing();
             return;
         }
         int swingLengthTicks = Math.max(1, Math.round(animationPlaybackLengthTicks));
@@ -550,7 +566,9 @@ public final class FiercerBattlesRuntime {
     /**
      * Drops the armed multiple-hit state because at least one configured
      * frame lies outside the swing window / animation range and can never
-     * fire. Keeping the state would suppress all later attacks.
+     * fire. Keeping the state would suppress all later attacks. A skill
+     * swing whose frames can never fire also consumes its chain slot so the
+     * chain cannot keep later swings locked into the broken skill.
      */
     private static void dropUnreachableMultipleHits() {
         if (currentMultipleHits != null) {
@@ -563,6 +581,7 @@ public final class FiercerBattlesRuntime {
             );
         }
         cancelMultipleHits();
+        FiercerBattlesCombatSkills.consumeBrokenSkillSwing();
     }
 
     /**
