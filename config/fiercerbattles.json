@@ -3,10 +3,13 @@
     "enabled": true,
     "health_threshold": 0.25,
     "range": 3.0,
+    "action_id": "fiercerbattles:execution",
     "humanoid_entities": [
       "minecraft:zombie",
       "minecraft:skeleton"
-    ]
+    ],
+    "hurt_sound_frames": [12, 20, 24, 28, 32, 36, 40, 48],
+    "swing_sound_frames": [12, 24]
   },
   "entries": [
     {

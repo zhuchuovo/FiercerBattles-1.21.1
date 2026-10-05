@@ -556,7 +556,7 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 
 准星指向血量**严格低于最大生命值 25%** 的成年僵尸或骷髅，在三格内按战技键（默认 `G`）启动处决。动画使用 `execution.blend` 中的两个人物：`player` 是处决者，`player_B` 是被处决者。默认最大生命值 20 的僵尸/骷髅必须低于 5 点生命值；恰好 5 点不能处决。
 
-服务器负责验证血量、目标类型、距离、视线、姿态和摆位空间，再向客户端同步两个角色的位置、朝向和共同的世界时间。双方播放同一条 56 tick（2.8 秒）时间线，结束时结算致命伤害并归属处决玩家。期间锁定移动、转向、AI、普通攻击、其他战技、交互、击退和外来伤害；死亡、断线、切换维度或场地变化会中断并恢复控制。
+服务器负责验证血量、目标类型、距离、视线、姿态和摆位空间，再向客户端同步两个角色的位置、朝向和共同的世界时间。双方播放同一条 56 tick（2.8 秒）时间线，结束时结算致命伤害并归属处决玩家。期间玩家无敌，同时锁定移动、角色朝向、AI、普通攻击、其他战技、交互、击退和外来伤害；鼠标可以左右环绕、上下调整观看角度；断线、切换维度、目标死亡或场地变化会中断并恢复控制。玩家无敌只在服务端处决会话中生效，完成或中止后立即解除。
 
 `config/fiercerbattles.json` 的顶层增加：
 
@@ -564,12 +564,15 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 {
   "execution": {
     "enabled": true,
+    "action_id": "fiercerbattles:execution",
     "health_threshold": 0.25,
     "range": 3.0,
     "humanoid_entities": [
       "minecraft:zombie",
       "minecraft:skeleton"
-    ]
+    ],
+    "hurt_sound_frames": [12, 20, 24, 28, 32, 36, 40, 48],
+    "swing_sound_frames": [12, 24]
   },
   "entries": []
 }
@@ -578,16 +581,59 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | 参数 | 说明 |
 | --- | --- |
 | `enabled` | 是否启用处决。 |
+| `action_id` | 要播放的数据包成对动作 ID，例如 `my_pack:finisher`；默认 `fiercerbattles:execution`。 |
 | `health_threshold` | 血量比例上限，必须严格低于此值；有效范围大于 0 且不超过 1，默认 `0.25`。 |
-| `range` | 启动距离，单位为格；有效范围大于 0 且不超过 6，默认 `3.0`。 |
+| `range` | 玩家眼睛到目标可见身体的启动距离，单位为格；有效范围大于 0 且不超过 6，默认 `3.0`。按身体边界计算，贴身重叠也能选中。 |
 | `humanoid_entities` | 可处决实体 ID 白名单。只添加使用成人标准人形骨架的生物，例如 `minecraft:husk`、`minecraft:stray` 或 `minecraft:wither_skeleton`；非人形模型无法匹配本动画。 |
+| `hurt_sound_frames` | 播放被处决生物自身受伤音效的帧列表，默认 `[12, 20, 24, 28, 32, 36, 40, 48]`。仅播放声音，不额外扣血或改变动作。 |
+| `swing_sound_frames` | 播放挥剑音效 `minecraft:entity.player.attack.sweep` 的帧列表，默认 `[12, 24]`。 |
 
-配置由服务器裁定；客户端不需要复制服务器的白名单。修改后重启游戏/服务器生效，旧配置未写 `execution` 时自动使用默认值。幼年生物、乘骑或载人状态、睡眠、游泳、鞘翅飞行、悬空及尺寸不适合的实体不能启动。两个角色脚底必须处于同一高度，墙内、无落脚处或摆位路径被方块阻挡时拒绝启动，避免强行摆位造成穿墙或上下错位。处决被拒绝时，按键按原有武器战技逻辑处理。
+音效跟随服务器的动画时间线向附近玩家播放，每个配置帧只触发一次；源动画为 20 帧/秒，因此第 12 帧是启动后 0.6 秒。两组列表均可改为 `[]` 禁用，重复帧去重，空值及不在 `0–56` 范围内的帧忽略；缺少字段或字段为 `null` 时使用默认列表。完成或中止后不再触发后续音效。
+
+配置由服务器裁定；客户端不需要复制服务器的白名单。修改后重启游戏/服务器生效，旧配置未写 `execution` 时自动使用默认值。按键时客户端重新拾取当前准星方向的活体目标，服务器验证身体距离与方块遮挡，不再用可能尚未收到转头消息的旧朝向重复校验。客户端拾取可覆盖配置允许的六格上限，实际启动范围仍由服务器决定；草、花等无碰撞植物不遮挡处决拾取。
+
+幼年生物、乘骑或载人状态、睡眠、游泳、鞘翅飞行、悬空及尺寸不适合的实体不能启动。服务器优先沿接近方向摆位；原位置被墙或地形挡住时，会尝试围绕目标的其他方向，以及最多一格的双人整体挪位。台阶或半砖导致脚底高度不同时，允许总共两格高低差，尝试双方已有高度和中间可落脚的表面。场地检查沿两人之间的通道进行，移动按实际路径分段连续检查，附近未挡住通道或移动的方块不再因落在大矩形中而阻止处决。双方仍需稳定落脚，且移动路径和结束位置安全。播放时双方脚底统一为同一高度，原动画的横向偏移、间距及朝向关系保持不变；隔墙、无落脚处或全部候选摆位被阻挡时仍拒绝。处决被拒绝时，按键按原有武器战技逻辑处理。
 
 动画坐标按 Blender 原始骨架烘焙，1 Blender 单位为 0.25 格。被处决者静态根骨 `Bone_B` 相对 `Bone_A` 为 `(-0.654533446, -5.532946110, 0)`，对应处决者朝向为 Minecraft `yaw=0` 时的世界偏移 `X=-0.163633361`、`Z=+1.383236527` 格，双方根朝向相差 180°。此偏移随处决者朝向一起旋转，保留原动画的侧向偏移；动态躯干位移、根骨倾斜及肢体动作烘焙到模型部件，不能再次叠加到实体位置。渲染同时覆盖原模型动作、头身朝向插值、装备和盔甲，减少玩家与僵尸/骷髅的渲染差异造成的错位。
 
 正常完成后，处决者接到第 56 帧躯干髋部对应的水平站位：沿动画初始朝向前进 `0.4798867106` 格，朝向增加 `86.124866°`，脚底保持原地面高度。服务器在启动前和结束前都检查该站位、移动路径与落脚空间，完成消息同步最终位置和朝向，避免模型退回普通姿态时被拉回动画起点。中断或末尾空间被阻挡时不移动角色，也不结算处决伤害。
 
-处决时统一使用 1.0 渲染比例，避免原版玩家的 0.9375 比例与怪物的比例不同导致接触位置偏移。服装、护甲、手持物品、披风和鞘翅随身体变换。第一人称会临时切换到第三人称，结束后恢复；处决者用 4 tick（0.2 秒）从重基后的末帧平滑回到普通姿态和比例，此时已恢复移动、攻击等输入；被处决者在死亡消散期间保持动画末帧，避免倒地后突然站直。
+处决时统一使用 1.0 渲染比例，避免原版玩家的 0.9375 比例与怪物的比例不同导致接触位置偏移。服装、护甲、手持物品、披风和鞘翅随身体变换。第一人称镜头在 0.2 秒内平滑拉到第三人称，处决中可用鼠标环绕观看，沿用鼠标灵敏度、平滑和反转设置；镜头角度独立于双方固定朝向，并保留原版镜头防穿墙检查。完成、中止、切换维度或离线后恢复原视角模式；处决者用 4 tick（0.2 秒）从重基后的末帧平滑回到普通姿态和比例，此时已恢复移动、攻击等输入；被处决者在死亡消散期间保持动画末帧，避免倒地后突然站直。
 
-动画资源位于 `assets/fiercerbattles/execution/executioner.json` 与 `victim.json`，每 0.125 tick 采样一次；`metadata.json` 保存坐标换算和验证结果。`tools/export_execution.py` 从原始 Blender 文件只读导出，不会执行内嵌脚本或保存源文件。使用 Blender 的 `--python-exit-code 1 --python tools/export_execution.py -- --verify` 可回算网格顶点验证导出。原文件中被处决者的左臂在第 0 帧已经偏离肩部，且后续有脱落动作；本实现保留该轨迹。
+### 注册新的双人动作
+
+双人处决动作可以放进世界数据包，无需改 Java。按此结构创建资源：
+
+```text
+pack.mcmeta
+data/my_pack/fiercerbattles_actions/finisher.json
+data/my_pack/fiercerbattles_animations/finish/executor.json
+data/my_pack/fiercerbattles_animations/finish/victim.json
+```
+
+`pack.mcmeta` 示例（Minecraft 1.21.1）：`{"pack":{"pack_format":48,"description":"Paired finisher animations"}}`。
+
+动作文件名对应 ID `my_pack:finisher`，内容示例：
+
+```json
+{
+  "rig": "fiercerbattles:humanoid_v1",
+  "duration_ticks": 56,
+  "executor_clip": "my_pack:finish/executor",
+  "victim_clip": "my_pack:finish/victim",
+  "geometry": {
+    "victim_right": -0.16363336145877838,
+    "victim_forward": 1.3832365274429321,
+    "victim_yaw_delta": 180.0,
+    "executor_end_right": 0.0,
+    "executor_end_forward": 0.4798867106437683,
+    "executor_end_yaw_delta": 86.124866
+  }
+}
+```
+
+两个动画 JSON 沿用 Blender 导出格式（`format: 1`、`duration_ticks`、`sample_step`、`parts`），通道采样是 `[x,y,z,qx,qy,qz,qw]`。当前 `humanoid_v1` 需要双方都包含 `head`、`body`、`rightArm`、`leftArm`、`rightLeg`、`leftLeg` 六通道；采样总时长必须和动作定义相同。几何偏移单位为方块，单轴偏移绝对值最多 16 格；双方根位置在播放期间由服务端固定，所以根位移要烘焙进模型采样，并且 `geometry` 必须按导出的骨骼坐标仔细校准。
+
+设置服务器 `config/fiercerbattles.json` 中的 `execution.action_id` 为 `my_pack:finisher`，重启以读取该配置，然后进入世界执行 `/reload` 加载或替换数据包动作。只有当前选择的动作会在处决时播放。服务端校验定义、资源、格式、时长和骨骼通道；无效动作会写入日志并跳过。播放前服务端会压缩同步动作和双方动画，客户端通过 SHA-256 校验与缓存，不需要玩家另装动画资源包。新动作必须适配目前唯一注册的 `fiercerbattles:humanoid_v1` 标准人形骨架；注册非人形模型还需编写对应模型适配器。
+
+默认 Blender 源动画资源保留在 `assets/fiercerbattles/execution/executioner.json`、`victim.json` 与 `metadata.json`，每 0.125 tick 采样一次；内置数据包播放版本位于 `data/fiercerbattles/fiercerbattles_animations/execution/`，对应动作定义在 `data/fiercerbattles/fiercerbattles_actions/execution.json`。`tools/export_execution.py` 从原始 Blender 文件只读导出，并同时更新验证资源与内置动作采样，不会执行内嵌脚本或保存源文件。使用 Blender 的 `--python-exit-code 1 --python tools/export_execution.py -- --verify` 可回算网格顶点验证导出。原文件中被处决者的左臂在第 0 帧已经偏离肩部，且后续有脱落动作；本实现保留该轨迹。

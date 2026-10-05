@@ -1,8 +1,9 @@
 package com.fiercerbattles.mixin;
 
-import com.fiercerbattles.execution.ExecutionRenderContext;
+import com.fiercerbattles.execution.client.ExecutionRenderContext;
 import com.fiercerbattles.FiercerBattlesExecutionClient;
-import com.fiercerbattles.execution.ExecutionAnimation;
+import com.fiercerbattles.animation.core.AnimationClip;
+import com.fiercerbattles.animation.core.AnimationPoseContext;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
@@ -69,9 +70,10 @@ public abstract class ExecutionLivingEntityRendererMixin {
     private void fiercerbattles$attachBackLayers(RenderLayer layer, PoseStack poses, MultiBufferSource buffers,
                                                 int light, Entity entity, float swing, float amount, float partial,
                                                 float age, float headYaw, float headPitch) {
-        ExecutionAnimation.Transform body = ExecutionRenderContext.isActive()
+        AnimationClip.Transform body = ExecutionRenderContext.isActive()
                 && (layer instanceof CapeLayer || layer instanceof ElytraLayer)
-                ? ExecutionRenderContext.transform("body") : null;
+                ? AnimationPoseContext.sample("body", new AnimationClip.Transform(0, 0, 0,
+                new org.joml.Quaternionf())) : null;
         if (body == null) {
             layer.render(poses, buffers, light, entity, swing, amount, partial, age, headYaw, headPitch);
             return;

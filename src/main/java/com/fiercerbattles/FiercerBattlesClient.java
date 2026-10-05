@@ -408,6 +408,7 @@ public final class FiercerBattlesClient {
         @SubscribeEvent
         public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
             FiercerBattlesExecutionClient.reset();
+            FiercerBattlesExecutionClient.clearActionCache();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();

@@ -1,6 +1,6 @@
 package com.fiercerbattles.mixin;
 
-import com.fiercerbattles.execution.ExecutionRenderContext;
+import com.fiercerbattles.execution.client.ExecutionRenderContext;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;

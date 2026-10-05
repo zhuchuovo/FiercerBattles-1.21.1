@@ -2,6 +2,7 @@ package com.fiercerbattles.execution;
 
 import com.fiercerbattles.FiercerBattles;
 import com.fiercerbattles.FiercerBattlesExecutionServer;
+import com.fiercerbattles.execution.action.PairedExecutionAction;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -13,6 +14,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 import java.util.UUID;
+import java.io.IOException;
 import java.util.function.Consumer;
 
 /** Common payloads contain no client classes, so dedicated servers can register them safely. */
@@ -21,6 +23,7 @@ public final class ExecutionNetwork {
     private static Consumer<Start> clientStart = ignored -> {};
     private static Consumer<End> clientEnd = ignored -> {};
     private static Consumer<Reject> clientReject = ignored -> {};
+    private static Consumer<ActionSync> clientActionSync = ignored -> {};
 
     private ExecutionNetwork() {}
 
@@ -30,13 +33,15 @@ public final class ExecutionNetwork {
         clientReject = reject;
     }
 
+    public static void setClientActionSyncHandler(Consumer<ActionSync> sync) { clientActionSync = sync; }
+
     public static void request(int targetEntityId) {
         PacketDistributor.sendToServer(new Request(targetEntityId));
     }
 
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("execution-2");
+        var registrar = event.registrar("execution-3");
         registrar.playToServer(Request.TYPE, Request.STREAM_CODEC, (payload, context) -> {
             if (context.player() instanceof ServerPlayer player) {
                 FiercerBattlesExecutionServer.tryStart(player, payload.targetEntityId());
@@ -45,6 +50,30 @@ public final class ExecutionNetwork {
         registrar.playToClient(Start.TYPE, Start.STREAM_CODEC, (payload, context) -> clientStart.accept(payload));
         registrar.playToClient(End.TYPE, End.STREAM_CODEC, (payload, context) -> clientEnd.accept(payload));
         registrar.playToClient(Reject.TYPE, Reject.STREAM_CODEC, (payload, context) -> clientReject.accept(payload));
+        registrar.playToClient(ActionSync.TYPE, ActionSync.STREAM_CODEC, (payload, context) -> clientActionSync.accept(payload));
+    }
+
+    /** Compressed datapack definition and both pose clips, sent before the matching Start. */
+    public record ActionSync(ResourceLocation actionId, String contentHash, byte[] compressedData)
+            implements CustomPacketPayload {
+        public static final Type<ActionSync> TYPE = ExecutionNetwork.type("execution_action_sync");
+        public static final int MAX_BYTES = 512 * 1024;
+        public static final StreamCodec<RegistryFriendlyByteBuf, ActionSync> STREAM_CODEC = StreamCodec.of(
+                (buffer, value) -> {
+                    buffer.writeResourceLocation(value.actionId());
+                    buffer.writeUtf(value.contentHash(), 64);
+                    buffer.writeByteArray(value.compressedData());
+                },
+                buffer -> {
+                    ResourceLocation id = buffer.readResourceLocation();
+                    String hash = buffer.readUtf(64);
+                    byte[] data = buffer.readByteArray(MAX_BYTES);
+                    return new ActionSync(id, hash, data);
+                });
+        public static ActionSync from(PairedExecutionAction action) throws IOException {
+            return new ActionSync(action.id(), action.contentHash(), action.syncPayload());
+        }
+        @Override public Type<ActionSync> type() { return TYPE; }
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String name) {
@@ -61,7 +90,8 @@ public final class ExecutionNetwork {
     }
 
     public record Start(
-            UUID sessionId, int executorId, UUID executorUuid, int victimId, UUID victimUuid,
+            UUID sessionId, ResourceLocation actionId, String actionHash,
+            int executorId, UUID executorUuid, int victimId, UUID victimUuid,
             ResourceLocation dimension, long startGameTime, int durationTicks,
             double executorX, double executorY, double executorZ, float executorYaw,
             double victimX, double victimY, double victimZ, float victimYaw
@@ -70,6 +100,8 @@ public final class ExecutionNetwork {
         public static final StreamCodec<RegistryFriendlyByteBuf, Start> STREAM_CODEC = StreamCodec.of(
                 (buffer, value) -> {
                     buffer.writeUUID(value.sessionId());
+                    buffer.writeResourceLocation(value.actionId());
+                    buffer.writeUtf(value.actionHash(), 64);
                     buffer.writeVarInt(value.executorId());
                     buffer.writeUUID(value.executorUuid());
                     buffer.writeVarInt(value.victimId());
@@ -86,7 +118,8 @@ public final class ExecutionNetwork {
                     buffer.writeDouble(value.victimZ());
                     buffer.writeFloat(value.victimYaw());
                 },
-                buffer -> new Start(buffer.readUUID(), buffer.readVarInt(), buffer.readUUID(),
+                buffer -> new Start(buffer.readUUID(), buffer.readResourceLocation(), buffer.readUtf(64),
+                        buffer.readVarInt(), buffer.readUUID(),
                         buffer.readVarInt(), buffer.readUUID(), buffer.readResourceLocation(),
                         buffer.readVarLong(), buffer.readVarInt(),
                         buffer.readDouble(), buffer.readDouble(), buffer.readDouble(), buffer.readFloat(),

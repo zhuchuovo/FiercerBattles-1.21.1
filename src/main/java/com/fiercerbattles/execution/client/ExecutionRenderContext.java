@@ -1,7 +1,8 @@
-package com.fiercerbattles.execution;
+package com.fiercerbattles.execution.client;
 
 import com.fiercerbattles.FiercerBattlesExecutionClient;
-import net.minecraft.client.model.geom.ModelPart;
+import com.fiercerbattles.animation.core.AnimationClip;
+import com.fiercerbattles.animation.core.AnimationPoseContext;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import org.joml.Quaternionf;
@@ -19,13 +20,16 @@ public final class ExecutionRenderContext {
 
     public static void begin(LivingEntity entity, float partialTick) {
         FiercerBattlesExecutionClient.Actor actor = FiercerBattlesExecutionClient.actor(entity);
-        FRAMES.get().push(new Frame(actor, entity, actor == null ? 0 : actor.tick(partialTick), partialTick));
+        Frame frame = new Frame(actor, entity, actor == null ? 0 : actor.tick(partialTick), partialTick);
+        FRAMES.get().push(frame);
+        AnimationPoseContext.begin((channel, rest) -> frame.actor == null ? null : transform(frame, channel, rest));
     }
 
     public static void end() {
         Deque<Frame> frames = FRAMES.get();
         if (!frames.isEmpty()) frames.pop();
         if (frames.isEmpty()) FRAMES.remove();
+        AnimationPoseContext.end();
     }
 
     public static boolean isActive() {
@@ -40,37 +44,32 @@ public final class ExecutionRenderContext {
                 ? Mth.rotLerp(frame.partial, frame.entity.yBodyRotO, frame.entity.yBodyRot) : frame.actor.yaw();
     }
 
-    public static ExecutionAnimation.Transform transform(String name) {
-        return transform(name, null);
-    }
-
     public static float returnProgress() {
         Frame frame = FRAMES.get().peek();
         return frame == null || frame.actor == null ? 0 : frame.actor.returnProgress(frame.partial);
     }
 
-    public static ExecutionAnimation.Transform transform(String name, ModelPart ordinaryPose) {
-        Frame frame = FRAMES.get().peek();
-        if (frame == null || frame.actor == null || name == null) return null;
-        ExecutionAnimation.Transform sampled = frame.actor.animation().sample(name, frame.tick);
+    private static AnimationClip.Transform transform(Frame frame, String name, AnimationClip.Transform ordinaryPose) {
+        if (name == null) return null;
+        AnimationClip.Transform sampled = frame.actor.animation().sample(name, frame.tick);
         if (sampled == null || !frame.actor.returning()) return sampled;
 
         // Transfer the captured final pose into the new gameplay root before fading.
+        var geometry = frame.actor.action().geometry();
         Quaternionf rebase = new Quaternionf().rotationY(-frame.actor.returnYawDelta() * Mth.DEG_TO_RAD);
         Vector3f position = rebase.transform(new Vector3f(
-                sampled.x() - (float) (ExecutionGeometry.EXECUTOR_END_LOCAL_RIGHT * 16),
+                sampled.x() - (float) (geometry.executorEndRight() * 16),
                 sampled.y(),
-                sampled.z() + (float) (ExecutionGeometry.EXECUTOR_END_LOCAL_FORWARD * 16)));
+                sampled.z() + (float) (geometry.executorEndForward() * 16)));
         Quaternionf rotation = new Quaternionf(rebase).mul(sampled.rotation());
         float progress = frame.actor.returnProgress(frame.partial);
         float ordinaryScale = 0.9375F * frame.entity.getScale();
-        float targetX = ordinaryPose == null ? 0 : ordinaryPose.x * ordinaryScale;
-        float targetY = (ordinaryPose == null ? 0 : ordinaryPose.y * ordinaryScale)
+        float targetX = ordinaryPose.x() * ordinaryScale;
+        float targetY = ordinaryPose.y() * ordinaryScale
                 + 16 * 1.501F * (1 - ordinaryScale);
-        float targetZ = ordinaryPose == null ? 0 : ordinaryPose.z * ordinaryScale;
-        Quaternionf targetRotation = ordinaryPose == null ? new Quaternionf()
-                : new Quaternionf().rotationZYX(ordinaryPose.zRot, ordinaryPose.yRot, ordinaryPose.xRot);
-        return new ExecutionAnimation.Transform(
+        float targetZ = ordinaryPose.z() * ordinaryScale;
+        Quaternionf targetRotation = new Quaternionf(ordinaryPose.rotation());
+        return new AnimationClip.Transform(
                 Mth.lerp(progress, position.x, targetX), Mth.lerp(progress, position.y, targetY),
                 Mth.lerp(progress, position.z, targetZ), rotation.slerp(targetRotation, progress),
                 Mth.lerp(progress, 1, ordinaryScale));

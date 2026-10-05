@@ -32,6 +32,7 @@ W = Matrix(((1, 0, 0), (0, 0, -1), (0, 1, 0)))
 HIP_OFFSET = Vector((0, 12, 0))
 BODY_PIVOT = Vector((0, 0, 3))
 OUT = Path(__file__).resolve().parents[1] / "src/main/resources/assets/fiercerbattles/execution"
+DATAPACK_CLIPS = Path(__file__).resolve().parents[1] / "src/main/resources/data/fiercerbattles/fiercerbattles_animations/execution"
 ROLES = (("executioner", "", "Bone_A"), ("victim", "B_", "Bone_B"))
 SCRIPT_ARGUMENTS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 VERIFY_ONLY = "--verify" in SCRIPT_ARGUMENTS
@@ -217,11 +218,15 @@ def role_export(role, prefix, root_name):
         raise RuntimeError("Subframe alignment verification failed: " + json.dumps(report))
     if VERIFY_ONLY:
         existing = json.loads((OUT / (role + ".json")).read_text(encoding="utf-8"))
-        if document != existing:
-            raise RuntimeError("Saved clip does not reproduce source: " + role)
+        datapack_existing = json.loads((DATAPACK_CLIPS / (role + ".json")).read_text(encoding="utf-8"))
+        if document != existing or document != datapack_existing:
+            raise RuntimeError("Saved resourcepack/datapack clip does not reproduce source: " + role)
     else:
         OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / (role + ".json")).write_text(json.dumps(document, separators=(",", ":")) + "\n", encoding="utf-8")
+        encoded = json.dumps(document, separators=(",", ":")) + "\n"
+        (OUT / (role + ".json")).write_text(encoded, encoding="utf-8")
+        DATAPACK_CLIPS.mkdir(parents=True, exist_ok=True)
+        (DATAPACK_CLIPS / (role + ".json")).write_text(encoded, encoding="utf-8")
     print("VERIFIED" if VERIFY_ONLY else "EXPORTED", role, json.dumps(report))
     return report
 

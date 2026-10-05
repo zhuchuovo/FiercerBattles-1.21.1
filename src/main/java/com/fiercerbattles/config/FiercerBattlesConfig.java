@@ -9,6 +9,7 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -40,7 +41,6 @@ public final class FiercerBattlesConfig {
             this.durationTicks = durationTicks;
         }
     }
-
     public static class Root {
         public List<Entry> entries = List.of();
         public Execution execution = new Execution();
@@ -48,10 +48,16 @@ public final class FiercerBattlesConfig {
 
     /** The entity allowlist also declares that these mobs use an adult humanoid model. */
     public static class Execution {
+        private static final List<Integer> DEFAULT_HURT_SOUND_FRAMES = List.of(12, 20, 24, 28, 32, 36, 40, 48);
+        private static final List<Integer> DEFAULT_SWING_SOUND_FRAMES = List.of(12, 24);
+
         public boolean enabled = true;
         public double health_threshold = 0.25;
         public double range = 3.0;
+        public String action_id = "fiercerbattles:execution";
         public List<String> humanoid_entities = List.of("minecraft:zombie", "minecraft:skeleton");
+        public List<Integer> hurt_sound_frames = DEFAULT_HURT_SOUND_FRAMES;
+        public List<Integer> swing_sound_frames = DEFAULT_SWING_SOUND_FRAMES;
 
         public double healthThreshold() {
             return Double.isFinite(health_threshold) && health_threshold > 0 && health_threshold <= 1
@@ -65,6 +71,21 @@ public final class FiercerBattlesConfig {
         public boolean allows(LivingEntity entity) {
             return humanoid_entities != null
                     && humanoid_entities.contains(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+        }
+
+        public List<Integer> hurtSoundFrames(int durationTicks) {
+            return soundFrames(hurt_sound_frames, DEFAULT_HURT_SOUND_FRAMES, durationTicks);
+        }
+
+        public List<Integer> swingSoundFrames(int durationTicks) {
+            return soundFrames(swing_sound_frames, DEFAULT_SWING_SOUND_FRAMES, durationTicks);
+        }
+
+        private static List<Integer> soundFrames(List<Integer> configured, List<Integer> defaults, int durationTicks) {
+            return (configured == null ? defaults : configured).stream()
+                    .filter(Objects::nonNull)
+                    .filter(frame -> frame >= 0 && frame <= durationTicks)
+                    .distinct().sorted().toList();
         }
     }
 
