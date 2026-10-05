@@ -4,11 +4,16 @@
   "package": "com.fiercerbattles.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "WeaponAttributesMixin",
     "WeaponRegistryMixin",
     "PlayerAttackHelperCombatSkillMixin",
     "PlayerAttackRangeMixin",
     "ServerNetworkSkillMixin",
-    "ServerNetworkMultipleHitsMixin"
+    "ServerNetworkMultipleHitsMixin",
+    "MobCombatMathMixin",
+    "MobAttackCollisionMixin",
+    "ExecutionServerNetworkMixin",
+    "ServerGamePacketListenerExecutionMixin"
   ],
   "client": [
     "AbstractClientPlayerMixin",
@@ -16,7 +21,13 @@
     "ClientPlayerAttackHelperCombatSkillMixin",
     "ClientPlayerMixin",
     "MinecraftMixin",
-    "PlayerAttackHelperMixin"
+    "PlayerAttackHelperMixin",
+    "ExecutionModelPartMixin",
+    "ExecutionHumanoidModelMixin",
+    "ExecutionPlayerModelMixin",
+    "ExecutionAnimationProcessorMixin",
+    "ExecutionLivingEntityRendererMixin",
+    "ExecutionPlayerRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

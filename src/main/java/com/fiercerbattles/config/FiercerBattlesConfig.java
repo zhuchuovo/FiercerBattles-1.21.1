@@ -9,6 +9,8 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.LivingEntity;
 
 public final class FiercerBattlesConfig {
     private FiercerBattlesConfig() {}
@@ -41,6 +43,29 @@ public final class FiercerBattlesConfig {
 
     public static class Root {
         public List<Entry> entries = List.of();
+        public Execution execution = new Execution();
+    }
+
+    /** The entity allowlist also declares that these mobs use an adult humanoid model. */
+    public static class Execution {
+        public boolean enabled = true;
+        public double health_threshold = 0.25;
+        public double range = 3.0;
+        public List<String> humanoid_entities = List.of("minecraft:zombie", "minecraft:skeleton");
+
+        public double healthThreshold() {
+            return Double.isFinite(health_threshold) && health_threshold > 0 && health_threshold <= 1
+                    ? health_threshold : 0.25;
+        }
+
+        public double range() {
+            return Double.isFinite(range) && range > 0 && range <= 6 ? range : 3.0;
+        }
+
+        public boolean allows(LivingEntity entity) {
+            return humanoid_entities != null
+                    && humanoid_entities.contains(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+        }
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -67,6 +92,12 @@ public final class FiercerBattlesConfig {
             try (Reader reader = Files.newBufferedReader(path)) {
                 Root loaded = GSON.fromJson(reader, Root.class);
                 if (loaded != null) {
+                    if (loaded.entries == null) {
+                        loaded.entries = List.of();
+                    }
+                    if (loaded.execution == null) {
+                        loaded.execution = new Execution();
+                    }
                     return loaded;
                 }
             } catch (IOException | RuntimeException ignored) {
@@ -77,6 +108,10 @@ public final class FiercerBattlesConfig {
         Root empty = new Root();
         empty.entries = new java.util.ArrayList<>();
         return empty;
+    }
+
+    public static Execution getExecution() {
+        return get().execution;
     }
 
     public static Double getUpswing(String animation) {

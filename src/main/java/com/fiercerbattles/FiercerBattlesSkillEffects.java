@@ -1,5 +1,6 @@
 package com.fiercerbattles;
 
+import com.fiercerbattles.combatskill.CombatSkillHooks;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -323,6 +324,8 @@ public final class FiercerBattlesSkillEffects {
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             cleanupExpiredEffects(player);
+            // 战技钩子的 TICK 时机与到期回收都由这里驱动。
+            CombatSkillHooks.onPlayerTick(player);
         }
     }
 
@@ -336,15 +339,38 @@ public final class FiercerBattlesSkillEffects {
         ACTIVE_SKILLS.remove(playerId);
         PENDING_SERVER_SKILLS.remove(playerId);
         LAST_SKILL_ACTIVATION.remove(playerId);
+        CombatSkillHooks.clearPlayer(player);
         FiercerBattlesCombatSkills.clearActiveSkillRange(player);
     }
 
     @SubscribeEvent
     public static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        if (FiercerBattlesExecutionServer.isExecutionDamage()) {
+            return;
+        }
         try {
             DamageSource source = event.getSource();
             if (!(source.getEntity() instanceof ServerPlayer attacker)) {
                 return;
+            }
+            if (CombatSkillHooks.isResolvingHookDamage()) {
+                // 战技自己打出的伤害：既不再套用战技加成，也不再触发一次战技。
+                return;
+            }
+            CombatSkillHooks.HitResult hookResult = CombatSkillHooks.onSkillHit(
+                    attacker,
+                    event.getEntity(),
+                    source,
+                    event.getAmount()
+            );
+            if (hookResult != null) {
+                if (hookResult.cancelled()) {
+                    event.setCanceled(true);
+                    return;
+                }
+                if (hookResult.damage() != event.getAmount()) {
+                    event.setAmount((float) hookResult.damage());
+                }
             }
             applyHitTargetPotionEffect(attacker, event.getEntity());
             double multiplier = damageMultiplier(attacker);
@@ -367,6 +393,27 @@ public final class FiercerBattlesSkillEffects {
     private static final double KNOCKBACK_STRENGTH_PER_BLOCK = 0.15;
 
     /**
+     * 目标真正吃下这次伤害之后派发钩子的 DAMAGE 时机；
+     * 这是唯一能读到"实际造成了多少伤害"的位置。
+     */
+    @SubscribeEvent
+    public static void onDamageApplied(LivingDamageEvent.Post event) {
+        if (FiercerBattlesExecutionServer.isExecutionDamage()) {
+            return;
+        }
+        try {
+            DamageSource source = event.getSource();
+            if (!(source.getEntity() instanceof ServerPlayer attacker)
+                    || CombatSkillHooks.isResolvingHookDamage()) {
+                return;
+            }
+            CombatSkillHooks.onSkillDamageDealt(attacker, event.getEntity(), source, event.getNewDamage());
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Fiercer Battles failed to dispatch combat skill hook damage", exception);
+        }
+    }
+
+    /**
      * Applies the attack segment's flat {@code fixed_damage}. Fired after
      * armor and potion reductions, so the result is exactly
      * "reduced panel damage + fixed damage"; the fixed part is not affected
@@ -374,7 +421,13 @@ public final class FiercerBattlesSkillEffects {
      */
     @SubscribeEvent
     public static void onFinalDamage(LivingDamageEvent.Pre event) {
+        if (FiercerBattlesExecutionServer.isExecutionDamage()) {
+            return;
+        }
         try {
+            if (CombatSkillHooks.isResolvingHookDamage()) {
+                return;
+            }
             DamageSource source = event.getSource();
             if (!(source.getEntity() instanceof ServerPlayer)) {
                 return;
@@ -394,7 +447,13 @@ public final class FiercerBattlesSkillEffects {
      */
     @SubscribeEvent
     public static void onKnockback(LivingKnockBackEvent event) {
+        if (FiercerBattlesExecutionServer.isExecutionDamage()) {
+            return;
+        }
         try {
+            if (CombatSkillHooks.isResolvingHookDamage()) {
+                return;
+            }
             double extra = FiercerBattlesMultipleHits.getServerExtraKnockback();
             if (extra > 0) {
                 event.setStrength((float) (event.getStrength() + extra * KNOCKBACK_STRENGTH_PER_BLOCK));
@@ -449,6 +508,14 @@ public final class FiercerBattlesSkillEffects {
         }
 
         playSound(player, effect);
+        // JSON 只能描述到这里；剩下的交给代码战技钩子。
+        CombatSkillHooks.onSkillActivated(
+                player,
+                skillIdOf(attackData),
+                effect.hookId,
+                effect.hookParams,
+                durationTicks
+        );
     }
 
     private static void applyHitTargetPotionEffect(ServerPlayer attacker, LivingEntity target) {

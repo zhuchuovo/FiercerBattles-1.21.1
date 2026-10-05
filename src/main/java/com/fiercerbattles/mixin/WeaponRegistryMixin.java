@@ -45,15 +45,24 @@ public abstract class WeaponRegistryMixin {
         applyToAttributes(itemId, container, attributes);
     }
 
+    /**
+     * Better Combat hands out the attributes object of its registry (either
+     * the file container or the registry sync copy) from here, and that object
+     * is what every gameplay path queries. Record the weapon's
+     * {@code two_handed_attack} judgement for it, so the WeaponAttributes
+     * mixin can answer {@code isTwoHanded()} accordingly on both sides.
+     */
+    @Inject(
+            method = "getAttributes(Lnet/minecraft/world/item/ItemStack;)Lnet/bettercombat/api/WeaponAttributes;",
+            at = @At("RETURN"),
+            remap = false
+    )
+    private static void fiercerbattles$rememberAttackActionFlag(@Coerce Object stack, CallbackInfoReturnable<Object> cir) {
+        FiercerBattlesCustomData.rememberAttackActionAttributesForStack(stack, cir.getReturnValue());
+    }
+
     private static void applyToAttributes(Object itemId, Object container, Object attributes) {
         try {
-            Class<?> attributesClass = attributes.getClass();
-            Field attacksField = attributesClass.getDeclaredField("attacks");
-            attacksField.setAccessible(true);
-            Object[] attacks = (Object[]) attacksField.get(attributes);
-            if (attacks == null) {
-                return;
-            }
             String id = itemId != null ? itemId.toString() : null;
             // Items without their own weapon_attributes file (for example daggers
             // assigned the bettercombat:dagger preset through the fallback
@@ -68,6 +77,14 @@ public abstract class WeaponRegistryMixin {
                         id = sourceId;
                     }
                 }
+                FiercerBattlesCustomData.rememberAttackActionAttributes(id, attributes);
+            }
+            Class<?> attributesClass = attributes.getClass();
+            Field attacksField = attributesClass.getDeclaredField("attacks");
+            attacksField.setAccessible(true);
+            Object[] attacks = (Object[]) attacksField.get(attributes);
+            if (attacks == null) {
+                return;
             }
             for (int i = 0; i < attacks.length; i++) {
                 FiercerBattlesCustomData.AttackData custom = id != null ? FiercerBattlesCustomData.get(id, i) : null;

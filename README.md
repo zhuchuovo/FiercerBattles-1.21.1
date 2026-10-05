@@ -2,12 +2,12 @@
 
 ## 1. 功能与按键
 
-Fiercer Battles 新增 **战技** 按键。默认按键是 `V`，可在 Minecraft 的“选项 → 控制 → Fiercer Battles → 战技”中重新绑定。
+Fiercer Battles 新增 **战技** 按键。默认按键是 `G`，可在 Minecraft 的“选项 → 控制 → Fiercer Battles → 战技”中重新绑定。
 
 战技不会替换普通左键攻击。玩家按下战技键时，模组会读取当前武器对应的战技 JSON，并根据**当前普通连击段**选择应当播放和结算的战技攻击。动画、命中框、伤害倍率、声音、粒子、突进等都使用所选战技段的数据。
 
 - 武器与战技数据必须同时安装在**客户端和服务器端**可读取的资源中。将数据作为 Mod 自带数据包或双方相同的数据包安装最稳妥。
-- 战技按键只有在手持已配置战技的 Better Combat 武器、且当前连击段有可用战技时才会生效。
+- 普通战技需要手持已配置战技的 Better Combat 武器、且当前连击段有可用战技；满足条件的处决优先使用同一个按键，不需要配置武器战技。
 - 战技本身算作一次攻击：成功结算后，Better Combat 连击照常推进一段。
 
 ## 2. 文件位置
@@ -73,14 +73,85 @@ data/example/fiercerbattles/combat_skills/debug.json
 | `Combatskill` | 布尔值 | 是 | 设为 `true` 后，该武器启用战技。也兼容小写别名 `combat_skill`。|
 | `json` | 字符串 | 否* | 战技文件名或资源位置。`"debug.json"` 表示 `data/<命名空间>/fiercerbattles/combat_skills/debug.json`。没有 `skills` 时仍为必填；有 `skills` 时作为默认回退战技。|
 | `skills` | 数组 | 否 | 条件战技变体列表，让同一把武器按手持状态引用不同的战技文件，详见下文“按手持状态选择战技”。|
+| `two_handed_attack` | 布尔值，默认 `true` | 否 | 是否让 `attributes.two_handed`（双手武器判定）影响**攻击动作**。填 `false` 时该武器仍按**单手武器**判定：副手槽不会被清空（可以拿盾），攻击动作按单手基准播放，同时保留你 JSON 里写的双手 `pose` 与双手动画资源。详见下文“攻击动作判定：two_handed_attack”。|
+| `offhand_skill` | 布尔值，默认 `false` | 否 | 填 `true` 时，这把武器放在**副手**时按战技键会释放**这把武器**的战技，而不是主手武器的战技。详见下文“副手战技：offhand_skill”。|
 | `attributes` | 对象 | 是 | 武器的常规 Better Combat 属性；其普通 `attacks` 仍由左键攻击使用。|
 | `parent` | 字符串 | 否 | Better Combat 原有继承目标，例如 `"bettercombat:dagger"`。|
+
+`two_handed_attack` 与 `offhand_skill` 也可以写在 `attributes` 对象内部（此时根级的值优先）；两个字段都支持别名 `two_handed_affects_attack` / `affect_attack_action` / `affect_attack_animation` 与 `use_offhand_skill` / `offhand_combat_skill`。
 
 若 `json` 使用带命名空间的完整资源位置，必须写出资源路径和扩展名，例如：
 
 ```json
 "json": "example:fiercerbattles/combat_skills/debug.json"
 ```
+
+### 攻击动作判定：`two_handed_attack`
+
+Better Combat 的 `two_handed: true` 一次性做两件事：把武器按双手武器处理（**副手槽直接被清空**，拿不了盾），以及让攻击动作按双手判定。这个选项把「攻击动作判定」单独拆出来：
+
+| 取值 | 攻击动作判定 | 副手槽 | 说明 |
+| --- | --- | --- | --- |
+| `true`（默认，或不写） | 双手武器 | 被清空 | Better Combat 原生行为，双手武器无法持盾。|
+| `false` | **单手武器** | 保留，可持盾、可与另一把单手武器双持 | 攻击动作按单手基准（`AnimatedHand` 用主手/副手，而不是双手），武器仍然使用 JSON 里写的 `pose`（双手站姿）和你写的动画资源。|
+
+```json
+{
+  "Combatskill": true,
+  "json": "greatsword_skill.json",
+  "two_handed_attack": false,
+  "attributes": {
+    "attack_range": 3.2,
+    "two_handed": true,
+    "pose": "bettercombat:pose_two_handed_sword",
+    "attacks": [
+      { "conditions": ["OFF_HAND_SHIELD"], "hitbox": "FORWARD_BOX", "damage_multiplier": 1.0, "upswing": 0.6, "animation": "bettercombat:one_handed_slash_vertical_right" },
+      { "conditions": ["NO_OFFHAND_ITEM"], "hitbox": "FORWARD_BOX", "damage_multiplier": 1.0, "upswing": 0.6, "animation": "bettercombat:two_handed_slash_vertical_left" }
+    ]
+  }
+}
+```
+
+填 `false` 后的实际效果：
+
+- **副手不妨碍装备存在**：副手槽正常返回物品，盾牌可见、可用，也可以放第二把武器。
+- **主手按单手攻击动作作为基准**：Better Combat 会用「主手/副手」而不是「双手」来决定播放哪套动作基准，因此双手攻击动作与单手攻击动作同时存在时，主手武器以单手动作基准出招。
+- 双手 `pose` 仍然生效（站姿不变），但走动/潜行时会像单手武器一样收起姿势（这是「判定为单手武器」的一部分）。
+- 双持判定跟随判定结果：和另一把非双手武器同时持有时会左右手交替连击。
+- 物品提示不再显示 `Two-Handed` 行。
+- 常配合攻击段的 `conditions` 使用：`OFF_HAND_SHIELD`（持盾时用单手段）与 `NO_OFFHAND_ITEM`（空副手时用双手段）会自动互相排斥，从而做到「有盾单手、无盾双手」。
+
+优先级：**战技 JSON 自己的写法 > 武器属性文件**。战技 JSON 可以在 `attributes` 内或根级直接写 `"two_handed_attack": false`，只让这一段战技按单手播放；不写则继承武器文件的设置。
+
+### 副手战技：`offhand_skill`
+
+普通的战技按键只认「当前连击段所在的那只手」。填了 `offhand_skill: true` 的武器反过来：只要它被拿在**副手**，按战技键就优先释放**它自己**的战技（覆盖主手武器的战技）。
+
+```json
+{
+  "Combatskill": true,
+  "offhand_skill": true,
+  "json": "parry_skill.json",
+  "attributes": {
+    "attack_range": 2.6,
+    "category": "dagger",
+    "attacks": [
+      { "hitbox": "FORWARD_BOX", "angle": 120, "damage_multiplier": 0.9, "upswing": 0.5, "animation": "bettercombat:one_handed_stab" }
+    ]
+  }
+}
+```
+
+规则：
+
+- 只有「副手持有该武器」+「该武器当前段位有可用战技」同时成立才会生效；否则按原逻辑使用当前手的战技。
+- 副手战技**优先于**主手战技：主手武器也有战技时，按战技键仍然使用副手的战技；副手战技在冷却中时会提示冷却，而不会自动改用主手战技。
+- 伤害、攻速、附魔、耐久、音效等按**副手武器**结算（走 Better Combat 的副手攻击流程），伤害倍率/固定伤害/击退/距离等仍使用战技 JSON 的数值。
+- 段位下标取「当前连击数 ÷ 2」，与 Better Combat 的手部连击段一致；副手武器的 `attacks` 段数与 `null` 占位规则与普通战技完全相同（含连锁段、`Multiplehits` 多段命中、独立冷却与释放效果）。
+- 主手**空手、持盾、持工具**时也能正常释放副手战技。
+- 若武器文件没有显式写 `two_handed_attack`，`offhand_skill: true` 会**默认按单手判定**：Better Combat 会把「任一只手拿着双手武器」的副手槽清空，若还按双手判定，这把武器根本没法待在副手。
+- 副手战技默认按单手/副手播放动画；确实想让某段战技用双手动画时，在该战技 JSON 里写 `"two_handed_attack": true`。
+
 
 ### 按手持状态选择战技（`skills` 变体）
 
@@ -326,7 +397,8 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | --- | --- | --- |
 | `attack_range` | 数字，默认 `0` | 武器基础攻击距离（格）。攻击段的 `range_multiplier` 会在此基础上相乘。|
 | `range_bonus` | 数字，默认 `0` | Better Combat 的固定额外距离（格）。与攻击段的 Fiercer Battles `range_bonus` 不同。|
-| `two_handed` | 布尔值 | 是否双手武器；影响手部姿势与副手使用。|
+| `two_handed` | 布尔值 | 是否双手武器；影响手部姿势与副手使用。配合武器属性文件/战技 JSON 的 `two_handed_attack: false` 可以只保留姿势与动画资源、改按单手判定攻击动作。|
+| `two_handed_attack` | 布尔值，默认 `true` | 写在战技 JSON 的 `attributes` 或根级时，单独控制**这段战技**是否按双手判定攻击动作。`false` = 该战技按单手动作基准播放；不写 = 继承武器属性文件的设置。|
 | `pose` | 动画 ID 字符串 | 主手姿势，例如 `bettercombat:pose_two_handed_scythe`。|
 | `off_hand_pose` | 动画 ID 字符串 | 副手姿势；适用于双持配置。|
 | `category` | 字符串 | 武器类别，供 Better Combat 的条件和兼容逻辑使用。|
@@ -416,7 +488,7 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 
 ## 8. `config/fiercerbattles.json` 全局覆盖参数
 
-此文件按动画 ID 覆盖对应攻击或战技段。它不能启用战技；战技必须通过武器 JSON 中的 `Combatskill` 和 `json` 启用。
+此文件的 `entries` 按动画 ID 覆盖对应攻击或战技段。普通武器战技仍必须通过武器 JSON 中的 `Combatskill` 和 `json` 启用；同一文件的 `execution` 对象配置处决（见第 10 节）。
 
 ```json
 {
@@ -455,11 +527,19 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 
 ## 9. 常见问题
 
-- **按战技键没有反应**：确认武器属性文件有 `"Combatskill": true`，`json` 路径正确，当前连击段之前存在至少一个非 `null` 的战技攻击。
+- **按战技键没有反应**：确认武器属性文件有 `"Combatskill": true`，`json` 路径正确，当前连击段之前存在至少一个非 `null` 的战技攻击。标记必须写在**实际被加载**的那份 `weapon_attributes` 里：世界数据包中的同名文件会覆盖模组自带的那份，而 `kubejs/data/` 目录只有在安装了 KubeJS 时才会作为数据包加载。按键被忽略时日志会打印一条 `no combat skill resolved for '...'`。
+- **双手武器想同时拿盾**：在武器属性文件写 `"two_handed_attack": false`。它让这把武器按单手判定（副手槽不被清空、攻击动作按单手基准），同时保留 JSON 里的双手 `pose` 与双手动画资源；配合攻击段 `conditions`（`OFF_HAND_SHIELD` / `NO_OFFHAND_ITEM`）可以让持盾与空副手走不同动画。
+- **副手武器看不见 / 无法拿在副手**：该武器仍是 `two_handed: true`，Better Combat 会把任意一只手拿双手武器时的副手槽返回为空。写 `"two_handed_attack": false` 即可（`offhand_skill: true` 的武器在没写 `two_handed_attack` 时会自动按单手判定）。
+- **副手武器战技按了没反应**：确认副手武器文件写了 `"offhand_skill": true`、`Combatskill` 与 `json` 都正确，且副手武器的 `attributes.attacks` 在当前段位（连击数 ÷ 2）之前有非 `null` 战技；另外主手/副手数据包必须一致。
+- **按战技键用的是主手战技而不是副手战技**：`offhand_skill` 只对**写着它的那把武器**生效，且必须是「它在副手」；没有别的武器抢优先级。
+- **副手战技动画是双手动作**：副手战技默认按单手/副手播放；如果该战技 JSON 显式写了 `"two_handed_attack": true`（或武器文件写了 `true` 而战技没覆盖），它就会按双手播放。
+- **联机（专用服务器）里战技键没反应 / 副手战技无效**：客户端会读取**自己安装的数据包**来解析战技与武器标记（Better Combat 只在服务端加载武器属性注册表）。请确保客户端与服务端装有相同的 `weapon_attributes` 与 `fiercerbattles/combat_skills` 文件；若两端不一致，客户端发出的战技请求会被服务端按普通攻击结算。
 - **同一武器想按手持状态用不同战技（如单持/双持）**：在武器属性文件用 `skills` 变体列表，每个变体写 `when` 条件和独立的 `json` 战技文件；`when` 条件与攻击段 `conditions` 相同。注意 `DUAL_WIELDING_*` 系列条件要求两只手都持非双手武器。
 - **第三段战技提前释放**：检查数组中是否保留了 `null` 占位；数组元素会按下标对应连击段，不能省略中间段。
 - **第三段按键无反应**：确认普通武器的 `attributes.attacks` 至少有三段，而且没有被 `conditions` 过滤掉第三段。
 - **多段伤害只命中一次、只命中前几段或完全没有多段命中**：确认 `Multiplehits` 的帧数组递增、帧数不为 0。倍率数组可以比帧数组短（缺省的后段沿用最后一个倍率）；但帧数组必须完整。若整条 `Multiplehits` 无效（例如帧数组为空），模组会回退为普通的单次上挥命中。旧版本会在挥击窗口结束时直接丢弃尚未结算的多段状态，导致排在挥击末尾（帧值恰好等于或超过挥击长度）的那一段永远不触发——例如双持武器攻速加成下挥击被 `attack_speed_multiplier: 0.75` 拉长到约 15.2 tick（窗口取整为 15），第 15 tick 的第三段会在窗口判定处被吞掉，只结算前两段。最新版本保证已配置的每一帧都会触发，之后再清除多段状态。
+- **多段伤害偶发各段倍率错位、多段打完后的普通攻击伤害不对（偏高/偏低/为零）**：旧版本把每段的伤害倍率、固定伤害与击退记录在处理攻击封包的线程里，而真正结算伤害的任务在服务器主线程执行——当 NeoForge 在网络线程派发包处理器时（专用服务器或部分联机场景），结算时读到的是**上一次请求残留的倍率**：多段各段依次错位一帧，且最后一段的倍率（例如 `0` 或 `0.5`）会一直泄漏到之后的普通攻击和其他由该玩家造成的伤害事件上，直到被下个请求覆盖。最新版本改为在服务器线程攻击任务开始时，按该请求自己的封包与攻击数据重建全部命中状态，任务结束时立即清理；任何派发模式下各段倍率都严格对应、不再残留。确认使用最新版本。
+- **多段后几段偶发无伤害、或战技放完后几秒内普通攻击变回战技挥击**：旧版本里 Better Combat 的挥击对象自然到期时直接清空字段、不经过取消回调，排在挥击末端的帧仍会照常"触发"，却打进一个已不存在的挥击——攻击封包没有发出，该段伤害与连击推进全部静默丢失；对战技多段，最后一段的连锁段位也因此永不消耗，随后的普通挥击会持续按战技挥击结算（最长连锁窗口约 5 秒）。最新版本会跟踪多段帧所属的挥击对象，挥击一结束就显式丢弃剩余帧（日志可见 `Dropping pending multiple-hit frame ...: the swing that owns them has already ended`），并同步消耗战技连锁段位，普通攻击立即恢复。若日志频繁出现该警告，说明帧值配在了挥击寿命之外：tick 单位下用 `attack_speed_multiplier` 拉长挥击，或改用 `MultiplehitsUnit: "animation"`。确认使用最新版本。
 - **战技+`Multiplehits` 只结算第一段**：战技的多段命中由客户端按帧逐个发送攻击请求，服务端只对第一段请求校验战技冷却与效果，后续各段沿用同一次激活（旧版本会把后续段误判为冷却未到而拒绝）。确认使用最新版本。
 - **多段倍率不生效（每段都造成 100% 伤害）**：旧版本把伤害倍率注入点放在了仅服务器环境生效的 Mixin 中，单人游戏（客户端环境）永远不会加载它；最新版本已将该逻辑移入通用 Mixin，并跟随 Better Combat 2.4.0 的实际调用位置（`handleAttackRequest` 的服务器线程任务）注入。确认使用最新版本。
 - **战技第二段命中框和第一段不一样大**：确认战技 `attacks` 数组中第二段写了 `null` 占位（表示沿用第一段战技）。一次释放会连锁覆盖整个数组对应的连击段，每一段都使用对应战技攻击的命中框；若数组只有一段而连击进入第二段，第二段会恢复为普通攻击。
@@ -471,3 +551,43 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 - **动作没有播放但音效正常**：`action_json` 为空时不会加载额外动作；同时检查战技 `attributes.attacks` 中是否存在 Better Combat 的 `animation`。
 - **联机只有动画没有正确伤害或完全无效**：确保客户端和服务器都装有 Fiercer Battles、Better Combat，以及相同的战技数据资源。
 - **战技文件改完没生效**：重新加载数据包或重启游戏/服务器；资源加载时会重新读取战技定义。
+
+## 10. 双人处决动画
+
+准星指向血量**严格低于最大生命值 25%** 的成年僵尸或骷髅，在三格内按战技键（默认 `G`）启动处决。动画使用 `execution.blend` 中的两个人物：`player` 是处决者，`player_B` 是被处决者。默认最大生命值 20 的僵尸/骷髅必须低于 5 点生命值；恰好 5 点不能处决。
+
+服务器负责验证血量、目标类型、距离、视线、姿态和摆位空间，再向客户端同步两个角色的位置、朝向和共同的世界时间。双方播放同一条 56 tick（2.8 秒）时间线，结束时结算致命伤害并归属处决玩家。期间锁定移动、转向、AI、普通攻击、其他战技、交互、击退和外来伤害；死亡、断线、切换维度或场地变化会中断并恢复控制。
+
+`config/fiercerbattles.json` 的顶层增加：
+
+```json
+{
+  "execution": {
+    "enabled": true,
+    "health_threshold": 0.25,
+    "range": 3.0,
+    "humanoid_entities": [
+      "minecraft:zombie",
+      "minecraft:skeleton"
+    ]
+  },
+  "entries": []
+}
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `enabled` | 是否启用处决。 |
+| `health_threshold` | 血量比例上限，必须严格低于此值；有效范围大于 0 且不超过 1，默认 `0.25`。 |
+| `range` | 启动距离，单位为格；有效范围大于 0 且不超过 6，默认 `3.0`。 |
+| `humanoid_entities` | 可处决实体 ID 白名单。只添加使用成人标准人形骨架的生物，例如 `minecraft:husk`、`minecraft:stray` 或 `minecraft:wither_skeleton`；非人形模型无法匹配本动画。 |
+
+配置由服务器裁定；客户端不需要复制服务器的白名单。修改后重启游戏/服务器生效，旧配置未写 `execution` 时自动使用默认值。幼年生物、乘骑或载人状态、睡眠、游泳、鞘翅飞行、悬空及尺寸不适合的实体不能启动。两个角色脚底必须处于同一高度，墙内、无落脚处或摆位路径被方块阻挡时拒绝启动，避免强行摆位造成穿墙或上下错位。处决被拒绝时，按键按原有武器战技逻辑处理。
+
+动画坐标按 Blender 原始骨架烘焙，1 Blender 单位为 0.25 格。被处决者静态根骨 `Bone_B` 相对 `Bone_A` 为 `(-0.654533446, -5.532946110, 0)`，对应处决者朝向为 Minecraft `yaw=0` 时的世界偏移 `X=-0.163633361`、`Z=+1.383236527` 格，双方根朝向相差 180°。此偏移随处决者朝向一起旋转，保留原动画的侧向偏移；动态躯干位移、根骨倾斜及肢体动作烘焙到模型部件，不能再次叠加到实体位置。渲染同时覆盖原模型动作、头身朝向插值、装备和盔甲，减少玩家与僵尸/骷髅的渲染差异造成的错位。
+
+正常完成后，处决者接到第 56 帧躯干髋部对应的水平站位：沿动画初始朝向前进 `0.4798867106` 格，朝向增加 `86.124866°`，脚底保持原地面高度。服务器在启动前和结束前都检查该站位、移动路径与落脚空间，完成消息同步最终位置和朝向，避免模型退回普通姿态时被拉回动画起点。中断或末尾空间被阻挡时不移动角色，也不结算处决伤害。
+
+处决时统一使用 1.0 渲染比例，避免原版玩家的 0.9375 比例与怪物的比例不同导致接触位置偏移。服装、护甲、手持物品、披风和鞘翅随身体变换。第一人称会临时切换到第三人称，结束后恢复；处决者用 4 tick（0.2 秒）从重基后的末帧平滑回到普通姿态和比例，此时已恢复移动、攻击等输入；被处决者在死亡消散期间保持动画末帧，避免倒地后突然站直。
+
+动画资源位于 `assets/fiercerbattles/execution/executioner.json` 与 `victim.json`，每 0.125 tick 采样一次；`metadata.json` 保存坐标换算和验证结果。`tools/export_execution.py` 从原始 Blender 文件只读导出，不会执行内嵌脚本或保存源文件。使用 Blender 的 `--python-exit-code 1 --python tools/export_execution.py -- --verify` 可回算网格顶点验证导出。原文件中被处决者的左臂在第 0 帧已经偏离肩部，且后续有脱落动作；本实现保留该轨迹。

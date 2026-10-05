@@ -42,6 +42,15 @@ public final class FiercerBattlesCombatSkills {
      */
     private static final int CHAIN_SKILL_FLAG = 250_000_000;
     /**
+     * Marks an attack request whose combat skill belongs to the OFF-hand
+     * weapon (its weapon_attributes file opted in with
+     * {@code "offhand_skill": true}). The hand cannot be derived from the
+     * combo count alone, because Better Combat selects the hand of the normal
+     * combo step and that is not necessarily the skill's hand, so the flag
+     * travels inside the encoded combo count.
+     */
+    private static final int OFF_HAND_SKILL_FLAG = 125_000_000;
+    /**
      * How long a multi-stage skill chain stays valid, in ticks. Mirrors the
      * server's {@code SKILL_ACTIVATION_WINDOW_TICKS} so the client stops
      * chaining before the server would reject the continuation.
@@ -62,6 +71,12 @@ public final class FiercerBattlesCombatSkills {
      * the fallback.
      */
     private static volatile Map<String, List<VariantDefinition>> VARIANT_DEFINITIONS = Map.of();
+    /**
+     * Weapon ids whose combat skill is released from the off-hand
+     * ({@code "offhand_skill": true}). While such a weapon is held in the
+     * off-hand, its skill takes priority over the main-hand weapon's skill.
+     */
+    private static volatile Map<String, Boolean> OFFHAND_SKILL_ITEMS = Map.of();
     /**
      * Written from the registry resolution path and read from the attack
      * path on both sides, so it must tolerate concurrent access.
@@ -94,6 +109,7 @@ public final class FiercerBattlesCombatSkills {
         ALIASES.clear();
         Map<String, Definition> definitions = new HashMap<>();
         Map<String, List<VariantDefinition>> variants = new HashMap<>();
+        Map<String, Boolean> offHandSkills = new HashMap<>();
         Map<ResourceLocation, Resource> resources = resourceManager.listResources(
                 "weapon_attributes",
                 location -> location.getPath().endsWith(".json")
@@ -109,13 +125,30 @@ public final class FiercerBattlesCombatSkills {
                 if (itemId == null) {
                     continue;
                 }
+                // The weapon_attributes file decides whether this weapon's
+                // skill is released from the off-hand (option: offhand_skill).
+                Boolean offHandSkill = FiercerBattlesCustomData.readFlag(marker, OFF_HAND_SKILL_KEYS);
+                if (offHandSkill == null && marker.has("attributes") && marker.get("attributes").isJsonObject()) {
+                    offHandSkill = FiercerBattlesCustomData.readFlag(
+                            marker.getAsJsonObject("attributes"),
+                            OFF_HAND_SKILL_KEYS
+                    );
+                }
+                if (offHandSkill != null) {
+                    offHandSkills.put(itemId, offHandSkill);
+                }
+                // Effective "does two_handed drive the attack action" judgement
+                // for the skills of this weapon: the skill file may override
+                // it, the weapon_attributes file provides the default.
+                boolean twoHandedAttack = FiercerBattlesCustomData.isTwoHandedAttackEnabled(itemId);
                 // Backward-compatible single reference: the fallback skill
                 // used when no conditional variant matches.
                 if (marker.has("json") && marker.get("json").isJsonPrimitive()) {
                     Definition definition = loadDefinition(
                             resourceManager,
                             entry.getKey(),
-                            marker.get("json").getAsString()
+                            marker.get("json").getAsString(),
+                            twoHandedAttack
                     );
                     if (definition != null) {
                         definitions.put(itemId, definition);
@@ -136,7 +169,8 @@ public final class FiercerBattlesCombatSkills {
                         Definition definition = loadDefinition(
                                 resourceManager,
                                 entry.getKey(),
-                                variant.get("json").getAsString()
+                                variant.get("json").getAsString(),
+                                twoHandedAttack
                         );
                         if (definition != null) {
                             variantList.add(new VariantDefinition(
@@ -158,21 +192,35 @@ public final class FiercerBattlesCombatSkills {
         // map.
         DEFINITIONS = definitions;
         VARIANT_DEFINITIONS = variants;
+        OFFHAND_SKILL_ITEMS = offHandSkills;
         int variantCount = variants.values().stream()
                 .mapToInt(List::size)
                 .sum();
-        LOGGER.info("Loaded {} Fiercer Battles combat skill definition(s), {} conditional variant(s)",
-                definitions.size(), variantCount);
+        long offHandSkillWeapons = offHandSkills.values().stream()
+                .filter(Boolean::booleanValue)
+                .count();
+        LOGGER.info(
+                "Loaded {} Fiercer Battles combat skill definition(s), {} conditional variant(s), "
+                        + "{} off-hand skill weapon(s)",
+                definitions.size(),
+                variantCount,
+                offHandSkillWeapons
+        );
     }
 
     /**
      * Loads one skill file into a Definition, applying the optional
      * {@code skill.action_json} animation overrides like the original loader.
+     *
+     * @param markerTwoHandedAttack value of the weapon_attributes file's
+     *                              {@code two_handed_attack} option; the skill
+     *                              file may override it for itself.
      */
     private static Definition loadDefinition(
             ResourceManager resourceManager,
             ResourceLocation markerLocation,
-            String reference
+            String reference,
+            boolean markerTwoHandedAttack
     ) {
         LoadedJson loadedSkill = readSkillFile(resourceManager, markerLocation, reference);
         if (loadedSkill == null || !loadedSkill.root.has("attributes")
@@ -187,6 +235,7 @@ public final class FiercerBattlesCombatSkills {
         inheritRootDefault(skillRoot, attributes, "fixed_damage", "flat_damage");
         inheritRootDefault(skillRoot, attributes, "knockback", "knockback_bonus");
         inheritRootDefault(skillRoot, attributes, "damage_multiplier", null);
+        boolean twoHandedAttack = readTwoHandedAttack(skillRoot, attributes, markerTwoHandedAttack);
         FiercerBattlesCustomData.SkillEffectData skillEffect =
                 FiercerBattlesCustomData.SkillEffectData.parse(skillRoot);
         if (skillEffect != null && !skillEffect.actionJson.isBlank()) {
@@ -195,7 +244,20 @@ public final class FiercerBattlesCombatSkills {
                 applyActionJson(attributes, action.root);
             }
         }
-        return new Definition(attributes, skillEffect, loadedSkill.location.toString());
+        return new Definition(attributes, skillEffect, loadedSkill.location.toString(), twoHandedAttack);
+    }
+
+    /**
+     * Effective value of the {@code two_handed_attack} option for one skill:
+     * the skill file's own value (its {@code attributes} block first, then its
+     * root object) wins over the weapon_attributes file's value.
+     */
+    private static boolean readTwoHandedAttack(JsonObject skillRoot, JsonObject attributes, boolean markerValue) {
+        Boolean value = FiercerBattlesCustomData.readFlag(attributes, FiercerBattlesCustomData.TWO_HANDED_ATTACK_KEYS);
+        if (value == null && skillRoot != attributes) {
+            value = FiercerBattlesCustomData.readFlag(skillRoot, FiercerBattlesCustomData.TWO_HANDED_ATTACK_KEYS);
+        }
+        return value != null ? value : markerValue;
     }
 
     /** Copies a numeric root-level field into the attributes root when absent. */
@@ -226,21 +288,45 @@ public final class FiercerBattlesCombatSkills {
         }
     }
 
+    /**
+     * Resolves the combat skill released by the skill key.
+     *
+     * A weapon whose weapon_attributes file sets {@code "offhand_skill": true}
+     * takes priority while it is held in the off-hand: its skill is used
+     * instead of the main-hand weapon's skill.
+     */
+    public static Activation resolveActivation(Object currentHand, Object player) {
+        Selection offHand = offHandSelection(player);
+        if (offHand != null) {
+            return new Activation(offHand);
+        }
+        Selection selection = selectionForHand(currentHand, player);
+        return selection != null ? new Activation(selection) : null;
+    }
+
     public static Object armClientSkill(Object hand) {
         return armClientSkill(hand, null);
     }
 
     public static Object armClientSkill(Object hand, Object player) {
-        Selection selection = selectionForHand(hand, player);
-        if (selection == null) {
+        return armClientSkill(resolveActivation(hand, player), player);
+    }
+
+    /**
+     * Arms one resolved activation ({@link #resolveActivation}) for the next
+     * swing and returns the attributes Better Combat must animate with.
+     */
+    public static Object armClientSkill(Activation activation, Object player) {
+        if (activation == null) {
             return null;
         }
+        Selection selection = activation.selection;
         armedClientSelection = selection;
         // Install the range override as soon as the skill is armed. Better
         // Combat queries its range from several paths (target preview,
         // upswing and the actual hit); waiting for getCurrentAttack() leaves
         // the first query on the vanilla/TConstruct reach value.
-        setActiveSkillRange(player, hand, selection.customData);
+        setActiveSkillRange(player, selection.customData);
         // A multi-stage skill covers as many swings as its attacks array has
         // entries; the activation swing is the first one.
         int chain = Math.max(1, selection.chainSwings());
@@ -292,11 +378,11 @@ public final class FiercerBattlesCombatSkills {
         Selection selection = armedClientSelection;
         if (selection != null) {
             armedClientSelection = null;
-            if (!conditionsMatch(player, normalHand, selection.attack, selection.customData)) {
+            if (!conditionsMatch(player, selection.offHand, selection.attack, selection.customData)) {
                 activeClientSelection = null;
                 return normalHand;
             }
-            Object skillHand = createSkillHand(normalHand, selection);
+            Object skillHand = createSkillHand(normalHand, selection, player);
             if (skillHand == null) {
                 activeClientSelection = null;
                 return normalHand;
@@ -308,8 +394,11 @@ public final class FiercerBattlesCombatSkills {
 
         selection = activeClientSelection;
         if (selection != null) {
-            if (!conditionsMatch(player, normalHand, selection.attack, selection.customData)
-                    || selectionForHand(normalHand, player) == null) {
+            boolean stillAvailable = selection.offHand
+                    ? offHandSelection(player) != null
+                    : selectionForHand(normalHand, player) != null;
+            if (!conditionsMatch(player, selection.offHand, selection.attack, selection.customData)
+                    || !stillAvailable) {
                 // The carried-over skill no longer applies to the current
                 // hand (weapon switched to one without this skill, or the
                 // conditions changed). Drop it so following attacks use the
@@ -319,7 +408,7 @@ public final class FiercerBattlesCombatSkills {
                 skillChainRemaining = 0;
                 return normalHand;
             }
-            Object skillHand = createSkillHand(normalHand, selection);
+            Object skillHand = createSkillHand(normalHand, selection, player);
             if (skillHand != null) {
                 setActiveSkillRange(player, skillHand, selection.customData);
                 return skillHand;
@@ -337,12 +426,14 @@ public final class FiercerBattlesCombatSkills {
         if (multipleHitIndex >= 0) {
             boolean combatSkill = activeClientSelection != null;
             boolean chain = combatSkill && isSkillChainContinuation();
+            boolean offHand = combatSkill && activeClientSelection.offHand;
             if (finalMultipleHit && combatSkill) {
                 consumeChainSwing();
             }
             return MULTIPLE_HIT_COMBO_MARKER
                     + (combatSkill ? MULTIPLE_HIT_SKILL_FLAG : 0)
                     + (chain ? CHAIN_SKILL_FLAG : 0)
+                    + (offHand ? OFF_HAND_SKILL_FLAG : 0)
                     + multipleHitIndex * MULTIPLE_HIT_INDEX_FACTOR
                     + Math.min(safeComboCount, MULTIPLE_HIT_INDEX_FACTOR - 1);
         }
@@ -350,9 +441,11 @@ public final class FiercerBattlesCombatSkills {
             return safeComboCount;
         }
         boolean chain = isSkillChainContinuation();
+        boolean offHand = activeClientSelection.offHand;
         consumeChainSwing();
         return COMBAT_SKILL_COMBO_MARKER
                 + (chain ? CHAIN_SKILL_FLAG : 0)
+                + (offHand ? OFF_HAND_SKILL_FLAG : 0)
                 + safeComboCount;
     }
 
@@ -368,53 +461,65 @@ public final class FiercerBattlesCombatSkills {
     }
 
     /**
+     * The encoded payload with the combo marker and the multiple-hit skill
+     * flag removed: chain flag + off-hand skill flag + multiple-hit index
+     * (when present) + the plain combo count.
+     */
+    private static int encodedSkillPayload(int comboCount) {
+        if (isMultipleHitCombo(comboCount)) {
+            int payload = comboCount - MULTIPLE_HIT_COMBO_MARKER;
+            if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
+                payload -= MULTIPLE_HIT_SKILL_FLAG;
+            }
+            return payload;
+        }
+        return comboCount >= COMBAT_SKILL_COMBO_MARKER ? comboCount - COMBAT_SKILL_COMBO_MARKER : comboCount;
+    }
+
+    /** The payload with every optional flag removed (chain first, then off-hand). */
+    private static int skillPayloadWithoutFlags(int comboCount) {
+        int payload = encodedSkillPayload(comboCount);
+        if (payload >= CHAIN_SKILL_FLAG) {
+            payload -= CHAIN_SKILL_FLAG;
+        }
+        if (payload >= OFF_HAND_SKILL_FLAG) {
+            payload -= OFF_HAND_SKILL_FLAG;
+        }
+        return payload;
+    }
+
+    /**
      * True for the continuation swings of a multi-stage skill activation.
      * The activation swing itself is not flagged; every later swing covered
      * by the skill's attacks array is. The server treats flagged packets as
      * continuations of the last activation instead of new activations.
      */
     public static boolean isChainSkillCombo(int comboCount) {
-        if (isMultipleHitCombo(comboCount)) {
-            int payload = comboCount - MULTIPLE_HIT_COMBO_MARKER;
-            if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
-                payload -= MULTIPLE_HIT_SKILL_FLAG;
-            }
-            return payload >= CHAIN_SKILL_FLAG;
-        }
-        return comboCount >= COMBAT_SKILL_COMBO_MARKER
-                && comboCount - COMBAT_SKILL_COMBO_MARKER >= CHAIN_SKILL_FLAG;
+        return encodedSkillPayload(comboCount) >= CHAIN_SKILL_FLAG;
     }
 
-    public static int decodeCombatSkillCombo(int comboCount) {
-        if (isMultipleHitCombo(comboCount)) {
-            int payload = comboCount - MULTIPLE_HIT_COMBO_MARKER;
-            if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
-                payload -= MULTIPLE_HIT_SKILL_FLAG;
-            }
-            if (payload >= CHAIN_SKILL_FLAG) {
-                payload -= CHAIN_SKILL_FLAG;
-            }
-            return payload % MULTIPLE_HIT_INDEX_FACTOR;
-        }
-        int payload = isCombatSkillCombo(comboCount) ? comboCount - COMBAT_SKILL_COMBO_MARKER : comboCount;
+    /**
+     * True when this request's combat skill belongs to the off-hand weapon
+     * ({@code "offhand_skill": true} in its weapon_attributes file).
+     */
+    public static boolean isOffHandSkillCombo(int comboCount) {
+        int payload = encodedSkillPayload(comboCount);
         if (payload >= CHAIN_SKILL_FLAG) {
             payload -= CHAIN_SKILL_FLAG;
         }
-        return payload;
+        return payload >= OFF_HAND_SKILL_FLAG;
+    }
+
+    public static int decodeCombatSkillCombo(int comboCount) {
+        int payload = skillPayloadWithoutFlags(comboCount);
+        return isMultipleHitCombo(comboCount) ? payload % MULTIPLE_HIT_INDEX_FACTOR : payload;
     }
 
     public static int getMultipleHitIndex(int comboCount) {
         if (!isMultipleHitCombo(comboCount)) {
             return -1;
         }
-        int payload = comboCount - MULTIPLE_HIT_COMBO_MARKER;
-        if (payload >= MULTIPLE_HIT_SKILL_FLAG) {
-            payload -= MULTIPLE_HIT_SKILL_FLAG;
-        }
-        if (payload >= CHAIN_SKILL_FLAG) {
-            payload -= CHAIN_SKILL_FLAG;
-        }
-        return payload / MULTIPLE_HIT_INDEX_FACTOR;
+        return skillPayloadWithoutFlags(comboCount) / MULTIPLE_HIT_INDEX_FACTOR;
     }
 
     /**
@@ -451,6 +556,19 @@ public final class FiercerBattlesCombatSkills {
         }
     }
 
+    /**
+     * Consumes one chain slot for a skill swing that a newer swing replaced
+     * while its multiple-hit frames were still pending. The slot is normally
+     * consumed by the swing's final multiple-hit packet, which a replaced
+     * swing can never send; without this compensation the chain keeps
+     * redirecting later swings into the skill long after its damage was
+     * lost. Called only from the runtime, which tracks that the discarded
+     * frames really belonged to a skill swing.
+     */
+    static void consumeReplacedSkillSwing() {
+        consumeChainSwing();
+    }
+
     private static boolean isSkillChainExpired(Object player) {
         if (skillChainRemaining <= 0) {
             return false;
@@ -472,16 +590,74 @@ public final class FiercerBattlesCombatSkills {
         return replaceEncodedSkillHand(normalHand, encodedComboCount, null);
     }
 
+    /**
+     * Server-side counterpart of the client's armed-hand replacement: rebuilds
+     * the swing with the skill's own attack data. Off-hand skill requests
+     * resolve their weapon (and hand) from the off-hand slot, because the hand
+     * Better Combat derives from the combo count belongs to the normal combo
+     * step, not to the skill.
+     */
     public static Object replaceEncodedSkillHand(Object normalHand, int encodedComboCount, Object player) {
         if (!isCombatSkillCombo(encodedComboCount)) {
             return normalHand;
         }
-        Selection selection = selectionForHand(normalHand, player);
-        Object skillHand = selection != null ? createSkillHand(normalHand, selection) : null;
+        Selection selection = isOffHandSkillCombo(encodedComboCount)
+                ? offHandSelection(player)
+                : selectionForHand(normalHand, player);
+        Object skillHand = selection != null ? createSkillHand(normalHand, selection, player) : null;
         if (skillHand != null && selection != null) {
             setActiveSkillRange(player, skillHand, selection.customData);
         }
         return skillHand != null ? skillHand : normalHand;
+    }
+
+    /**
+     * Custom data of the skill an attack request resolves to. An off-hand
+     * skill request resolves its weapon from the off-hand slot; every other
+     * request keeps using the hand Better Combat selected.
+     */
+    public static FiercerBattlesCustomData.AttackData getCombatSkillDataForRequest(
+            Object normalHand,
+            int encodedComboCount,
+            Object player
+    ) {
+        if (isOffHandSkillCombo(encodedComboCount)) {
+            Selection selection = offHandSelection(player);
+            if (selection != null) {
+                return selection.customData;
+            }
+        }
+        return getCombatSkillDataForHand(normalHand, player);
+    }
+
+    /**
+     * Item id an attack request resolves to, used by the datapack-mismatch
+     * fallback so an off-hand skill request never falls back to the main-hand
+     * weapon's data.
+     */
+    public static String itemIdForRequest(Object normalHand, int encodedComboCount, Object player) {
+        if (isOffHandSkillCombo(encodedComboCount) && player instanceof Player actualPlayer) {
+            ItemStack offStack = actualPlayer.getOffhandItem();
+            if (!offStack.isEmpty()) {
+                String registryId = BuiltInRegistries.ITEM.getKey(offStack.getItem()).toString();
+                String presetId = FiercerBattlesCustomData.presetId(offStack);
+                if (presetId != null
+                        && !FiercerBattlesCustomData.contains(registryId)
+                        && FiercerBattlesCustomData.contains(presetId)) {
+                    return presetId;
+                }
+                return registryId;
+            }
+        }
+        return itemIdForHand(normalHand);
+    }
+
+    /** Attack index an attack request resolves to (see {@link #itemIdForRequest}). */
+    public static int attackIndexForRequest(Object normalHand, int encodedComboCount, Object player) {
+        if (isOffHandSkillCombo(encodedComboCount) && player instanceof Player actualPlayer) {
+            return comboStepForHand(actualPlayer);
+        }
+        return attackIndex(normalHand);
     }
 
     public static FiercerBattlesCustomData.AttackData getActiveSkillCustomData() {
@@ -493,8 +669,17 @@ public final class FiercerBattlesCombatSkills {
     }
 
     public static void setActiveSkillRange(Object player, Object hand, FiercerBattlesCustomData.AttackData customData) {
+        if (hand == null) {
+            clearActiveSkillRange(player);
+            return;
+        }
+        setActiveSkillRange(player, customData);
+    }
+
+    /** Range override without a hand object (used while arming off-hand skills). */
+    public static void setActiveSkillRange(Object player, FiercerBattlesCustomData.AttackData customData) {
         RangeKey playerKey = playerKey(player);
-        if (playerKey == null || hand == null || customData == null
+        if (playerKey == null || customData == null
                 || (customData.attackRange == 0 && customData.rangeBonus == 0)) {
             clearActiveSkillRange(player);
             return;
@@ -571,19 +756,108 @@ public final class FiercerBattlesCombatSkills {
         if (normalAttackIndex < 0) {
             return null;
         }
+        boolean offHand = isOffHand(hand);
         Object attributes = definition.attributes();
         int skillAttackIndex = definition.attackIndexFor(normalAttackIndex, attributes);
         Object attack = definition.attackFor(skillAttackIndex, attributes);
         FiercerBattlesCustomData.AttackData customData = definition.customDataFor(skillAttackIndex);
-        if (attack == null || !conditionsMatch(player, hand, attack, customData)) {
+        if (attack == null || !conditionsMatch(player, offHand, attack, customData)) {
             return null;
         }
-        return new Selection(attributes, attack, customData, definition.chainLength());
+        return new Selection(attributes, attack, customData, definition.chainLength(), normalAttackIndex, offHand);
+    }
+
+    /**
+     * The skill of the off-hand weapon, when that weapon opted in with
+     * {@code "offhand_skill": true}. Returns null when the off-hand is empty,
+     * the weapon did not opt in, or its skill does not apply to the current
+     * combo step / hand conditions.
+     */
+    private static Selection offHandSelection(Object player) {
+        if (!(player instanceof Player actualPlayer)) {
+            return null;
+        }
+        ItemStack offStack = actualPlayer.getOffhandItem();
+        if (offStack.isEmpty()) {
+            return null;
+        }
+        // The option lives in the weapon's own weapon_attributes file, which
+        // is keyed by the item id; a preset assigned by Better Combat's
+        // fallback compatibility is the second candidate.
+        String registryId = BuiltInRegistries.ITEM.getKey(offStack.getItem()).toString();
+        String presetId = FiercerBattlesCustomData.presetId(offStack);
+        List<String> candidates = new ArrayList<>(2);
+        if (isOffHandSkillItem(registryId)) {
+            candidates.add(registryId);
+        }
+        if (presetId != null && isOffHandSkillItem(presetId)) {
+            candidates.add(presetId);
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        if (!candidates.contains(registryId)) {
+            candidates.add(registryId);
+        }
+        if (presetId != null && !candidates.contains(presetId)) {
+            candidates.add(presetId);
+        }
+        return selectionForStack(candidates, actualPlayer, true);
+    }
+
+    /**
+     * Resolves a skill for the weapon of one hand without an AttackHand
+     * object. Needed for the off-hand weapon, because Better Combat only
+     * builds a hand for the weapon of the current normal combo step. The
+     * first candidate id with a loaded definition wins.
+     */
+    private static Selection selectionForStack(List<String> itemIds, Player player, boolean offHand) {
+        int normalAttackIndex = comboStepForHand(player);
+        for (String itemId : itemIds) {
+            Definition definition = definitionForStack(itemId, player, offHand);
+            if (definition == null) {
+                continue;
+            }
+            Object attributes = definition.attributes();
+            int skillAttackIndex = definition.attackIndexFor(normalAttackIndex, attributes);
+            Object attack = definition.attackFor(skillAttackIndex, attributes);
+            FiercerBattlesCustomData.AttackData customData = definition.customDataFor(skillAttackIndex);
+            if (attack == null || !conditionsMatch(player, offHand, attack, customData)) {
+                continue;
+            }
+            return new Selection(
+                    attributes,
+                    attack,
+                    customData,
+                    definition.chainLength(),
+                    normalAttackIndex,
+                    offHand
+            );
+        }
+        return null;
+    }
+
+    /**
+     * The normal combo step the weapon of either hand is currently on. Better
+     * Combat advances each hand by one step per two swings, so the shared
+     * combo count divided by two addresses either hand - the same value its
+     * own {@code handSpecificComboCount} computes.
+     */
+    private static int comboStepForHand(Player player) {
+        Object comboCount = invokeNoArg(player, "getComboCount");
+        int combo = comboCount instanceof Number number ? number.intValue() : 0;
+        return Math.max(0, combo / 2);
+    }
+
+    private static Definition definitionForStack(String itemId, Object player, boolean offHand) {
+        Definition variant = variantDefinitionFor(itemId, player, offHand);
+        return variant != null ? variant : definitionFor(itemId);
     }
 
     private static Definition definitionForHand(Object hand, Object player) {
         String itemId = itemIdForHand(hand);
-        Definition variant = variantDefinitionFor(itemId, player, hand);
+        boolean offHand = isOffHand(hand);
+        Definition variant = variantDefinitionFor(itemId, player, offHand);
         if (variant != null) {
             return variant;
         }
@@ -592,7 +866,7 @@ public final class FiercerBattlesCombatSkills {
             return definition;
         }
         String registryId = registryItemIdForHand(hand);
-        variant = variantDefinitionFor(registryId, player, hand);
+        variant = variantDefinitionFor(registryId, player, offHand);
         if (variant != null) {
             return variant;
         }
@@ -605,9 +879,9 @@ public final class FiercerBattlesCombatSkills {
      * single-entry {@code skills} list behaves like a plain {@code json}
      * reference.
      */
-    private static Definition variantDefinitionFor(String itemId, Object player, Object hand) {
+    private static Definition variantDefinitionFor(String itemId, Object player, boolean offHand) {
         List<VariantDefinition> variants = VARIANT_DEFINITIONS.get(itemId);
-        if (variants == null) {
+        if (variants == null && itemId != null) {
             String alias = ALIASES.get(itemId);
             if (alias != null) {
                 variants = VARIANT_DEFINITIONS.get(alias);
@@ -617,11 +891,27 @@ public final class FiercerBattlesCombatSkills {
             return null;
         }
         for (VariantDefinition variant : variants) {
-            if (variant.matches(player, hand)) {
+            if (variant.matches(player, offHand)) {
                 return variant.definition;
             }
         }
         return null;
+    }
+
+    /**
+     * True when this weapon releases its combat skill from the off-hand
+     * ({@code "offhand_skill": true} in its weapon_attributes file).
+     */
+    public static boolean isOffHandSkillItem(String itemId) {
+        if (itemId == null) {
+            return false;
+        }
+        Boolean value = OFFHAND_SKILL_ITEMS.get(itemId);
+        if (value == null) {
+            String alias = ALIASES.get(itemId);
+            value = alias != null ? OFFHAND_SKILL_ITEMS.get(alias) : null;
+        }
+        return Boolean.TRUE.equals(value);
     }
 
     private static List<String> parseConditions(JsonElement element) {
@@ -660,17 +950,19 @@ public final class FiercerBattlesCombatSkills {
      * BetterCombat filters its normal attack list before returning an AttackHand.
      * Combat-skill attacks are selected afterwards, so their conditions must be
      * checked here as well. Conditions are an AND list, matching BetterCombat.
+     * {@code offHand} is the hand the skill is released from, which is not
+     * necessarily the hand Better Combat derived from the combo count.
      */
     private static boolean conditionsMatch(
             Object player,
-            Object hand,
+            boolean offHand,
             Object attack,
             FiercerBattlesCustomData.AttackData customData
     ) {
         Object conditions = invokeNoArg(attack, "conditions");
         if (conditions instanceof Object[] values && values.length > 0) {
             for (Object value : values) {
-                if (value != null && !evaluateCondition(value.toString(), player, hand)) {
+                if (value != null && !evaluateCondition(value.toString(), player, offHand)) {
                     return false;
                 }
             }
@@ -678,7 +970,7 @@ public final class FiercerBattlesCombatSkills {
         }
         if (customData != null && customData.conditions != null) {
             for (String condition : customData.conditions) {
-                if (!evaluateCondition(condition, player, hand)) {
+                if (!evaluateCondition(condition, player, offHand)) {
                     return false;
                 }
             }
@@ -686,24 +978,24 @@ public final class FiercerBattlesCombatSkills {
         return true;
     }
 
-    private static boolean evaluateCondition(String condition, Object player, Object hand) {
+    private static boolean evaluateCondition(String condition, Object player, boolean offHand) {
         if (!(player instanceof Player actualPlayer) || condition == null) {
             return false;
         }
         String name = condition.trim().toUpperCase(java.util.Locale.ROOT);
         ItemStack mainHand = actualPlayer.getMainHandItem();
-        ItemStack offHand = actualPlayer.getOffhandItem();
-        boolean dualWielding = isDualWielding(actualPlayer, mainHand, offHand);
+        ItemStack offHandStack = actualPlayer.getOffhandItem();
+        boolean dualWielding = isDualWielding(actualPlayer, mainHand, offHandStack);
         return switch (name) {
             case "NOT_DUAL_WIELDING" -> !dualWielding;
             case "DUAL_WIELDING_ANY" -> dualWielding;
             case "DUAL_WIELDING_SAME" -> dualWielding
-                    && mainHand.getItem() == offHand.getItem();
-            case "DUAL_WIELDING_SAME_CATEGORY" -> sameCategory(mainHand, offHand, dualWielding);
-            case "NO_OFFHAND_ITEM" -> offHand.isEmpty();
-            case "OFF_HAND_SHIELD" -> !offHand.isEmpty() && offHand.getItem() instanceof ShieldItem;
-            case "MAIN_HAND_ONLY" -> !isOffHand(hand);
-            case "OFF_HAND_ONLY" -> isOffHand(hand);
+                    && mainHand.getItem() == offHandStack.getItem();
+            case "DUAL_WIELDING_SAME_CATEGORY" -> sameCategory(mainHand, offHandStack, dualWielding);
+            case "NO_OFFHAND_ITEM" -> offHandStack.isEmpty();
+            case "OFF_HAND_SHIELD" -> !offHandStack.isEmpty() && offHandStack.getItem() instanceof ShieldItem;
+            case "MAIN_HAND_ONLY" -> !offHand;
+            case "OFF_HAND_ONLY" -> offHand;
             case "MOUNTED" -> actualPlayer.getVehicle() != null;
             case "NOT_MOUNTED" -> actualPlayer.getVehicle() == null;
             default -> true;
@@ -789,13 +1081,36 @@ public final class FiercerBattlesCombatSkills {
         return definition;
     }
 
-    private static Object createSkillHand(Object normalHand, Selection selection) {
+    /**
+     * Builds the AttackHand that plays and resolves one skill swing.
+     *
+     * For an ordinary skill the hand, its combo state and its item stack are
+     * taken from Better Combat's own selection; for an off-hand weapon skill
+     * the hand is forced to the off-hand slot (with that weapon's stack and
+     * step), because Better Combat only selects the hand of the current normal
+     * combo step.
+     */
+    private static Object createSkillHand(Object normalHand, Selection selection, Object player) {
+        if (normalHand == null) {
+            return createSkillHandFromScratch(selection, player);
+        }
         try {
             Object combo = invokeNoArg(normalHand, "combo");
             Object itemStack = invokeNoArg(normalHand, "itemStack");
             Object offHand = invokeNoArg(normalHand, "isOffHand");
             if (!(itemStack instanceof ItemStack) || !(offHand instanceof Boolean)) {
                 return null;
+            }
+            if (selection.offHand) {
+                if (!(player instanceof Player actualPlayer) || actualPlayer.getOffhandItem().isEmpty()) {
+                    return null;
+                }
+                itemStack = actualPlayer.getOffhandItem();
+                offHand = Boolean.TRUE;
+                Object offHandCombo = comboStateFor(selection);
+                if (offHandCombo != null) {
+                    combo = offHandCombo;
+                }
             }
             copyMissingSwingSound(normalHand, selection.attack);
             for (Constructor<?> constructor : normalHand.getClass().getDeclaredConstructors()) {
@@ -806,6 +1121,64 @@ public final class FiercerBattlesCombatSkills {
                 return constructor.newInstance(selection.attack, combo, offHand, selection.attributes, itemStack);
             }
         } catch (ReflectiveOperationException ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Builds the skill hand without a Better Combat hand to copy from. Needed
+     * when the weapon that owns the skill is not in the hand Better Combat
+     * selected - most notably an off-hand weapon while the main hand holds no
+     * weapon at all (empty hand, shield, tool), where Better Combat has no
+     * hand to offer.
+     */
+    private static Object createSkillHandFromScratch(Selection selection, Object player) {
+        if (!(player instanceof Player actualPlayer)) {
+            return null;
+        }
+        ItemStack itemStack = selection.offHand
+                ? actualPlayer.getOffhandItem()
+                : actualPlayer.getMainHandItem();
+        Object combo = comboStateFor(selection);
+        if (itemStack.isEmpty() || combo == null) {
+            return null;
+        }
+        try {
+            Class<?> handClass = Class.forName("net.bettercombat.api.AttackHand");
+            for (Constructor<?> constructor : handClass.getDeclaredConstructors()) {
+                if (constructor.getParameterCount() != 5) {
+                    continue;
+                }
+                constructor.setAccessible(true);
+                return constructor.newInstance(
+                        selection.attack,
+                        combo,
+                        selection.offHand,
+                        selection.attributes,
+                        itemStack
+                );
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        }
+        return null;
+    }
+
+    /** Combo state of the off-hand weapon's skill step, or null when unavailable. */
+    private static Object comboStateFor(Selection selection) {
+        try {
+            Class<?> stateClass = Class.forName("net.bettercombat.api.ComboState");
+            for (Constructor<?> constructor : stateClass.getDeclaredConstructors()) {
+                Class<?>[] parameters = constructor.getParameterTypes();
+                if (parameters.length != 2 || parameters[0] != int.class || parameters[1] != int.class) {
+                    continue;
+                }
+                constructor.setAccessible(true);
+                return constructor.newInstance(
+                        selection.normalAttackIndex + 1,
+                        Math.max(1, selection.chainSwings)
+                );
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
         }
         return null;
     }
@@ -854,15 +1227,7 @@ public final class FiercerBattlesCombatSkills {
     }
 
     public static String itemIdForHand(Object hand) {
-        try {
-            Object stack = invokeNoArg(hand, "itemStack");
-            if (stack instanceof ItemStack itemStack) {
-                String preset = presetId(itemStack);
-                return preset != null ? preset : BuiltInRegistries.ITEM.getKey(itemStack.getItem()).toString();
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
+        return FiercerBattlesCustomData.itemIdForStack(invokeNoArg(hand, "itemStack"));
     }
 
     private static String registryItemIdForHand(Object hand) {
@@ -876,19 +1241,10 @@ public final class FiercerBattlesCombatSkills {
         return null;
     }
 
-    private static String presetId(ItemStack stack) {
-        try {
-            Class<?> componentClass = Class.forName("net.bettercombat.api.component.BetterCombatDataComponents");
-            Object componentType = componentClass.getField("WEAPON_PRESET_ID").get(null);
-            Method getMethod = stack.getClass().getMethod("get", Class.forName("net.minecraft.core.component.DataComponentType"));
-            Object value = getMethod.invoke(stack, componentType);
-            return value instanceof ResourceLocation id ? id.toString() : null;
-        } catch (Exception ignored) {
+    private static Object invokeNoArg(Object target, String methodName) {
+        if (target == null) {
             return null;
         }
-    }
-
-    private static Object invokeNoArg(Object target, String methodName) {
         try {
             Method method = target.getClass().getMethod(methodName);
             method.setAccessible(true);
@@ -898,7 +1254,8 @@ public final class FiercerBattlesCombatSkills {
         }
     }
 
-
+    /** Accepted spellings of the "release this weapon's skill from the off-hand" option. */
+    private static final String[] OFF_HAND_SKILL_KEYS = FiercerBattlesCustomData.OFF_HAND_SKILL_KEYS;
 
     private static boolean isEnabled(JsonObject marker) {
         return marker.has("Combatskill") && marker.get("Combatskill").isJsonPrimitive()
@@ -997,11 +1354,23 @@ public final class FiercerBattlesCombatSkills {
     private static final class Definition {
         private final JsonObject attributesJson;
         private final List<FiercerBattlesCustomData.AttackData> customData;
+        /**
+         * Whether {@code two_handed} drives this skill's attack action. When
+         * false the skill swing is judged as a one-handed attack (one-handed
+         * animation instead of the two-handed one).
+         */
+        private final boolean twoHandedAttack;
         private Object attributes;
 
-        private Definition(JsonObject attributesJson, FiercerBattlesCustomData.SkillEffectData skillEffect, String skillId) {
+        private Definition(
+                JsonObject attributesJson,
+                FiercerBattlesCustomData.SkillEffectData skillEffect,
+                String skillId,
+                boolean twoHandedAttack
+        ) {
             this.attributesJson = attributesJson.deepCopy();
             this.customData = parseCustomData(attributesJson, skillEffect, skillId);
+            this.twoHandedAttack = twoHandedAttack;
         }
 
         private Object attributes() {
@@ -1018,6 +1387,12 @@ public final class FiercerBattlesCombatSkills {
                                 FiercerBattlesCustomData.applyToAttack(attacks[index], customDataFor(index));
                             }
                         }
+                    }
+                    if (!twoHandedAttack) {
+                        // The skill's attributes never pass through Better
+                        // Combat's weapon registry, so the attack-action
+                        // judgement is recorded for this instance directly.
+                        FiercerBattlesCustomData.markAttackActionOneHanded(parsed);
                     }
                     attributes = parsed;
                 } catch (ReflectiveOperationException | RuntimeException exception) {
@@ -1165,8 +1540,34 @@ public final class FiercerBattlesCombatSkills {
             Object attributes,
             Object attack,
             FiercerBattlesCustomData.AttackData customData,
-            int chainSwings
+            int chainSwings,
+            /** Normal combo step of the hand this skill belongs to. */
+            int normalAttackIndex,
+            /** True when the skill belongs to the off-hand weapon. */
+            boolean offHand
     ) {
+    }
+
+    /**
+     * One combat skill that can be released right now: the resolved selection
+     * plus the hand it belongs to. Returned by
+     * {@link FiercerBattlesCombatSkills#resolveActivation}.
+     */
+    public static final class Activation {
+        private final Selection selection;
+
+        private Activation(Selection selection) {
+            this.selection = selection;
+        }
+
+        public FiercerBattlesCustomData.AttackData customData() {
+            return selection.customData;
+        }
+
+        /** True when the skill is released from the off-hand weapon. */
+        public boolean offHand() {
+            return selection.offHand;
+        }
     }
 
     /**
@@ -1175,12 +1576,12 @@ public final class FiercerBattlesCombatSkills {
      * skill definition. An empty condition list always matches.
      */
     private record VariantDefinition(List<String> conditions, Definition definition) {
-        private boolean matches(Object player, Object hand) {
+        private boolean matches(Object player, boolean offHand) {
             if (conditions == null || conditions.isEmpty()) {
                 return true;
             }
             for (String condition : conditions) {
-                if (!evaluateCondition(condition, player, hand)) {
+                if (!evaluateCondition(condition, player, offHand)) {
                     return false;
                 }
             }

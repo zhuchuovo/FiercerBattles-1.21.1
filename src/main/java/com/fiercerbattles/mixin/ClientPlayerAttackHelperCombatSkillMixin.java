@@ -23,9 +23,10 @@ public abstract class ClientPlayerAttackHelperCombatSkillMixin {
             return;
         }
         Object hand = cir.getReturnValue();
-        if (hand == null) {
-            return;
-        }
+        // The hand may be null when the main hand holds no weapon at all
+        // (empty hand, shield, tool). An off-hand weapon skill is released
+        // from the off-hand slot regardless, so the skill hand is built from
+        // that weapon instead.
         Object skillHand = FiercerBattlesCombatSkills.replaceArmedClientHand(hand, player);
         if (skillHand != hand) {
             // Better Combat resolves the target range from the item stack, so

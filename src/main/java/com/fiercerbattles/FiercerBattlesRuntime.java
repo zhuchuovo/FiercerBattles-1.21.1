@@ -46,6 +46,20 @@ public final class FiercerBattlesRuntime {
     private static int multipleHitsStartTick = 0;
     private static int nextMultipleHitIndex = 0;
     private static int executingMultipleHitIndex = -1;
+    /**
+     * The Better Combat swing object the armed multiple-hit frames belong to.
+     * Frames are dispatched into {@code Minecraft.performAttack}, which
+     * silently returns once {@code ongoingSwing} is gone, so the swing's
+     * identity is what decides whether pending frames can still fire.
+     */
+    private static Object armedSwing = null;
+    /**
+     * Whether the armed multiple-hit frames belong to a combat-skill swing.
+     * Recorded when the frames are armed (the skill/normal preparation has
+     * already run by then), so it still identifies the OLD frames while a
+     * newer swing is re-arming the state.
+     */
+    private static boolean multipleHitsSkill = false;
     private static boolean immediateRecoveryCancellationRequested;
     private static final Map<String, Integer> ANIMATION_STOP_FRAMES = new ConcurrentHashMap<>();
     private static final Map<String, Boolean> FORCE_ORIGINAL_PLAYBACK = new ConcurrentHashMap<>();
@@ -75,6 +89,8 @@ public final class FiercerBattlesRuntime {
         multipleHitsStartTick = 0;
         nextMultipleHitIndex = 0;
         executingMultipleHitIndex = -1;
+        armedSwing = null;
+        multipleHitsSkill = false;
         immediateRecoveryCancellationRequested = false;
     }
 
@@ -156,11 +172,23 @@ public final class FiercerBattlesRuntime {
         } else {
             displacement = FiercerBattlesConfig.getDisplacement(currentAnimation);
         }
+        // Captured before the re-arm below overwrites it: true when a new
+        // swing is replacing a skill swing whose delayed multiple-hit frames
+        // have not all fired yet (their final packet - the chain-slot
+        // consumer - can never be sent for the replaced swing).
+        boolean replacedPendingSkillFrames = currentMultipleHits != null
+                && multipleHitsSkill
+                && nextMultipleHitIndex < currentMultipleHits.frames.length;
         currentMultipleHits = custom != null && custom.multipleHits != null
                 ? custom.multipleHits
                 : FiercerBattlesConfig.getMultipleHits(currentAnimation);
         multipleHitsStartTick = startTick;
-        nextMultipleHitIndex = 0;        displacementStartTick = startTick;
+        nextMultipleHitIndex = 0;
+        // startUpswing assigns the swing object before it plays the attack
+        // animation, so the swing these frames belong to is already live here.
+        armedSwing = findOngoingSwing();
+        multipleHitsSkill = currentCombatSkill;
+        displacementStartTick = startTick;
         displacementActive = displacement != null;
 
         currentRangeBonus = custom != null ? custom.rangeBonus : 0;
@@ -183,6 +211,15 @@ public final class FiercerBattlesRuntime {
         // after_cooldown adds an explicit extra tail on top of it.
         recoveryUntil = startTick + currentAttackCooldownTicks
                 + (int) Math.ceil(Math.max(0, currentAfterCooldown) * 20.0);
+
+        if (replacedPendingSkillFrames) {
+            // The replaced skill swing's chain slot is normally consumed by
+            // its final multiple-hit packet; that packet can never fire now.
+            // Without this compensation every subsequent swing keeps being
+            // redirected into the skill (until the chain window expires)
+            // even though its damage was lost.
+            FiercerBattlesCombatSkills.consumeReplacedSkillSwing();
+        }
     }
 
     /** Marks the point at which Better Combat has completed the attack's damage check. */
@@ -440,6 +477,36 @@ public final class FiercerBattlesRuntime {
         currentMultipleHits = null;
         nextMultipleHitIndex = 0;
         executingMultipleHitIndex = -1;
+        armedSwing = null;
+        multipleHitsSkill = false;
+    }
+
+    /**
+     * True while the live swing still has combat-skill multiple-hit frames
+     * that have not fired yet. A combat skill's delayed damage must land
+     * before the player may start the next swing: Better Combat's
+     * {@code startUpswing} happily replaces a mid-flight swing once the
+     * upswing is over (the suppressed natural hit never resets the
+     * attack-strength ticker, so it reads as full), which would discard the
+     * pending frames and - on fast weapons - loop every new swing back into
+     * the skill with zero damage until the chain window expires.
+     *
+     * The hold is naturally bounded: {@link #tickMultipleHits} drops frames
+     * beyond the swing window (plus a small grace) or whose owning swing has
+     * ended, so this can never block attacks forever. Normal (non-skill)
+     * multi-hit weapons are not held; replacing their swing simply restarts
+     * the frame schedule, as before.
+     */
+    public static boolean shouldHoldNewSwing() {
+        if (currentMultipleHits == null
+                || !multipleHitsSkill
+                || nextMultipleHitIndex >= currentMultipleHits.frames.length
+                || isExecutingMultipleHit()) {
+            return false;
+        }
+        // Only the swing that owns the frames may hold new swings. Once it
+        // is gone the state is dropped on the next player tick anyway.
+        return armedSwing != null && findOngoingSwing() == armedSwing;
     }
 
     /** True when the currently prepared attack belongs to a combat skill. */
@@ -529,7 +596,23 @@ public final class FiercerBattlesRuntime {
         // bound the state would stay armed forever and suppress every later
         // performAttack, soft-locking the player into a no-damage swing loop.
         if (elapsed >= windowEndTicks) {
-            dropUnreachableMultipleHits();
+            dropUnreachableMultipleHits(
+                    "configured beyond the swing window, it can never fire"
+            );
+            return;
+        }
+        // The frames belong to one specific swing. performAttack dispatches
+        // into Better Combat's ongoingSwing; once that swing is gone (it
+        // expired naturally - which clears the field WITHOUT cancelWeaponSwing
+        // - or was replaced by a newer swing) every remaining frame would
+        // "fire" into nothing: no attack packet, no damage, no combo advance,
+        // and a skill swing's chain slot would never be consumed. Drop the
+        // remaining frames explicitly so the state (and any skill chain)
+        // recovers immediately instead of firing blanks.
+        if (armedSwing != null && findOngoingSwing() != armedSwing) {
+            dropUnreachableMultipleHits(
+                    "the swing that owns them has already ended"
+            );
             return;
         }
         int currentFrame = currentMultipleHits.animationFrames
@@ -541,7 +624,9 @@ public final class FiercerBattlesRuntime {
                     : swingLengthTicks;
             if (currentFrame >= totalFrames
                     && currentMultipleHits.frames[nextMultipleHitIndex] > totalFrames) {
-                dropUnreachableMultipleHits();
+                dropUnreachableMultipleHits(
+                        "configured beyond the animation's playable frame range, it can never fire"
+                );
                 return;
             }
         }
@@ -565,23 +650,35 @@ public final class FiercerBattlesRuntime {
 
     /**
      * Drops the armed multiple-hit state because at least one configured
-     * frame lies outside the swing window / animation range and can never
-     * fire. Keeping the state would suppress all later attacks. A skill
-     * swing whose frames can never fire also consumes its chain slot so the
-     * chain cannot keep later swings locked into the broken skill.
+     * frame can never fire (beyond the swing window, beyond the animation's
+     * playable range, or its owning swing already ended). Keeping the state
+     * would suppress all later attacks. A skill swing whose frames can never
+     * fire also consumes its chain slot so the chain cannot keep later swings
+     * locked into the broken skill.
      */
-    private static void dropUnreachableMultipleHits() {
+    private static void dropUnreachableMultipleHits(String reason) {
         if (currentMultipleHits != null) {
             LOGGER.warn(
-                    "Dropping pending multiple-hit frame {} (of {}) of animation '{}': "
-                            + "configured beyond the swing window, it can never fire",
+                    "Dropping pending multiple-hit frame {} (of {}) of animation '{}': {}",
                     nextMultipleHitIndex + 1,
                     currentMultipleHits.frames.length,
-                    currentAnimation
+                    currentAnimation,
+                    reason
             );
         }
         cancelMultipleHits();
         FiercerBattlesCombatSkills.consumeBrokenSkillSwing();
+    }
+
+    /**
+     * Better Combat's current {@code ongoingSwing} object (merged into
+     * Minecraft by its client mixin), or null when absent or unreachable -
+     * null from a missing field simply disables the swing-identity check and
+     * keeps the previous timing-based behaviour.
+     */
+    private static Object findOngoingSwing() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft != null ? findFieldValue(minecraft, "ongoingSwing") : null;
     }
 
     /**
@@ -758,6 +855,13 @@ public final class FiercerBattlesRuntime {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft.getSingleplayerServer() != null) {
                 FiercerBattlesCustomData.load(minecraft.getSingleplayerServer().getResourceManager());
+            } else if (minecraft.getResourceManager() != null) {
+                // Multiplayer client: Better Combat only loads the weapon
+                // registry on the server, so the client reads the same
+                // weapon_attributes files from its own packs. Without this the
+                // client would have no custom data at all and the skill key
+                // could not select anything.
+                FiercerBattlesCustomData.load(minecraft.getResourceManager());
             }
         }
     }

@@ -42,15 +42,52 @@ public final class FiercerBattlesClient {
         if (minecraft.player == null || minecraft.screen != null) {
             return;
         }
-        if (minecraft.getSingleplayerServer() != null) {
-            FiercerBattlesCombatSkills.load(minecraft.getSingleplayerServer().getResourceManager());
-        }
-        Object currentHand = invokeNoArg(minecraft, "getCurrentHand");
-        FiercerBattlesCustomData.AttackData candidate =
-                FiercerBattlesCombatSkills.getCombatSkillDataForHand(currentHand, minecraft.player);
-        if (candidate == null) {
+        if (FiercerBattlesExecutionClient.tryRequest(minecraft)) {
             return;
         }
+        resumeCombatSkill(minecraft);
+    }
+
+    public static void cancelAttackForExecution(Minecraft minecraft) {
+        if (minecraft.player == null) return;
+        FiercerBattlesRuntime.beginImmediateRecoveryCancellation();
+        try {
+            invokeStopAttackAnimation(minecraft.player);
+            invokeCancelWeaponSwing(minecraft);
+        } finally {
+            FiercerBattlesRuntime.endImmediateRecoveryCancellation();
+        }
+        FiercerBattlesCombatSkills.clearClientState();
+        FiercerBattlesRuntime.resetClientState();
+    }
+
+    public static void resumeCombatSkill(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.screen != null || FiercerBattlesExecutionClient.blocksInput()) {
+            return;
+        }
+        if (minecraft.getSingleplayerServer() != null) {
+            FiercerBattlesCombatSkills.load(minecraft.getSingleplayerServer().getResourceManager());
+        } else if (minecraft.getResourceManager() != null) {
+            // Multiplayer client: Better Combat loads the weapon registry on
+            // the server only, so the client parses its own copy of the
+            // weapon_attributes / combat skill files. Without this the skill
+            // key (and the off-hand skill option) could never resolve a skill.
+            FiercerBattlesCombatSkills.load(minecraft.getResourceManager());
+        }
+        Object currentHand = invokeNoArg(minecraft, "getCurrentHand");
+        // An off-hand weapon that opted in with "offhand_skill": true takes
+        // priority here: the skill key releases its skill instead of the
+        // main-hand weapon's skill.
+        FiercerBattlesCombatSkills.Activation activation =
+                FiercerBattlesCombatSkills.resolveActivation(currentHand, minecraft.player);
+        if (activation == null) {
+            // No skill resolved: the weapon has no "Combatskill" marker, its
+            // skill file is missing, or the current combo step has no skill
+            // segment. Report it once per item instead of pressing into the void.
+            reportMissingCombatSkill(currentHand);
+            return;
+        }
+        FiercerBattlesCustomData.AttackData candidate = activation.customData();
         long remainingCooldown = FiercerBattlesSkillEffects.getClientRemainingCooldownTicks(
                 candidate,
                 minecraft.player.tickCount
@@ -92,11 +129,22 @@ public final class FiercerBattlesClient {
         FiercerBattlesCombatSkills.clearActiveSkillRange(minecraft.player);
         FiercerBattlesCombatSkills.clearClientSkill();
         // `getCurrentAttackHand()` is the public Better Combat API for the
-        // *ongoing* swing and is null before a swing starts. The skill must
-        // inspect Better Combat's private `getCurrentHand()` selector first.
-        Object hand = currentHand != null ? currentHand : invokeNoArg(minecraft, "getCurrentHand");
-        Object attributes = FiercerBattlesCombatSkills.armClientSkill(hand, minecraft.player);
+        // *ongoing* swing and is null before a swing starts; the activation
+        // resolved above already went through Better Combat's private
+        // `getCurrentHand()` selector.
+        Object attributes = FiercerBattlesCombatSkills.armClientSkill(activation, minecraft.player);
         if (attributes == null) {
+            return;
+        }
+        // A skill whose animation resource is missing (not installed, wrong-case
+        // file name, or a resource pack that is not enabled) would blow up inside
+        // Better Combat's startUpswing with a null KeyframeAnimation; the swing
+        // would start and never resolve. Refuse to start it instead, so the
+        // broken reference is reported once and the normal attack stays intact.
+        if (!hasLoadableAttackAnimation(minecraft, attributes)) {
+            FiercerBattlesCombatSkills.clearArmedClientSkill();
+            FiercerBattlesCombatSkills.clearClientSkill();
+            FiercerBattlesCombatSkills.clearActiveSkillRange(minecraft.player);
             return;
         }
         FiercerBattlesCustomData.AttackData skillData = FiercerBattlesCombatSkills.getArmedClientSkillCustomData();
@@ -224,6 +272,84 @@ public final class FiercerBattlesClient {
         return null;
     }
 
+    private static final java.util.Set<String> REPORTED_MISSING_ANIMATIONS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * True when the first attack of the given Better Combat attributes either
+     * declares no animation or references one that exists as
+     * {@code assets/<namespace>/player_animations/<name>.json} in the client's
+     * resource manager (mod jars count). Better Combat loads player animations
+     * from exactly that path, so a missing file means a null animation later.
+     */
+    private static boolean hasLoadableAttackAnimation(Minecraft minecraft, Object attributes) {
+        try {
+            java.lang.reflect.Field attacksField = attributes.getClass().getDeclaredField("attacks");
+            attacksField.setAccessible(true);
+            Object[] attacks = (Object[]) attacksField.get(attributes);
+            Object attack = attacks != null && attacks.length > 0 ? attacks[0] : null;
+            if (attack == null) {
+                return true;
+            }
+            Object animation = attack.getClass().getMethod("animation").invoke(attack);
+            if (!(animation instanceof String name) || name.isBlank()) {
+                return true;
+            }
+            net.minecraft.resources.ResourceLocation id =
+                    net.minecraft.resources.ResourceLocation.tryParse(name);
+            if (id == null) {
+                reportMissingAnimation(name + "' is not a valid resource location (lowercase only)");
+                return false;
+            }
+            net.minecraft.resources.ResourceLocation file = net.minecraft.resources.ResourceLocation
+                    .fromNamespaceAndPath(id.getNamespace(), "player_animations/" + id.getPath() + ".json");
+            if (minecraft.getResourceManager().getResource(file).isEmpty()) {
+                reportMissingAnimation(name);
+                return false;
+            }
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            LOGGER.debug("Unable to validate Better Combat attack animation", exception);
+            return true;
+        }
+    }
+
+    private static void reportMissingAnimation(String animation) {
+        if (REPORTED_MISSING_ANIMATIONS.add(animation)) {
+            LOGGER.error(
+                    "Fiercer Battles: combat-skill animation '{}' was not found in any resource pack "
+                            + "(check the file name is all lowercase and its pack is enabled); the skill was not started",
+                    animation
+            );
+        }
+    }
+
+    private static final java.util.Set<String> REPORTED_MISSING_SKILLS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * A weapon without a resolved skill makes the skill key look dead, because
+     * the key press is intentionally silent (see the README's "no reaction"
+     * entry). Report the reason once per item: the weapon_attributes file that
+     * actually wins the pack order needs {@code "Combatskill": true} plus a
+     * valid {@code json} reference, and the current combo step must map to a
+     * skill segment that is not {@code null}.
+     */
+    private static void reportMissingCombatSkill(Object currentHand) {
+        String itemId = FiercerBattlesCombatSkills.itemIdForHand(currentHand);
+        if (itemId == null) {
+            itemId = "empty hand";
+        }
+        if (REPORTED_MISSING_SKILLS.add(itemId)) {
+            LOGGER.info(
+                    "Fiercer Battles: no combat skill resolved for '{}' - the skill key was ignored. Check that its "
+                            + "weapon_attributes json sets \"Combatskill\": true with a valid \"json\" skill file, and that "
+                            + "the current combo step maps to a non-null skill attack",
+                    itemId
+            );
+        }
+    }
+
     private static boolean invokeStartUpswing(Minecraft minecraft, Object attributes) {
         for (Class<?> type = minecraft.getClass(); type != null; type = type.getSuperclass()) {
             for (Method method : type.getDeclaredMethods()) {
@@ -249,6 +375,7 @@ public final class FiercerBattlesClient {
 
         @SubscribeEvent
         public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+            FiercerBattlesExecutionClient.initialize();
             event.register(COMBAT_SKILL_KEY);
         }
     }
@@ -261,6 +388,7 @@ public final class FiercerBattlesClient {
         @SubscribeEvent
         public static void onClientTick(ClientTickEvent.Post event) {
             Minecraft minecraft = Minecraft.getInstance();
+            FiercerBattlesExecutionClient.tick();
             while (COMBAT_SKILL_KEY.consumeClick()) {
                 tryStartCombatSkill(minecraft);
             }
@@ -279,18 +407,22 @@ public final class FiercerBattlesClient {
          */
         @SubscribeEvent
         public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+            FiercerBattlesExecutionClient.reset();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();
             resetCooldownFeedback();
+            REPORTED_MISSING_SKILLS.clear();
         }
 
         @SubscribeEvent
         public static void onPlayerClone(ClientPlayerNetworkEvent.Clone event) {
+            FiercerBattlesExecutionClient.reset();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();
             resetCooldownFeedback();
+            REPORTED_MISSING_SKILLS.clear();
         }
     }
 }

@@ -2,6 +2,7 @@ package com.fiercerbattles.mixin;
 
 import com.fiercerbattles.FiercerBattlesCombatSkills;
 import com.fiercerbattles.FiercerBattlesRuntime;
+import com.fiercerbattles.FiercerBattlesExecutionClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -34,11 +35,26 @@ public abstract class MinecraftMixin {
     @Inject(method = "startUpswing", at = @At("HEAD"), remap = false, cancellable = true)
     private void fiercerbattles$blockDuringRecovery(@Coerce Object attributes, CallbackInfo ci) {
         Minecraft minecraft = (Minecraft) (Object) this;
+        if (FiercerBattlesExecutionClient.blocksInput()) {
+            ci.cancel();
+            return;
+        }
         // Hold-to-attack re-enters startUpswing every tick. The attack packet
         // or cancelWeaponSwing owns skill-state cleanup, not this probe call.
         if (minecraft.player != null
                 && FiercerBattlesRuntime.isInRecovery(minecraft.player.tickCount)
                 && !FiercerBattlesCombatSkills.isClientSkillPending()) {
+            ci.cancel();
+            return;
+        }
+        // A combat skill whose delayed multiple-hit frames have not all fired
+        // must finish its damage first: Better Combat replaces a mid-flight
+        // swing here (the suppressed natural hit leaves the attack-strength
+        // ticker reading as full), which on fast weapons turns every
+        // immediate follow-up swing into a zero-damage skill replay loop.
+        // The skill key is unaffected - it cancels the weapon swing (and with
+        // it the pending frames) before starting its own swing.
+        if (minecraft.player != null && FiercerBattlesRuntime.shouldHoldNewSwing()) {
             ci.cancel();
         }
     }
@@ -166,7 +182,7 @@ public abstract class MinecraftMixin {
     }
     @Inject(method = "performAttack", at = @At("HEAD"), cancellable = true, remap = false)
     private void fiercerbattles$replaceDefaultAttackWithMultipleHits(CallbackInfo ci) {
-        if (FiercerBattlesRuntime.shouldSuppressDefaultAttack()) {
+        if (FiercerBattlesExecutionClient.blocksInput() || FiercerBattlesRuntime.shouldSuppressDefaultAttack()) {
             ci.cancel();
         }
     }

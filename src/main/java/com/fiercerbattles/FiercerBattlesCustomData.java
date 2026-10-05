@@ -6,17 +6,22 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import com.fiercerbattles.config.FiercerBattlesConfig;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.item.ItemStack;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +34,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * (for example dagger combos) can use different values for each combo step.
  */
 public final class FiercerBattlesCustomData {
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+    /** Deduplication for malformed-Multiplehits warnings (one per animation/value). */
+    private static final Set<String> MULTIPLE_HITS_WARNINGS = ConcurrentHashMap.newKeySet();
+
     private FiercerBattlesCustomData() {}
 
     public static class AttackData {
@@ -93,6 +102,14 @@ public final class FiercerBattlesCustomData {
         public double armorBonus;
         public double healPercent;
         public String actionJson = "";
+        /**
+         * 代码战技钩子 id（{@code skill.hook}），对应
+         * {@link com.fiercerbattles.combatskill.CombatSkillHooks} 里登记的战技；
+         * 留空表示这是一个纯 JSON 战技。
+         */
+        public String hookId = "";
+        /** 传给钩子的参数（{@code skill.hook_params}），原样交给 {@code CombatSkillContext} 读取。 */
+        public JsonObject hookParams;
         public String soundId;
         public float soundVolume = 1.0F;
         public float soundPitch = 1.0F;
@@ -152,6 +169,14 @@ public final class FiercerBattlesCustomData {
                 data.actionJson = skill.get("action").getAsString().trim();
             }
 
+            if (skill.has("hook") && skill.get("hook").isJsonPrimitive()) {
+                data.hookId = skill.get("hook").getAsString().trim();
+            }
+            JsonElement hookParams = skill.get("hook_params");
+            if (hookParams != null && hookParams.isJsonObject()) {
+                data.hookParams = hookParams.getAsJsonObject();
+            }
+
             JsonElement sound = skill.get("sound");
             if (sound != null && sound.isJsonPrimitive()) {
                 data.soundId = sound.getAsString();
@@ -190,7 +215,8 @@ public final class FiercerBattlesCustomData {
                     || object.has("heal_percent") || object.has("healing_percent")
                     || object.has("interrupt_attack")
                     || object.has("potion_effect") || object.has("effect")
-                    || object.has("action_json") || object.has("action") || object.has("sound");
+                    || object.has("action_json") || object.has("action") || object.has("sound")
+                    || object.has("hook") || object.has("hook_params");
         }
 
         private static double number(JsonObject object, String primary, String alias, double fallback) {
@@ -277,15 +303,44 @@ public final class FiercerBattlesCustomData {
     private static final Map<String, String> ALIASES = new ConcurrentHashMap<>();
 
     /**
+     * Per weapon id value of the {@code two_handed_attack} option, read from
+     * the weapon_attributes file (root level, or its {@code attributes}
+     * block). When the value is {@code false} the weapon's {@code two_handed}
+     * flag must not drive the attack action: the weapon is judged as a
+     * one-handed weapon, so the attack animation is played as a one-handed
+     * swing and the off-hand slot keeps working (a shield can be held).
+     * Absent entries mean "true" (Better Combat's default behaviour).
+     */
+    private static volatile Map<String, Boolean> TWO_HANDED_ATTACK = Map.of();
+
+    /**
+     * WeaponAttributes instances that belong to a weapon whose
+     * {@code two_handed_attack} option is false. {@code WeaponAttributes} is
+     * final and its {@code two_handed} field is only ever read through
+     * {@code isTwoHanded()}, so the override is applied by
+     * {@code WeaponAttributesMixin} through this identity set instead of
+     * mutating Better Combat's parsed objects (which are also serialized into
+     * the weapon registry sync).
+     */
+    private static final Set<Object> ONE_HANDED_ATTACK_ATTRIBUTES =
+            Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    /**
      * Raw (pre-inheritance) content of one weapon_attributes file.
      */
     private static final class ContainerData {
         final String parent;
         final List<AttackData> attacks;
+        /** {@code two_handed_attack} written in this file, or null when absent. */
+        final Boolean twoHandedAttack;
+        /** {@code offhand_skill} written in this file, or null when absent. */
+        final Boolean offHandSkill;
 
-        ContainerData(String parent, List<AttackData> attacks) {
+        ContainerData(String parent, List<AttackData> attacks, Boolean twoHandedAttack, Boolean offHandSkill) {
             this.parent = parent;
             this.attacks = attacks;
+            this.twoHandedAttack = twoHandedAttack;
+            this.offHandSkill = offHandSkill;
         }
     }
 
@@ -310,9 +365,20 @@ public final class FiercerBattlesCustomData {
                 String parent = root.has("parent") && root.get("parent").isJsonPrimitive()
                         ? root.get("parent").getAsString()
                         : null;
+                // `two_handed_attack` may be written next to `Combatskill` at
+                // the file root, or inside the `attributes` block; the root
+                // wins when both are present.
+                Boolean twoHandedAttack = readFlag(root, TWO_HANDED_ATTACK_KEYS);
+                Boolean offHandSkill = readFlag(root, OFF_HAND_SKILL_KEYS);
                 List<AttackData> attacks = new ArrayList<>();
                 if (root.has("attributes") && root.get("attributes").isJsonObject()) {
                     JsonObject attributes = root.getAsJsonObject("attributes");
+                    if (twoHandedAttack == null) {
+                        twoHandedAttack = readFlag(attributes, TWO_HANDED_ATTACK_KEYS);
+                    }
+                    if (offHandSkill == null) {
+                        offHandSkill = readFlag(attributes, OFF_HAND_SKILL_KEYS);
+                    }
                     // Root-level defaults applied to every attack segment; a
                     // value written directly on the segment wins.
                     double fixedDamage = positiveNumber(attributes, "fixed_damage", "flat_damage");
@@ -338,7 +404,7 @@ public final class FiercerBattlesCustomData {
                         }
                     }
                 }
-                containers.put(itemId, new ContainerData(parent, attacks));
+                containers.put(itemId, new ContainerData(parent, attacks, twoHandedAttack, offHandSkill));
             } catch (Exception ignored) {
             }
         }
@@ -346,10 +412,76 @@ public final class FiercerBattlesCustomData {
         // thread (client vs integrated server) never observe a half-loaded
         // map.
         Map<String, List<AttackData>> resolved = new HashMap<>(containers.size());
+        Map<String, Boolean> attackActionFlags = new HashMap<>();
         for (String itemId : containers.keySet()) {
             resolved.put(itemId, resolveInheritance(itemId, containers, new HashSet<>()));
+            Boolean flag = resolveTwoHandedAttack(itemId, containers, new HashSet<>());
+            if (flag != null) {
+                attackActionFlags.put(itemId, flag);
+            }
         }
         DATA = resolved;
+        TWO_HANDED_ATTACK = attackActionFlags;
+        // Attribute instances are re-created by every reload, so the
+        // previously marked ones are stale.
+        ONE_HANDED_ATTACK_ATTRIBUTES.clear();
+        long oneHandedAttackWeapons = attackActionFlags.values().stream()
+                .filter(value -> !value)
+                .count();
+        if (oneHandedAttackWeapons > 0) {
+            LOGGER.info(
+                    "Fiercer Battles: {} weapon(s) set two_handed_attack=false "
+                            + "(judged as one-handed for the attack action)",
+                    oneHandedAttackWeapons
+            );
+        }
+    }
+
+    /**
+     * Resolves {@code two_handed_attack} through the {@code parent} chain:
+     * the weapon's own value wins, otherwise the nearest ancestor that
+     * defines it is used.
+     *
+     * A weapon that releases its combat skill from the off-hand
+     * ({@code offhand_skill}) defaults to the one-handed judgement, because a
+     * two-handed weapon is removed from the off-hand slot by Better Combat -
+     * it could not even be held there.
+     */
+    private static Boolean resolveTwoHandedAttack(
+            String itemId,
+            Map<String, ContainerData> containers,
+            Set<String> visiting
+    ) {
+        ContainerData container = containers.get(itemId);
+        if (container == null) {
+            return null;
+        }
+        if (container.twoHandedAttack != null) {
+            return container.twoHandedAttack;
+        }
+        if (container.offHandSkill != null) {
+            return Boolean.FALSE;
+        }
+        if (container.parent == null || !containers.containsKey(container.parent)
+                || !visiting.add(container.parent)) {
+            return null;
+        }
+        return resolveTwoHandedAttack(container.parent, containers, visiting);
+    }
+
+    /** Reads a boolean flag, honoring all accepted aliases. */
+    public static Boolean readFlag(JsonObject object, String[] keys) {
+        for (String key : keys) {
+            JsonElement value = object.get(key);
+            if (value != null && value.isJsonPrimitive()) {
+                try {
+                    return value.getAsBoolean();
+                } catch (RuntimeException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -488,11 +620,13 @@ public final class FiercerBattlesCustomData {
             data.movementSpeedMultiplier = attack.get("movement_speed_multiplier").getAsFloat();
         }
         if (attack.has("Multiplehits") && attack.get("Multiplehits").isJsonPrimitive()) {
-            data.multipleHits = parseMultipleHits(
-                    attack.get("Multiplehits").getAsString(),
-                    isAnimationFrameUnit(attack)
-            );
-        }        if (attack.has("range_multiplier") && attack.get("range_multiplier").isJsonPrimitive()) {
+            String rawMultipleHits = attack.get("Multiplehits").getAsString();
+            data.multipleHits = parseMultipleHits(rawMultipleHits, isAnimationFrameUnit(attack));
+            if (data.multipleHits == null) {
+                warnInvalidMultipleHits(rawMultipleHits, attack);
+            }
+        }
+        if (attack.has("range_multiplier") && attack.get("range_multiplier").isJsonPrimitive()) {
             data.rangeMultiplier = attack.get("range_multiplier").getAsFloat();
         }
         if (attack.has("fixed_damage") && attack.get("fixed_damage").isJsonPrimitive()) {
@@ -626,7 +760,10 @@ public final class FiercerBattlesCustomData {
         if (raw == null) {
             return null;
         }
-        String[] groups = raw.trim().split("\\]\\s*,\\s*\\[", -1);
+        // Both "[10,20],[1,1]" and "[10]:[1]" are accepted: the separator
+        // between the frame list and the multiplier list must not decide
+        // whether the configured hits silently disappear.
+        String[] groups = raw.trim().split("\\]\\s*[,:]\\s*\\[", -1);
         if (groups.length != 2) {
             return null;
         }
@@ -662,6 +799,26 @@ public final class FiercerBattlesCustomData {
         }
         return new MultipleHits(frames, multipliers, animationFrames);
     }
+    /**
+     * A malformed {@code Multiplehits} used to disable the segment's hit frames
+     * without a trace. Report it once per animation/value pair so a typo (for
+     * example {@code "[10]:[1]"}) is visible instead of reading as "the skill
+     * does no damage".
+     */
+    private static void warnInvalidMultipleHits(String raw, JsonObject attack) {
+        String animation = attack.has("animation") && attack.get("animation").isJsonPrimitive()
+                ? attack.get("animation").getAsString()
+                : "?";
+        if (MULTIPLE_HITS_WARNINGS.add(animation + '|' + raw)) {
+            LOGGER.warn(
+                    "Fiercer Battles: ignoring invalid Multiplehits \"{}\" on attack segment '{}'; "
+                            + "expected \"[frame,...],[multiplier,...]\"",
+                    raw,
+                    animation
+            );
+        }
+    }
+
     public static AttackData parseAttackData(JsonObject attack) {
         AttackData data = new AttackData();
         parseAttack(attack, data);
@@ -725,8 +882,10 @@ public final class FiercerBattlesCustomData {
     }
 
     public static AttackData get(String itemId, int attackIndex) {
+        // A null item id (empty hand, item without weapon attributes) must not
+        // reach the ConcurrentHashMap lookups below: they reject null keys.
         String key = itemId;
-        if (key == null || !DATA.containsKey(key)) {
+        if (key != null && !DATA.containsKey(key)) {
             String alias = ALIASES.get(key);
             if (alias != null) {
                 key = alias;
@@ -742,7 +901,7 @@ public final class FiercerBattlesCustomData {
     /** Returns true when any main-weapon animation segment defines a recovery window. */
     public static boolean hasRecoveryCancelWindow(String itemId) {
         String key = itemId;
-        if (key == null || !DATA.containsKey(key)) {
+        if (key != null && !DATA.containsKey(key)) {
             String alias = ALIASES.get(key);
             if (alias != null) {
                 key = alias;
@@ -796,5 +955,122 @@ public final class FiercerBattlesCustomData {
 
     public static boolean isEmpty() {
         return DATA.isEmpty();
+    }
+
+    /** Accepted spellings of the "does `two_handed` drive the attack action" option. */
+    public static final String[] TWO_HANDED_ATTACK_KEYS = {
+            "two_handed_attack",
+            "two_handed_affects_attack",
+            "affect_attack_action",
+            "affect_attack_animation"
+    };
+
+    /** Accepted spellings of the "release this weapon's skill from the off-hand" option. */
+    public static final String[] OFF_HAND_SKILL_KEYS = {
+            "offhand_skill",
+            "use_offhand_skill",
+            "offhand_combat_skill"
+    };
+
+    /**
+     * False when the weapon opted out of {@code two_handed} driving its attack
+     * action (the weapon is then judged as a one-handed weapon: one-handed
+     * attack animation and a usable off-hand slot). Weapons that do not write
+     * the option keep Better Combat's default two-handed handling.
+     */
+    public static boolean isTwoHandedAttackEnabled(String itemId) {
+        return !Boolean.FALSE.equals(flagFor(itemId, TWO_HANDED_ATTACK));
+    }
+
+    private static Boolean flagFor(String itemId, Map<String, Boolean> flags) {
+        if (itemId == null) {
+            return null;
+        }
+        Boolean value = flags.get(itemId);
+        if (value != null) {
+            return value;
+        }
+        String alias = ALIASES.get(itemId);
+        return alias != null ? flags.get(alias) : null;
+    }
+
+    /**
+     * Remembers that the given resolved attributes object belongs to
+     * {@code itemId}, so the {@code WeaponAttributes} mixin can answer
+     * {@code isTwoHanded()} with the weapon's configured attack-action
+     * judgement.
+     */
+    public static void rememberAttackActionAttributes(Object itemId, Object attributes) {
+        if (itemId == null || attributes == null) {
+            return;
+        }
+        if (isTwoHandedAttackEnabled(itemId.toString())) {
+            ONE_HANDED_ATTACK_ATTRIBUTES.remove(attributes);
+        } else {
+            ONE_HANDED_ATTACK_ATTRIBUTES.add(attributes);
+        }
+    }
+
+    /**
+     * Same as {@link #rememberAttackActionAttributes(Object, Object)} for an
+     * item stack, using Better Combat's own id rule: the weapon preset
+     * component wins, the registry id is the fallback.
+     */
+    public static void rememberAttackActionAttributesForStack(Object stack, Object attributes) {
+        if (!(stack instanceof ItemStack itemStack) || attributes == null) {
+            return;
+        }
+        String registryId = BuiltInRegistries.ITEM.getKey(itemStack.getItem()).toString();
+        String presetId = presetId(itemStack);
+        Boolean effective = presetId != null ? flagFor(presetId, TWO_HANDED_ATTACK) : null;
+        if (effective == null) {
+            effective = flagFor(registryId, TWO_HANDED_ATTACK);
+        }
+        if (effective == null) {
+            return;
+        }
+        if (effective) {
+            ONE_HANDED_ATTACK_ATTRIBUTES.remove(attributes);
+        } else {
+            ONE_HANDED_ATTACK_ATTRIBUTES.add(attributes);
+        }
+    }
+
+    /**
+     * Forces an arbitrary attributes object (for example the attributes of a
+     * combat-skill file, which never passes through BetterCombat's weapon
+     * registry) to be judged as one-handed for the attack action.
+     */
+    public static void markAttackActionOneHanded(Object attributes) {
+        if (attributes != null) {
+            ONE_HANDED_ATTACK_ATTRIBUTES.add(attributes);
+        }
+    }
+
+    /** True when this attributes instance must report itself as one-handed. */
+    public static boolean isAttackActionOneHanded(Object attributes) {
+        return attributes != null && ONE_HANDED_ATTACK_ATTRIBUTES.contains(attributes);
+    }
+
+    /** Better Combat's id rule for a stack: preset component first, registry id second. */
+    public static String itemIdForStack(Object stack) {
+        if (!(stack instanceof ItemStack itemStack)) {
+            return null;
+        }
+        String preset = presetId(itemStack);
+        return preset != null ? preset : BuiltInRegistries.ITEM.getKey(itemStack.getItem()).toString();
+    }
+
+    /** The BetterCombat weapon preset id assigned to the stack, or null. */
+    public static String presetId(ItemStack stack) {
+        try {
+            Class<?> componentClass = Class.forName("net.bettercombat.api.component.BetterCombatDataComponents");
+            Object componentType = componentClass.getField("WEAPON_PRESET_ID").get(null);
+            Method getMethod = stack.getClass().getMethod("get", Class.forName("net.minecraft.core.component.DataComponentType"));
+            Object value = getMethod.invoke(stack, componentType);
+            return value instanceof ResourceLocation id ? id.toString() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

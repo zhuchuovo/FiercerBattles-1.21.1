@@ -80,4 +80,95 @@ public final class FiercerBattlesMultipleHits {
         SERVER_FIXED_DAMAGE.remove();
         SERVER_EXTRA_KNOCKBACK.remove();
     }
+
+    /**
+     * Resolves the custom attack data one attack request resolves to: the
+     * combat skill's own segment data for a skill request (falling back to
+     * the weapon's normal per-segment data on a client/server datapack
+     * mismatch), or the normal weapon's per-segment data directly.
+     */
+    public static FiercerBattlesCustomData.AttackData resolveRequestCustomData(
+            Object player,
+            Object hand,
+            int encodedComboCount
+    ) {
+        if (FiercerBattlesCombatSkills.isCombatSkillCombo(encodedComboCount)) {
+            FiercerBattlesCustomData.AttackData skillData = FiercerBattlesCombatSkills
+                    .getCombatSkillDataForRequest(hand, encodedComboCount, player);
+            if (skillData != null) {
+                return skillData;
+            }
+            return FiercerBattlesCustomData.get(
+                    FiercerBattlesCombatSkills.itemIdForRequest(hand, encodedComboCount, player),
+                    FiercerBattlesCombatSkills.attackIndexForRequest(hand, encodedComboCount, player)
+            );
+        }
+        return FiercerBattlesCustomData.get(
+                FiercerBattlesCombatSkills.itemIdForHand(hand),
+                FiercerBattlesCombatSkills.attackIndex(hand)
+        );
+    }
+
+    /**
+     * Installs the full per-request hit state for the server-thread attack
+     * task of one Better Combat attack request. Better Combat resolves
+     * {@code getCurrentAttack} (where this state is normally recorded) on the
+     * thread that handles the packet, while the attack task that consumes the
+     * state runs on the server thread; rebuilding the state from the request's
+     * own packet and attack hand at the start of that task keeps the per-frame
+     * multiplier, fixed damage and knockback correct regardless of which
+     * thread the resolution ran on.
+     */
+    public static void beginServerAttackTask(Object player, Object hand, int encodedComboCount) {
+        beginServerAttackTask(resolveRequestCustomData(player, hand, encodedComboCount), hand, encodedComboCount);
+    }
+
+    /**
+     * Same as {@link #beginServerAttackTask(Object, Object, int)} with the
+     * request's custom data already resolved (the {@code getCurrentAttack}
+     * resolution path resolves it anyway for the activation logic).
+     */
+    public static void beginServerAttackTask(
+            FiercerBattlesCustomData.AttackData customData,
+            Object hand,
+            int encodedComboCount
+    ) {
+        String animation = animationName(hand);
+        if (FiercerBattlesCombatSkills.isMultipleHitCombo(encodedComboCount)) {
+            FiercerBattlesCustomData.MultipleHits multipleHits = FiercerBattlesCustomData.getMultipleHits(
+                    customData,
+                    animation
+            );
+            int multipleHitIndex = FiercerBattlesCombatSkills.getMultipleHitIndex(encodedComboCount);
+            if (multipleHits != null && multipleHits.isValidIndex(multipleHitIndex)) {
+                // A valid zero is intentional (a hit may deal no damage), so
+                // only install the override when the packet maps to a real
+                // configured hit.  For an unknown/stale packet keep Better
+                // Combat's attack multiplier instead of turning the damage
+                // modifier into -100%.
+                beginServerHit(multipleHits.damageMultipliers[multipleHitIndex]);
+            } else {
+                clearServerHit();
+            }
+        }
+        // Record the segment's own multiplier, flat damage and extra knockback
+        // for the damage/knockback events that fire while this request
+        // resolves. Runs after the multiple-hit block so its invalid-index
+        // clear cannot wipe the freshly recorded values.
+        beginServerHitState(customData, animation);
+    }
+
+    /** Animation id of the attack the given request hand resolves to, or "". */
+    public static String animationName(Object hand) {
+        if (hand == null) {
+            return "";
+        }
+        try {
+            Object attack = hand.getClass().getMethod("attack").invoke(hand);
+            Object animation = attack != null ? attack.getClass().getMethod("animation").invoke(attack) : null;
+            return animation instanceof String value ? value : "";
+        } catch (ReflectiveOperationException ignored) {
+            return "";
+        }
+    }
 }
