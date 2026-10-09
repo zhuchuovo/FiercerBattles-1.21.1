@@ -1,25 +1,46 @@
-"""Bake execution.blend into flat Minecraft ModelPart transforms, without saving it.
+"""Bake a paired execution into flat Minecraft ModelPart transforms, without saving it.
 
 Run:
   blender --background --disable-autoexec execution.blend --python-exit-code 1 --python tools/export_execution.py
 Verify saved resources without writing:
   blender --background --disable-autoexec execution.blend --python-exit-code 1 --python tools/export_execution.py -- --verify
+Export the axe action:
+  blender --background --disable-autoexec axe_execution.blend --python-exit-code 1 --python tools/export_execution.py -- --name axe_execution --duration 30 --step 0.0625
 
 The input uses mesh objects rather than armature bones. All evaluated parents,
 including Bone_B's animated pitch, are included. The detached victim arm remains
 in its authored world trajectory. No embedded Blender scripts are executed.
 """
+import argparse
 import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import sys
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-DURATION = 56
-STEP = 0.125
+SCRIPT_ARGUMENTS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--name", default="execution", help="Resource directory for this paired animation")
+parser.add_argument("--duration", type=int, default=56, help="Last exported game tick")
+parser.add_argument("--step", type=float, default=0.125, help="Sampling interval in game ticks")
+parser.add_argument("--verify", action="store_true", help="Recompute and compare saved clips without writing")
+arguments = parser.parse_args(SCRIPT_ARGUMENTS)
+if not re.fullmatch(r"[a-z0-9_]+", arguments.name):
+    parser.error("--name must contain only lowercase letters, numbers, and underscores")
+if not 1 <= arguments.duration <= 1200:
+    parser.error("--duration must be between 1 and 1200 ticks")
+if not math.isfinite(arguments.step) or arguments.step <= 0:
+    parser.error("--step must be a positive finite number")
+if not math.isclose(arguments.duration / arguments.step, round(arguments.duration / arguments.step), abs_tol=1e-8):
+    parser.error("--step must evenly divide --duration")
+ACTION_NAME = arguments.name
+DURATION = arguments.duration
+STEP = arguments.step
+VERIFY_ONLY = arguments.verify
 PIXELS_PER_UNIT = 4.0
 PARTS = {
     "head": "head", "body": "torso", "rightArm": "rightArm",
@@ -31,11 +52,9 @@ H = Matrix(((-1, 0, 0), (0, 0, -1), (0, -1, 0)))
 W = Matrix(((1, 0, 0), (0, 0, -1), (0, 1, 0)))
 HIP_OFFSET = Vector((0, 12, 0))
 BODY_PIVOT = Vector((0, 0, 3))
-OUT = Path(__file__).resolve().parents[1] / "src/main/resources/assets/fiercerbattles/execution"
-DATAPACK_CLIPS = Path(__file__).resolve().parents[1] / "src/main/resources/data/fiercerbattles/fiercerbattles_animations/execution"
+OUT = Path(__file__).resolve().parents[1] / "src/main/resources/assets/fiercerbattles" / ACTION_NAME
+DATAPACK_CLIPS = Path(__file__).resolve().parents[1] / "src/main/resources/data/fiercerbattles/fiercerbattles_animations" / ACTION_NAME
 ROLES = (("executioner", "", "Bone_A"), ("victim", "B_", "Bone_B"))
-SCRIPT_ARGUMENTS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-VERIFY_ONLY = "--verify" in SCRIPT_ARGUMENTS
 
 
 def action_curves(action):
@@ -235,6 +254,8 @@ scene = bpy.context.scene
 fps = scene.render.fps / scene.render.fps_base
 if abs(fps - 20) > 0.00001:
     raise RuntimeError("Source must use 20 animation frames per second; got " + str(fps))
+if scene.frame_start > 0 or scene.frame_end < DURATION:
+    raise RuntimeError("Source scene must include frames 0 through " + str(DURATION))
 source = Path(bpy.data.filepath)
 source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
 set_tick(0)
@@ -296,6 +317,30 @@ metadata = {
         "command": "blender --background --disable-autoexec execution.blend --python-exit-code 1 --python tools/export_execution.py -- --verify",
     },
 }
+if ACTION_NAME != "execution":
+    executor_root = bpy.data.objects["Bone_A"]
+    victim_root = bpy.data.objects["Bone_B"]
+    set_tick(0)
+    relative_offset = Matrix.Rotation(-executor_root.rotation_euler.z, 3, "Z") @ source_offset
+    metadata["relative_victim_position_blocks_at_executor_yaw_zero"] = [
+        float(relative_offset.x * 0.25), float(relative_offset.z * 0.25), float(-relative_offset.y * 0.25)]
+    metadata["relative_victim_yaw_degrees"] = round(math.degrees(math.remainder(
+        victim_root.rotation_euler.z - executor_root.rotation_euler.z, 2 * math.pi)), 6)
+    metadata["notes"] = [
+        "All evaluated parents are baked into the sampled humanoid model-part channels.",
+        "Model positions are absolute pixels. Do not add vanilla pivots or animate torso position a second time.",
+        "Both entities use a shared render scale of 1.0; standard player's 0.9375 scale causes contact drift.",
+        "Body uses shoulder pivot, source torso local (0,0,3), not the Blender hip origin.",
+        "Each quaternion's sign is made continuous. Java playback uses shortest-path slerp and linear pivot interpolation.",
+        "The paired clips end at " + str(DURATION) + " game ticks; later held scene frames are not exported.",
+        "At clip end, entity motion comes from the authored torso hip, recovered as bodyPivot + bodyQuaternion * (0,12,0), never directly from the shoulder pivot.",
+        "For the idle handoff, rotate actor-local (right,forward) using the starting entity yaw; ending body horizontal heading is a separate yaw offset.",
+    ]
+if ACTION_NAME != "execution" or DURATION != 56 or STEP != 0.125:
+    metadata["verification_limits"]["command"] = (
+        "blender --background --disable-autoexec " + source.name
+        + " --python-exit-code 1 --python tools/export_execution.py -- --name " + ACTION_NAME
+        + " --duration " + str(DURATION) + " --step " + str(STEP) + " --verify")
 if VERIFY_ONLY:
     existing_metadata = json.loads((OUT / "metadata.json").read_text(encoding="utf-8"))
     if existing_metadata != metadata:

@@ -16,6 +16,7 @@ public abstract class ExecutionPlayerRendererMixin {
         var actor = FiercerBattlesExecutionClient.actor(player);
         if (actor == null) return;
         cir.setReturnValue(actor.returning()
-                ? cir.getReturnValue().scale(actor.returnProgress(partial)) : Vec3.ZERO);
+                ? cir.getReturnValue().scale(actor.returnProgress(partial))
+                : cir.getReturnValue().scale(1 - actor.approachProgress(partial)));
     }
 }

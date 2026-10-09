@@ -41,7 +41,7 @@ public final class ExecutionNetwork {
 
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("execution-3");
+        var registrar = event.registrar("execution-4");
         registrar.playToServer(Request.TYPE, Request.STREAM_CODEC, (payload, context) -> {
             if (context.player() instanceof ServerPlayer player) {
                 FiercerBattlesExecutionServer.tryStart(player, payload.targetEntityId());
@@ -94,7 +94,9 @@ public final class ExecutionNetwork {
             int executorId, UUID executorUuid, int victimId, UUID victimUuid,
             ResourceLocation dimension, long startGameTime, int durationTicks,
             double executorX, double executorY, double executorZ, float executorYaw,
-            double victimX, double victimY, double victimZ, float victimYaw
+            double victimX, double victimY, double victimZ, float victimYaw,
+            double executorFromX, double executorFromY, double executorFromZ, float executorFromYaw,
+            double victimFromX, double victimFromY, double victimFromZ, float victimFromYaw
     ) implements CustomPacketPayload {
         public static final Type<Start> TYPE = ExecutionNetwork.type("execution_start");
         public static final StreamCodec<RegistryFriendlyByteBuf, Start> STREAM_CODEC = StreamCodec.of(
@@ -117,11 +119,21 @@ public final class ExecutionNetwork {
                     buffer.writeDouble(value.victimY());
                     buffer.writeDouble(value.victimZ());
                     buffer.writeFloat(value.victimYaw());
+                    buffer.writeDouble(value.executorFromX());
+                    buffer.writeDouble(value.executorFromY());
+                    buffer.writeDouble(value.executorFromZ());
+                    buffer.writeFloat(value.executorFromYaw());
+                    buffer.writeDouble(value.victimFromX());
+                    buffer.writeDouble(value.victimFromY());
+                    buffer.writeDouble(value.victimFromZ());
+                    buffer.writeFloat(value.victimFromYaw());
                 },
                 buffer -> new Start(buffer.readUUID(), buffer.readResourceLocation(), buffer.readUtf(64),
                         buffer.readVarInt(), buffer.readUUID(),
                         buffer.readVarInt(), buffer.readUUID(), buffer.readResourceLocation(),
                         buffer.readVarLong(), buffer.readVarInt(),
+                        buffer.readDouble(), buffer.readDouble(), buffer.readDouble(), buffer.readFloat(),
+                        buffer.readDouble(), buffer.readDouble(), buffer.readDouble(), buffer.readFloat(),
                         buffer.readDouble(), buffer.readDouble(), buffer.readDouble(), buffer.readFloat(),
                         buffer.readDouble(), buffer.readDouble(), buffer.readDouble(), buffer.readFloat()));
 

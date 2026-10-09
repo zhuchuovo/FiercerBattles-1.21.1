@@ -4,6 +4,9 @@ import com.fiercerbattles.config.FiercerBattlesConfig;
 import com.fiercerbattles.execution.ExecutionGeometry;
 import com.fiercerbattles.execution.ExecutionNetwork;
 import com.fiercerbattles.execution.ExecutionPlacement;
+import com.fiercerbattles.execution.ExecutionTimeline;
+import com.fiercerbattles.parry.ParryServer;
+import com.fiercerbattles.execution.ExecutionWeapons;
 import com.fiercerbattles.execution.action.ExecutionActionRegistry;
 import com.fiercerbattles.execution.action.PairedExecutionAction;
 import com.fiercerbattles.mixin.ExecutionLivingEntityInvoker;
@@ -11,6 +14,7 @@ import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceLocation;
@@ -50,7 +54,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Owns both actors, their fixed world anchors and the single finishing damage on the server. */
+/** Owns the shared approach, fixed animation anchors and single finishing damage on the server. */
 @EventBusSubscriber(modid = FiercerBattles.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public final class FiercerBattlesExecutionServer {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -90,38 +94,47 @@ public final class FiercerBattlesExecutionServer {
     private static boolean start(ServerPlayer executor, int targetEntityId) {
         FiercerBattlesConfig.Execution config = FiercerBattlesConfig.getExecution();
         ServerLevel level = executor.serverLevel();
-        PairedExecutionAction action = ExecutionActionRegistry.get(config.action_id);
+        if (!config.enabled) return deny(executor, "disabled");
+        String weaponAction = ExecutionWeapons.actionId(executor.getMainHandItem());
+        if (weaponAction == null) return deny(executor, "weapon");
+        String actionId = ExecutionWeapons.AXE_ACTION.equals(weaponAction) ? config.axe_action_id : config.action_id;
+        PairedExecutionAction action = ExecutionActionRegistry.get(actionId);
         if (action == null) {
-            LOGGER.warn("Execution action {} is not registered in the loaded datapacks", config.action_id);
-            return false;
+            LOGGER.warn("Execution action {} is not registered in the loaded datapacks", actionId);
+            return deny(executor, "action_missing");
         }
         Entity entity = level.getEntity(targetEntityId);
-        if (!config.enabled || !executor.isAlive() || executor.isSpectator() || executor.hasDisconnected()
+        if (!executor.isAlive() || executor.isSpectator() || executor.hasDisconnected()
+                || ParryServer.isBusy(executor)
                 || !(entity instanceof Mob victim) || !victim.isAlive()
-                || victim.isInvulnerable() || isExecuting(victim) || !config.allows(victim)
+                || victim.isInvulnerable() || isExecuting(victim) || ParryServer.isBusy(victim) || !config.allows(victim)
                 || !eligiblePose(executor) || !eligiblePose(victim) || victim.isBaby()) {
-            LOGGER.debug("Execution rejected: ineligible target {}, player pose={}, grounded={}",
+            LOGGER.info("Execution rejected: ineligible target {}, player pose={}, grounded={}",
                     entity, executor.getPose(), executor.onGround());
             if (entity instanceof LivingEntity target) {
-                LOGGER.debug("Target state: alive={}, allowed={}, pose={}, grounded={}, water={}, dimensions={}x{}, baby={}, invulnerable={}",
+                LOGGER.info("Target state: alive={}, allowed={}, pose={}, grounded={}, water={}, dimensions={}x{}, baby={}, invulnerable={}",
                         target.isAlive(), config.allows(target), target.getPose(), target.onGround(), target.isInWaterOrBubble(),
                         target.getBbWidth(), target.getBbHeight(), target.isBaby(), target.isInvulnerable());
             }
-            return false;
+            return deny(executor, "ineligible");
         }
         float maxHealth = victim.getMaxHealth();
-        if (!(maxHealth > 0) || !(victim.getHealth() < maxHealth * config.healthThreshold())
-                || !ExecutionPlacement.canReach(executor, victim, config.range())) {
-            LOGGER.debug("Execution rejected: health={}/{}, body distance={}, range={}",
+        if (!(maxHealth > 0) || !(victim.getHealth() < maxHealth * config.healthThreshold())) {
+            LOGGER.info("Execution rejected: health={}/{}, threshold={}",
+                    victim.getHealth(), maxHealth, config.healthThreshold());
+            return deny(executor, "health");
+        }
+        if (!ExecutionPlacement.canReach(executor, victim, config.range())) {
+            LOGGER.info("Execution rejected: health={}/{}, body distance={}, range={}",
                     victim.getHealth(), maxHealth, Math.sqrt(victim.getBoundingBox().distanceToSqr(executor.getEyePosition())),
                     config.range());
-            return false;
+            return deny(executor, "reach");
         }
         ExecutionPlacement.Placement placement = ExecutionPlacement.find(level, executor, victim, action.geometry());
         if (placement == null) {
-            LOGGER.debug("Execution rejected: no safe supported placement near target {}, foot height difference={}",
+            LOGGER.info("Execution rejected: no safe supported placement near target {}, foot height difference={}",
                     victim.position(), executor.getY() - victim.getY());
-            return false;
+            return deny(executor, "placement");
         }
         Vec3 executorAnchor = placement.executorAnchor();
         Vec3 victimAnchor = placement.victimAnchor();
@@ -133,11 +146,11 @@ public final class FiercerBattlesExecutionServer {
             actionSync = ExecutionNetwork.ActionSync.from(action);
         } catch (java.io.IOException exception) {
             LOGGER.error("Unable to synchronize execution action {} to clients", action.id(), exception);
-            return false;
+            return deny(executor, "sync");
         }
 
         Session session = new Session(level, executor, victim, executorAnchor, victimAnchor, executorYaw, victimYaw,
-                action, config);
+                action, config, ExecutionWeapons.AXE_ACTION.equals(weaponAction));
         SESSIONS.put(session.id, session);
         ACTORS.put(executor.getUUID(), session);
         ACTORS.put(victim.getUUID(), session);
@@ -151,12 +164,17 @@ public final class FiercerBattlesExecutionServer {
         victim.stopUsingItem();
         lock(session, executor);
         lock(session, victim);
-        // Vanilla teleport acknowledgement still runs; movement packets are ignored during the clip.
-        executor.connection.teleport(executorAnchor.x, executorAnchor.y, executorAnchor.z, executorYaw, 0);
+        // The shared approach moves from the original positions; no initial anchor teleport.
         for (ServerPlayer viewer : level.players()) syncAction(viewer, action, actionSync);
         PacketDistributor.sendToPlayersInDimension(level, session.payload());
         playFrameSounds(session);
         return true;
+    }
+
+    private static boolean deny(ServerPlayer player, String reason) {
+        LOGGER.info("Execution request rejected: {}", reason);
+        player.displayClientMessage(Component.translatable("message.fiercerbattles.execution_" + reason), true);
+        return false;
     }
 
     private static void syncAction(ServerPlayer player, PairedExecutionAction action, ExecutionNetwork.ActionSync packet) {
@@ -199,8 +217,12 @@ public final class FiercerBattlesExecutionServer {
         }
         boolean executor = actor == session.executor;
         Vec3 anchor = executor ? session.executorAnchor : session.victimAnchor;
-        float yaw = executor ? session.executorYaw : session.victimYaw;
-        actor.setPos(anchor);
+        Vec3 from = executor ? session.executorFrom : session.victimFrom;
+        float fromYaw = executor ? session.executorFromYaw : session.victimFromYaw;
+        float anchorYaw = executor ? session.executorYaw : session.victimYaw;
+        float progress = ExecutionTimeline.approachProgress(session.startGameTime, session.level.getGameTime(), 0);
+        float yaw = progress >= 1 ? anchorYaw : Mth.rotLerp(progress, fromYaw, anchorYaw);
+        actor.setPos(ExecutionTimeline.approachPosition(from, anchor, progress));
         actor.setYRot(yaw);
         actor.setXRot(0);
         actor.yRotO = yaw;
@@ -235,15 +257,19 @@ public final class FiercerBattlesExecutionServer {
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         for (Session session : List.copyOf(SESSIONS.values())) {
+            // Approach paths may be above a step temporarily. Check stable support at
+            // the approved anchors, while still checking both moving bodies for blocks.
+            AABB executorStage = session.executor.getDimensions(Pose.STANDING).makeBoundingBox(session.executorAnchor);
+            AABB victimStage = session.victim.getDimensions(Pose.STANDING).makeBoundingBox(session.victimAnchor);
             if (!session.executor.isAlive() || session.executor.isRemoved() || session.executor.hasDisconnected()
                     || session.executor.isSpectator() || !session.victim.isAlive() || session.victim.isRemoved()
                     || session.executor.level() != session.level || session.victim.level() != session.level
                     || session.executor.isPassenger() || session.victim.isPassenger()
                     || !session.level.noBlockCollision(session.executor, session.executor.getBoundingBox().deflate(1.0E-4))
                     || !session.level.noBlockCollision(session.victim, session.victim.getBoundingBox().deflate(1.0E-4))
-                    || !ExecutionPlacement.supported(session.level, session.executor, session.executor.getBoundingBox())
-                    || !ExecutionPlacement.supported(session.level, session.victim, session.victim.getBoundingBox())
-                    || !ExecutionPlacement.clearStage(session.level, session.executor, session.executor.getBoundingBox(), session.victim.getBoundingBox())) {
+                    || !ExecutionPlacement.supported(session.level, session.executor, executorStage)
+                    || !ExecutionPlacement.supported(session.level, session.victim, victimStage)
+                    || !ExecutionPlacement.clearStage(session.level, session.executor, executorStage, victimStage)) {
                 end(session, false);
                 continue;
             }
@@ -258,6 +284,7 @@ public final class FiercerBattlesExecutionServer {
 
     private static void playFrameSounds(Session session) {
         // Source animation runs at 20 fps: one source frame is one server tick.
+        if (session.level.getGameTime() < session.startGameTime) return;
         int currentFrame = (int) Mth.clamp(session.level.getGameTime() - session.startGameTime, 0,
                 session.action.durationTicks());
         for (int frame = session.lastSoundFrame + 1; frame <= currentFrame; frame++) {
@@ -438,6 +465,10 @@ public final class FiercerBattlesExecutionServer {
         final Mob victim;
         final Vec3 executorAnchor;
         final Vec3 victimAnchor;
+        final Vec3 executorFrom;
+        final Vec3 victimFrom;
+        final float executorFromYaw;
+        final float victimFromYaw;
         final float executorYaw;
         final float victimYaw;
         final PairedExecutionAction action;
@@ -450,20 +481,25 @@ public final class FiercerBattlesExecutionServer {
         int lastSoundFrame = -1;
 
         Session(ServerLevel level, ServerPlayer executor, Mob victim, Vec3 executorAnchor, Vec3 victimAnchor,
-                float executorYaw, float victimYaw, PairedExecutionAction action, FiercerBattlesConfig.Execution config) {
+                float executorYaw, float victimYaw, PairedExecutionAction action, FiercerBattlesConfig.Execution config,
+                boolean axe) {
             this.level = level;
             this.executor = executor;
             this.victim = victim;
             this.executorAnchor = executorAnchor;
             this.victimAnchor = victimAnchor;
+            this.executorFrom = executor.position();
+            this.victimFrom = victim.position();
+            this.executorFromYaw = executor.yBodyRot;
+            this.victimFromYaw = victim.yBodyRot;
             this.executorYaw = executorYaw;
             this.victimYaw = victimYaw;
             this.action = action;
-            this.startGameTime = level.getGameTime();
+            this.startGameTime = level.getGameTime() + ExecutionTimeline.APPROACH_TICKS;
             this.executorNoGravity = executor.isNoGravity();
             this.victimNoGravity = victim.isNoGravity();
             this.victimNoAi = victim.isNoAi();
-            this.hurtSoundFrames = config.hurtSoundFrames(action.durationTicks());
+            this.hurtSoundFrames = config.hurtSoundFrames(action.durationTicks(), axe);
             this.swingSoundFrames = config.swingSoundFrames(action.durationTicks());
         }
 
@@ -471,7 +507,9 @@ public final class FiercerBattlesExecutionServer {
         return new ExecutionNetwork.Start(id, action.id(), action.contentHash(), executor.getId(), executor.getUUID(), victim.getId(), victim.getUUID(),
                     level.dimension().location(), startGameTime, action.durationTicks(),
                     executorAnchor.x, executorAnchor.y, executorAnchor.z, executorYaw,
-                    victimAnchor.x, victimAnchor.y, victimAnchor.z, victimYaw);
+                    victimAnchor.x, victimAnchor.y, victimAnchor.z, victimYaw,
+                    executorFrom.x, executorFrom.y, executorFrom.z, executorFromYaw,
+                    victimFrom.x, victimFrom.y, victimFrom.z, victimFromYaw);
         }
     }
 }

@@ -4,6 +4,8 @@ import com.fiercerbattles.execution.client.ExecutionRenderContext;
 import com.fiercerbattles.FiercerBattlesExecutionClient;
 import com.fiercerbattles.animation.core.AnimationClip;
 import com.fiercerbattles.animation.core.AnimationPoseContext;
+import com.fiercerbattles.parry.client.ParryClient;
+import com.fiercerbattles.parry.client.ParryRenderContext;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
@@ -28,21 +30,32 @@ public abstract class ExecutionLivingEntityRendererMixin {
 
     @WrapMethod(method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V")
     private void fiercerbattles$renderExecution(LivingEntity entity, float yaw, float partial, PoseStack poses, MultiBufferSource buffers, int light, Operation<Void> original) {
-        ExecutionRenderContext.begin(entity, partial);
         poses.pushPose();
         FiercerBattlesExecutionClient.Actor actor = FiercerBattlesExecutionClient.actor(entity);
         if (actor != null && !actor.returning()) {
-            // Network lerp can still be in flight when the pair start arrives.
-            // Both models must render at the server anchors on the very first frame.
-            poses.translate(actor.x() - Mth.lerp(partial, entity.xo, entity.getX()),
-                    actor.y() - Mth.lerp(partial, entity.yo, entity.getY()),
-                    actor.z() - Mth.lerp(partial, entity.zo, entity.getZ()));
+            // Use the shared approach path at render time instead of network lerp.
+            var position = actor.renderPosition(partial);
+            poses.translate(position.x - Mth.lerp(partial, entity.xo, entity.getX()),
+                    position.y - Mth.lerp(partial, entity.yo, entity.getY()),
+                    position.z - Mth.lerp(partial, entity.zo, entity.getZ()));
         }
+        if (actor == null) {
+            ParryClient.Actor parry = ParryClient.actor(entity);
+            if (parry != null && parry.staggered()) {
+                var position = parry.position();
+                poses.translate(position.x - Mth.lerp(partial, entity.xo, entity.getX()),
+                        position.y - Mth.lerp(partial, entity.yo, entity.getY()),
+                        position.z - Mth.lerp(partial, entity.zo, entity.getZ()));
+            }
+        }
+        ParryRenderContext.begin(entity, partial, poses.last().pose(), actor != null);
+        ExecutionRenderContext.begin(entity, partial);
         try {
             original.call(entity, yaw, partial, poses, buffers, light);
         } finally {
             poses.popPose();
             ExecutionRenderContext.end();
+            ParryRenderContext.end();
         }
     }
 
@@ -70,6 +83,18 @@ public abstract class ExecutionLivingEntityRendererMixin {
     private void fiercerbattles$attachBackLayers(RenderLayer layer, PoseStack poses, MultiBufferSource buffers,
                                                 int light, Entity entity, float swing, float amount, float partial,
                                                 float age, float headYaw, float headPitch) {
+        var replayBody = layer instanceof CapeLayer || layer instanceof ElytraLayer
+                ? ParryRenderContext.replayBody() : null;
+        if (replayBody != null) {
+            poses.pushPose();
+            try {
+                poses.mulPose(replayBody);
+                layer.render(poses, buffers, light, entity, swing, amount, partial, age, headYaw, headPitch);
+            } finally {
+                poses.popPose();
+            }
+            return;
+        }
         AnimationClip.Transform body = ExecutionRenderContext.isActive()
                 && (layer instanceof CapeLayer || layer instanceof ElytraLayer)
                 ? AnimationPoseContext.sample("body", new AnimationClip.Transform(0, 0, 0,

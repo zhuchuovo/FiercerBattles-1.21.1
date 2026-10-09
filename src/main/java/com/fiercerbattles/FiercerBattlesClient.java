@@ -2,6 +2,7 @@ package com.fiercerbattles;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
+import com.fiercerbattles.parry.client.ParryClient;
 import net.minecraft.Util;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -34,15 +35,24 @@ public final class FiercerBattlesClient {
             GLFW.GLFW_KEY_G,
             KEY_CATEGORY
     );
+    public static final KeyMapping EXECUTION_KEY = new KeyMapping(
+            "key.fiercerbattles.execution",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_V,
+            KEY_CATEGORY
+    );
+    public static final KeyMapping PARRY_KEY = new KeyMapping(
+            "key.fiercerbattles.parry",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_R,
+            KEY_CATEGORY
+    );
 
     private FiercerBattlesClient() {
     }
 
     private static void tryStartCombatSkill(Minecraft minecraft) {
         if (minecraft.player == null || minecraft.screen != null) {
-            return;
-        }
-        if (FiercerBattlesExecutionClient.tryRequest(minecraft)) {
             return;
         }
         resumeCombatSkill(minecraft);
@@ -62,7 +72,8 @@ public final class FiercerBattlesClient {
     }
 
     public static void resumeCombatSkill(Minecraft minecraft) {
-        if (minecraft.player == null || minecraft.screen != null || FiercerBattlesExecutionClient.blocksInput()) {
+        if (minecraft.player == null || minecraft.screen != null || FiercerBattlesExecutionClient.blocksInput()
+                || ParryClient.blocksActions()) {
             return;
         }
         if (minecraft.getSingleplayerServer() != null) {
@@ -376,7 +387,10 @@ public final class FiercerBattlesClient {
         @SubscribeEvent
         public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
             FiercerBattlesExecutionClient.initialize();
+            ParryClient.initialize();
             event.register(COMBAT_SKILL_KEY);
+            event.register(EXECUTION_KEY);
+            event.register(PARRY_KEY);
         }
     }
 
@@ -389,6 +403,13 @@ public final class FiercerBattlesClient {
         public static void onClientTick(ClientTickEvent.Post event) {
             Minecraft minecraft = Minecraft.getInstance();
             FiercerBattlesExecutionClient.tick();
+            ParryClient.tick();
+            while (EXECUTION_KEY.consumeClick()) {
+                FiercerBattlesExecutionClient.tryRequest(minecraft);
+            }
+            while (PARRY_KEY.consumeClick()) {
+                ParryClient.tryRequest(minecraft);
+            }
             while (COMBAT_SKILL_KEY.consumeClick()) {
                 tryStartCombatSkill(minecraft);
             }
@@ -409,6 +430,8 @@ public final class FiercerBattlesClient {
         public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
             FiercerBattlesExecutionClient.reset();
             FiercerBattlesExecutionClient.clearActionCache();
+            ParryClient.reset();
+            ParryClient.clearAnimations();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();
@@ -419,6 +442,7 @@ public final class FiercerBattlesClient {
         @SubscribeEvent
         public static void onPlayerClone(ClientPlayerNetworkEvent.Clone event) {
             FiercerBattlesExecutionClient.reset();
+            ParryClient.reset();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();

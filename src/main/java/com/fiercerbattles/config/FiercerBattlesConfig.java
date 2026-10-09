@@ -2,6 +2,7 @@ package com.fiercerbattles.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.fiercerbattles.execution.ExecutionWeapons;
 import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.IOException;
@@ -54,8 +55,11 @@ public final class FiercerBattlesConfig {
         public boolean enabled = true;
         public double health_threshold = 0.25;
         public double range = 3.0;
-        public String action_id = "fiercerbattles:execution";
+        /** Retained for existing configs: the first paired action is selected by swords. */
+        public String action_id = ExecutionWeapons.SWORD_ACTION;
+        public String axe_action_id = ExecutionWeapons.AXE_ACTION;
         public List<String> humanoid_entities = List.of("minecraft:zombie", "minecraft:skeleton");
+        /** Configurable sword hurt sounds; axes use the single authored frame 13. */
         public List<Integer> hurt_sound_frames = DEFAULT_HURT_SOUND_FRAMES;
         public List<Integer> swing_sound_frames = DEFAULT_SWING_SOUND_FRAMES;
 
@@ -75,6 +79,12 @@ public final class FiercerBattlesConfig {
 
         public List<Integer> hurtSoundFrames(int durationTicks) {
             return soundFrames(hurt_sound_frames, DEFAULT_HURT_SOUND_FRAMES, durationTicks);
+        }
+
+        /** Axe executions use only authored frame 13; approach ticks are outside the clip. */
+        public List<Integer> hurtSoundFrames(int durationTicks, boolean axe) {
+            if (!axe) return hurtSoundFrames(durationTicks);
+            return durationTicks >= 13 ? List.of(13) : List.of();
         }
 
         public List<Integer> swingSoundFrames(int durationTicks) {

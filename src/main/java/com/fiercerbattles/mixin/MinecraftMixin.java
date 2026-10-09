@@ -3,6 +3,7 @@ package com.fiercerbattles.mixin;
 import com.fiercerbattles.FiercerBattlesCombatSkills;
 import com.fiercerbattles.FiercerBattlesRuntime;
 import com.fiercerbattles.FiercerBattlesExecutionClient;
+import com.fiercerbattles.parry.client.ParryClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,7 +36,7 @@ public abstract class MinecraftMixin {
     @Inject(method = "startUpswing", at = @At("HEAD"), remap = false, cancellable = true)
     private void fiercerbattles$blockDuringRecovery(@Coerce Object attributes, CallbackInfo ci) {
         Minecraft minecraft = (Minecraft) (Object) this;
-        if (FiercerBattlesExecutionClient.blocksInput()) {
+        if (FiercerBattlesExecutionClient.blocksInput() || ParryClient.blocksActions()) {
             ci.cancel();
             return;
         }

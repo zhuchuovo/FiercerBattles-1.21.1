@@ -3,6 +3,9 @@ package com.fiercerbattles;
 import com.fiercerbattles.animation.core.AnimationClip;
 import com.fiercerbattles.animation.core.AnimationPlayer;
 import com.fiercerbattles.execution.ExecutionNetwork;
+import com.fiercerbattles.execution.ExecutionWeapons;
+import com.fiercerbattles.execution.ExecutionTimeline;
+import com.fiercerbattles.parry.client.ParryClient;
 import com.fiercerbattles.execution.client.ExecutionRenderContext;
 import com.fiercerbattles.execution.action.PairedExecutionAction;
 import com.mojang.logging.LogUtils;
@@ -47,7 +50,7 @@ public final class FiercerBattlesExecutionClient {
     private static float cameraYaw;
     private static float cameraPitch;
     private static final long CAMERA_TRANSITION_NANOS = 200_000_000L;
-    public static final int RETURN_TICKS = 4;
+    public static final int RETURN_TICKS = ExecutionTimeline.RETURN_TICKS;
     private static final double MAX_TARGET_RANGE = 6.0;
 
     private static final class Playing {
@@ -57,13 +60,28 @@ public final class FiercerBattlesExecutionClient {
         long visualEnd;
         long returnStart;
         float returnYawDelta;
+        final float executorFromPitch;
+        final float executorFromHeadYaw;
+        final float victimFromPitch;
+        final float victimFromHeadYaw;
 
-        Playing(ExecutionNetwork.Start start, PairedExecutionAction action) { this.start = start; this.action = action; }
+        Playing(ExecutionNetwork.Start start, PairedExecutionAction action) {
+            this.start = start;
+            this.action = action;
+            Minecraft minecraft = Minecraft.getInstance();
+            Entity executor = minecraft.level == null ? null : minecraft.level.getEntity(start.executorId());
+            Entity victim = minecraft.level == null ? null : minecraft.level.getEntity(start.victimId());
+            executorFromPitch = executor == null ? 0 : executor.getXRot();
+            executorFromHeadYaw = executor instanceof LivingEntity living ? living.yHeadRot : start.executorFromYaw();
+            victimFromPitch = victim == null ? 0 : victim.getXRot();
+            victimFromHeadYaw = victim instanceof LivingEntity living ? living.yHeadRot : start.victimFromYaw();
+        }
     }
 
     public record Actor(AnimationPlayer playback, PairedExecutionAction action, float yaw, double x, double y, double z,
                         int duration, boolean ended, boolean returning,
-                        long returnStart, float returnYawDelta) {
+                        long returnStart, float returnYawDelta,
+                        double fromX, double fromY, double fromZ, float fromYaw) {
         public AnimationClip animation() { return playback.clip(); }
 
         public float tick(float partial) {
@@ -75,7 +93,23 @@ public final class FiercerBattlesExecutionClient {
         public float returnProgress(float partial) {
             Minecraft minecraft = Minecraft.getInstance();
             if (!returning || minecraft.level == null) return 0;
-            return Mth.clamp((minecraft.level.getGameTime() - returnStart + partial) / RETURN_TICKS, 0, 1);
+            return ExecutionTimeline.progress(minecraft.level.getGameTime() - returnStart + partial, RETURN_TICKS);
+        }
+
+        public float approachProgress(float partial) {
+            Minecraft minecraft = Minecraft.getInstance();
+            return minecraft.level == null ? 1 : ExecutionTimeline.approachProgress(
+                    playback.startGameTime(), minecraft.level.getGameTime(), partial);
+        }
+
+        public Vec3 renderPosition(float partial) {
+            Vec3 anchor = new Vec3(x, y, z);
+            return returning ? anchor : ExecutionTimeline.approachPosition(
+                    new Vec3(fromX, fromY, fromZ), anchor, approachProgress(partial));
+        }
+
+        public float renderYaw(float partial) {
+            return returning ? yaw : Mth.rotLerp(approachProgress(partial), fromYaw, yaw);
         }
     }
 
@@ -87,12 +121,29 @@ public final class FiercerBattlesExecutionClient {
         ExecutionNetwork.setClientActionSyncHandler(FiercerBattlesExecutionClient::acceptActionPayload);
     }
 
-    /** Let the server decide the allowlist; a rejected request resumes the ordinary skill. */
+    /** The dedicated execution key requests an eligible target; the server validates the action. */
     public static boolean tryRequest(Minecraft minecraft) {
-        if (blocksInput()) return true;
+        LOGGER.info("Execution key invoked");
+        if (blocksInput() || ParryClient.blocksActions()) {
+            LOGGER.info("Execution request blocked: pending target={}, execution active={}", pendingTarget,
+                    minecraft.player != null && isExecuting(minecraft.player));
+            return true;
+        }
         if (minecraft.player == null || minecraft.level == null || minecraft.screen != null) return false;
+        if (!ExecutionWeapons.canExecute(minecraft.player.getMainHandItem())) {
+            minecraft.player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                    "message.fiercerbattles.execution_weapon"), true);
+            LOGGER.info("Execution request ignored: unsupported main-hand weapon");
+            return false;
+        }
         LivingEntity target = pickTarget(minecraft);
-        if (target == null) return false;
+        if (target == null) {
+            minecraft.player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                    "message.fiercerbattles.execution_no_target"), true);
+            LOGGER.info("Execution request ignored: no living target under crosshair");
+            return false;
+        }
+        LOGGER.info("Execution request selected target id={}", target.getId());
         pendingTarget = target.getId();
         pendingTick = minecraft.player.tickCount;
         ExecutionNetwork.request(pendingTarget);
@@ -100,8 +151,16 @@ public final class FiercerBattlesExecutionClient {
     }
 
     private static LivingEntity pickTarget(Minecraft minecraft) {
-        // Recompute at keypress instead of consuming the previous rendered frame's hitResult.
-        // The server owns the configured range (at most six blocks) and entity allowlist.
+        // The displayed crosshair is picked with the render camera and interpolated view.
+        // A second, non-interpolated tick ray can miss a mob that is visibly selected.
+        if (minecraft.hitResult instanceof EntityHitResult renderedHit
+                && renderedHit.getEntity() instanceof LivingEntity target
+                && target.level() == minecraft.level && target.isAlive()
+                && target.isPickable() && !target.isSpectator()) {
+            return target;
+        }
+        // Extend vanilla's interaction reach only when the displayed crosshair has no entity.
+        // The server still validates its configured range, visibility and target allowlist.
         Vec3 eye = minecraft.player.getEyePosition();
         Vec3 reach = minecraft.player.getLookAngle().scale(MAX_TARGET_RANGE);
         Vec3 end = eye.add(reach);
@@ -141,7 +200,11 @@ public final class FiercerBattlesExecutionClient {
             pendingTarget = -1;
             return;
         }
-        PLAYING.put(payload.sessionId(), new Playing(payload, action));
+        // Broadcast and tracking sync may both announce the same session.
+        // Keep its captured approach pose, return state and original camera.
+        if (PLAYING.containsKey(payload.sessionId())) return;
+        Playing playing = new Playing(payload, action);
+        PLAYING.put(payload.sessionId(), playing);
         if (minecraft.player != null && minecraft.player.getUUID().equals(payload.executorUuid())) {
             pendingTarget = -1;
             FiercerBattlesClient.cancelAttackForExecution(minecraft);
@@ -154,14 +217,12 @@ public final class FiercerBattlesExecutionClient {
             cameraPitch = minecraft.player.getXRot() * (previousCamera == CameraType.THIRD_PERSON_FRONT ? -1 : 1);
             minecraft.options.setCameraType(CameraType.THIRD_PERSON_BACK);
         }
-        align(payload);
+        align(playing);
     }
 
     private static void reject(ExecutionNetwork.Reject payload) {
         if (pendingTarget != payload.targetEntityId()) return;
         pendingTarget = -1;
-        Minecraft minecraft = Minecraft.getInstance();
-        if (!blocksInput()) FiercerBattlesClient.resumeCombatSkill(minecraft);
     }
 
     private static void end(ExecutionNetwork.End payload) {
@@ -179,8 +240,8 @@ public final class FiercerBattlesExecutionClient {
                     payload.executorX(), payload.executorY(), payload.executorZ(), payload.executorYaw());
         } else {
             PLAYING.remove(payload.sessionId());
+            restoreCamera(payload.sessionId());
         }
-        restoreCamera(payload.sessionId());
     }
 
     public static Actor actor(LivingEntity entity) {
@@ -195,16 +256,19 @@ public final class FiercerBattlesExecutionClient {
                     return new Actor(new AnimationPlayer(playing.action.executorClip(), start.startGameTime()),
                             playing.action, entity.yBodyRot, entity.getX(), entity.getY(), entity.getZ(),
                             start.durationTicks(), true, true,
-                            playing.returnStart, playing.returnYawDelta);
+                            playing.returnStart, playing.returnYawDelta,
+                            start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw());
                 }
                 return new Actor(new AnimationPlayer(playing.action.executorClip(), start.startGameTime()),
                         playing.action, start.executorYaw(), start.executorX(), start.executorY(), start.executorZ(),
-                        start.durationTicks(), false, false, 0, 0);
+                        start.durationTicks(), false, false, 0, 0,
+                        start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw());
             }
             if (entity.getId() == start.victimId() && entity.getUUID().equals(start.victimUuid())) {
                 return new Actor(new AnimationPlayer(playing.action.victimClip(), start.startGameTime()),
                         playing.action, start.victimYaw(), start.victimX(), start.victimY(), start.victimZ(),
-                        start.durationTicks(), playing.ended, false, 0, 0);
+                        start.durationTicks(), playing.ended, false, 0, 0,
+                        start.victimFromX(), start.victimFromY(), start.victimFromZ(), start.victimFromYaw());
             }
         }
         return null;
@@ -213,7 +277,7 @@ public final class FiercerBattlesExecutionClient {
     public static boolean isExecuting(Entity entity) {
         if (!(entity instanceof LivingEntity living)) return false;
         Actor actor = actor(living);
-        return actor != null && !actor.ended();
+        return actor != null && (!actor.ended() || actor.returning());
     }
 
     public static boolean blocksInput() {
@@ -256,39 +320,67 @@ public final class FiercerBattlesExecutionClient {
             Map.Entry<UUID, Playing> entry = iterator.next();
             Playing playing = entry.getValue();
             ExecutionNetwork.Start start = playing.start;
+            if (playing.ended && minecraft.level.getGameTime() >= playing.returnStart + RETURN_TICKS) {
+                restoreCamera(entry.getKey());
+            }
             boolean expired = playing.ended ? minecraft.level.getGameTime() >= playing.visualEnd
                     : minecraft.level.getGameTime() > start.startGameTime() + start.durationTicks() + 10;
             if (expired || !start.dimension().equals(minecraft.level.dimension().location())) {
                 restoreCamera(entry.getKey());
                 iterator.remove();
             } else if (!playing.ended) {
-                align(start);
+                align(playing);
             }
         }
     }
 
-    private static void align(ExecutionNetwork.Start start) {
+    private static void align(Playing playing) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
+        ExecutionNetwork.Start start = playing.start;
+        long gameTime = minecraft.level.getGameTime();
+        float progress = ExecutionTimeline.approachProgress(start.startGameTime(), gameTime, 0);
+        float previousProgress = ExecutionTimeline.approachProgress(start.startGameTime(), gameTime - 1, 0);
+        Vec3 executorFrom = new Vec3(start.executorFromX(), start.executorFromY(), start.executorFromZ());
+        Vec3 executorAnchor = new Vec3(start.executorX(), start.executorY(), start.executorZ());
+        Vec3 victimFrom = new Vec3(start.victimFromX(), start.victimFromY(), start.victimFromZ());
+        Vec3 victimAnchor = new Vec3(start.victimX(), start.victimY(), start.victimZ());
         align(minecraft.level.getEntity(start.executorId()), start.executorUuid(),
-                start.executorX(), start.executorY(), start.executorZ(), start.executorYaw());
+                ExecutionTimeline.approachPosition(executorFrom, executorAnchor, progress),
+                ExecutionTimeline.approachPosition(executorFrom, executorAnchor, previousProgress),
+                Mth.rotLerp(progress, start.executorFromYaw(), start.executorYaw()),
+                Mth.rotLerp(previousProgress, start.executorFromYaw(), start.executorYaw()),
+                Mth.lerp(progress, playing.executorFromPitch, 0),
+                Mth.rotLerp(progress, playing.executorFromHeadYaw, start.executorYaw()));
         align(minecraft.level.getEntity(start.victimId()), start.victimUuid(),
-                start.victimX(), start.victimY(), start.victimZ(), start.victimYaw());
+                ExecutionTimeline.approachPosition(victimFrom, victimAnchor, progress),
+                ExecutionTimeline.approachPosition(victimFrom, victimAnchor, previousProgress),
+                Mth.rotLerp(progress, start.victimFromYaw(), start.victimYaw()),
+                Mth.rotLerp(previousProgress, start.victimFromYaw(), start.victimYaw()),
+                Mth.lerp(progress, playing.victimFromPitch, 0),
+                Mth.rotLerp(progress, playing.victimFromHeadYaw, start.victimYaw()));
     }
 
     private static void align(Entity entity, UUID uuid, double x, double y, double z, float yaw) {
+        Vec3 position = new Vec3(x, y, z);
+        align(entity, uuid, position, position, yaw, yaw, 0, yaw);
+    }
+
+    private static void align(Entity entity, UUID uuid, Vec3 position, Vec3 previousPosition,
+                              float yaw, float previousYaw, float pitch, float headYaw) {
         if (!(entity instanceof LivingEntity living) || !entity.getUUID().equals(uuid)) return;
-        living.setPos(x, y, z);
-        living.xo = living.xOld = x;
-        living.yo = living.yOld = y;
-        living.zo = living.zOld = z;
+        living.setPos(position);
+        living.xo = living.xOld = previousPosition.x;
+        living.yo = living.yOld = previousPosition.y;
+        living.zo = living.zOld = previousPosition.z;
         living.setDeltaMovement(Vec3.ZERO);
         living.setYRot(yaw);
-        living.setXRot(0);
-        living.yRotO = yaw;
-        living.xRotO = 0;
-        living.yBodyRot = living.yBodyRotO = yaw;
-        living.yHeadRot = living.yHeadRotO = yaw;
+        living.setXRot(pitch);
+        living.yRotO = previousYaw;
+        living.xRotO = pitch;
+        living.yBodyRot = yaw;
+        living.yBodyRotO = previousYaw;
+        living.yHeadRot = living.yHeadRotO = headYaw;
         living.setShiftKeyDown(false);
         living.setSprinting(false);
     }

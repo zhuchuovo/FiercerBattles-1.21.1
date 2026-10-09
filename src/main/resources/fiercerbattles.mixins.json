@@ -14,7 +14,11 @@
     "MobAttackCollisionMixin",
     "ExecutionServerNetworkMixin",
     "ExecutionLivingEntityInvoker",
-    "ServerGamePacketListenerExecutionMixin"
+    "ServerGamePacketListenerExecutionMixin",
+    "ParryServerNetworkMixin",
+    "ParryPlayerAttackMixin",
+    "ParryMobAttackMixin",
+    "ParryPlayerMovementMixin"
   ],
   "client": [
     "AbstractClientPlayerMixin",
@@ -30,7 +34,9 @@
     "ExecutionCameraMixin",
     "ExecutionMouseHandlerMixin",
     "ExecutionLivingEntityRendererMixin",
-    "ExecutionPlayerRendererMixin"
+    "ExecutionPlayerRendererMixin",
+    "ParryPoseCaptureMixin",
+    "ParryFirstPersonMixin"
   ],
   "injectors": {
     "defaultRequire": 1
