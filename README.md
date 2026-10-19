@@ -9,6 +9,7 @@ Fiercer Battles 新增 **战技** 按键。默认按键是 `G`，可在 Minecraf
 - 武器与战技数据必须同时安装在**客户端和服务器端**可读取的资源中。将数据作为 Mod 自带数据包或双方相同的数据包安装最稳妥。
 - 普通战技需要手持已配置战技的 Better Combat 武器、且当前连击段有可用战技；处决使用独立按键（默认 `V`），不需要配置武器战技。
 - 战技本身算作一次攻击：成功结算后，Better Combat 连击照常推进一段。
+- 翻滚闪避（默认 `左 Alt`）和卧倒 / 起身（默认 `Z`）也在同一分类下，可重新绑定；疾跑时自动播放奔跑动作。详见 [12. 翻滚、奔跑与卧倒](#12-翻滚奔跑与卧倒)。
 
 ## 2. 文件位置
 
@@ -406,6 +407,7 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `trail_appearance` | 对象 | 武器拖影外观。结构见第 8 节。|
 | `fixed_damage` | 数字，默认 `0` | 战技所有攻击段的默认固定伤害（点）；攻击段内直接写的值优先。|
 | `knockback` | 数字，默认 `0` | 战技所有攻击段的默认额外击退（格）；攻击段内直接写的值优先。|
+| `hit_interruptible` | 布尔值，可选 | 该文件全部攻击段的默认受击打断规则；攻击段内直接写的值优先。详见第 12 节。|
 
 ## 7. `attacks` 攻击段参数
 
@@ -456,6 +458,7 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `Multiplehits` | 字符串 | 多段命中帧与每段独立伤害倍率，格式为 `"[帧1,帧2],[倍率1,倍率2]"`。完整规则见下一节。|
 | `fixed_damage` | 数字，默认 `0` | 这一段攻击**每次命中**额外造成的固定伤害（点），在护甲等减伤结算后直接加算：最终伤害 = 面板伤害经过减伤后的部分 + 固定伤害。固定部分不会被暴击、附魔或战技增伤放大。只想用固定伤害、不要面板时，把该段的 `damage_multiplier` 写成 `0` 即可。也兼容别名 `flat_damage`；可写在武器/战技 JSON 的 `attributes` 根级（作用于全部段），或 `config/fiercerbattles.json` 按动画覆盖。|
 | `knockback` | 数字，默认 `0` | 这一段攻击**每次命中**额外增加的击退距离（格），直接叠加在 Better Combat 的普通击退之上，与攻击是否满蓄力无关。`1` 大约额外击退 1 格。也兼容别名 `knockback_bonus`；同样支持根级默认值与 `config/fiercerbattles.json` 按动画覆盖。|
+| `hit_interruptible` | 布尔值，默认取 `hitstun.default_hit_interruptible`（`true`） | 出招期间被攻击时，这一段是否被打断。`true`：被打中就取消挥击并播放 10 tick 受击硬直；`false`：霸体，这一段不会被打断，也不播放硬直。也兼容别名 `interruptible_on_hit`；支持根级默认值与 `config/fiercerbattles.json` 按动画覆盖。详见第 12 节。|
 
 `upswing`、`movement_speed_multiplier`、`range_multiplier` 既是 Better Combat 原生参数，也会被 Fiercer Battles 的现有配置覆盖逻辑读取；直接写在战技段中即可。
 
@@ -521,6 +524,7 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `Multiplehits` | 多段命中覆盖，格式 `"[帧列表],[伤害倍率列表]"`；行为与攻击段中的同名字段相同。|
 | `fixed_damage` | 固定伤害覆盖（点）；行为与攻击段中的同名字段相同。兼容别名 `flat_damage`。|
 | `knockback` | 额外击退覆盖（格）；行为与攻击段中的同名字段相同。兼容别名 `knockback_bonus`。|
+| `hit_interruptible` | 受击打断覆盖（布尔值）；行为与攻击段中的同名字段相同。|
 
 攻击段内直接写的同名 Fiercer Battles 参数优先于全局 `config/fiercerbattles.json`。
 
@@ -554,13 +558,15 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 
 ## 10. 双人处决动画
 
-主手持原版或匠魂的剑/斧，准星指向血量**严格低于最大生命值 25%** 的成年僵尸或骷髅，在三格内按独立处决键（默认 `V`）启动。可在“选项 → 控制 → Fiercer Battles → 处决”重新绑定；战技仍使用 `G`。两套动画中的 `player` 是处决者，`player_B` 是被处决者。默认最大生命值 20 的僵尸/骷髅必须低于 5 点生命值；恰好 5 点不能处决。
+主手持原版或匠魂的剑/斧，准星指向血量**严格低于最大生命值 25%**（被弹反眩晕时为 60%，见第 11 节）的成年人形怪物（默认：僵尸、尸壳、溺尸、僵尸村民、骷髅、流浪者、沼骸、猪灵、猪灵蛮兵、僵尸猪灵），在三格内按独立处决键（默认 `V`）启动。可在“选项 → 控制 → Fiercer Battles → 处决”重新绑定；战技仍使用 `G`。两套动画中的 `player` 是处决者，`player_B` 是被处决者。默认最大生命值 20 的僵尸/骷髅必须低于 5 点生命值；恰好 5 点不能处决。
+
+白名单内的成年敌人低于处决血线时，模型会以 **0～20% 泛白强度、2 秒一个周期**显示呼吸提示；弹反眩晕期间使用提高后的血线。血线与白名单由服务器同步，无需客户端复制配置。提示不受距离或当前手持武器限制，开始处决、死亡或回血到血线及以上后停止；受伤红闪和生物原有闪白效果优先。实际启动仍须满足武器、距离、姿态和场地条件。
 
 第一套剑动作来自 `execution.blend`，56 tick（2.8 秒），仅允许原版六种剑和匠魂 `sword` / `cleaver`（剑 / 劈刀）。第二套斧动作来自 `axe_execution.blend`，30 tick（1.5 秒），仅允许原版六种斧和匠魂 `hand_axe` / `broad_axe` / `minotaur_axe`（手斧 / 板斧 / 米诺陶战斧）。按主手注册 ID 分类，客户端和服务器共用检查；空手、只在副手持武器、匕首、鹤嘴锄、喷流刃、投斧弹药及其他模组武器不触发处决。
 
 服务器批准后，双方先用 5 tick（0.25 秒）快速移到摆位锚点，并从普通姿势平滑衔接到原动画首帧；然后完整播放原有的 56 / 30 tick 动画，结束后再用 5 tick 视觉复位。正常完整流程为剑 66 tick（3.3 秒）、斧 40 tick（2 秒）。开场和复位由共同的 `execution/ExecutionTimeline.java` 管理，两端共用 `approachPosition` 沿经过安全检查的先升高、再平移、后下降路径摆位，保留台阶与半砖的碰撞规则。动画资源、原始帧号和现有 `AnimationClip` / `AnimationPlayer` 保持不变。同步消息携带双方开场起点和动画锚点，原动画的 `startGameTime` 为请求成功的世界 tick 加 5。
 
-服务器负责验证主手武器、血量、目标类型、距离、视线、姿态和摆位空间，再向客户端同步所选动作、两个角色的位置、朝向和共同的世界时间。双方沿所选动作的同一时间线播放，原动画结束时结算致命伤害并归属处决玩家。开场和原动画阶段玩家无敌，同时接管移动、角色朝向、AI、普通攻击、其他战技、交互、击退和外来伤害；鼠标可以左右环绕、上下调整观看角度；断线、切换维度、目标死亡或场地变化会中断并恢复控制。原动画结束时服务端恢复 AI、重力和无敌状态，客户端仍锁定输入和镜头 5 tick 完成姿势复位，视觉复位不延长服务端无敌；中止时及时恢复状态和控制。
+服务器负责验证主手武器、血量、目标类型、距离、视线、姿态和摆位空间，再向客户端同步所选动作、两个角色的位置、朝向和共同的世界时间。双方沿所选动作的同一时间线播放，原动画结束时结算致命伤害并归属处决玩家。开场和原动画阶段玩家无敌，同时接管移动、角色朝向、AI、普通攻击、其他战技、交互、击退和外来伤害；鼠标可以左右环绕、上下调整观看角度；断线、切换维度、目标死亡或场地变化会中断并恢复控制。原动画结束时服务端恢复 AI 和重力，处决玩家的无敌再延续 15 tick（0.75 秒）后才解除（中止时同样延续）；客户端仍锁定输入和镜头 5 tick 完成姿势复位；中止时及时恢复状态和控制。
 
 `config/fiercerbattles.json` 的顶层增加：
 
@@ -574,7 +580,15 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
     "range": 3.0,
     "humanoid_entities": [
       "minecraft:zombie",
-      "minecraft:skeleton"
+      "minecraft:husk",
+      "minecraft:drowned",
+      "minecraft:zombie_villager",
+      "minecraft:skeleton",
+      "minecraft:stray",
+      "minecraft:bogged",
+      "minecraft:piglin",
+      "minecraft:piglin_brute",
+      "minecraft:zombified_piglin"
     ],
     "hurt_sound_frames": [12, 20, 24, 28, 32, 36, 40, 48],
     "swing_sound_frames": [12, 24]
@@ -590,7 +604,7 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 | `axe_action_id` | 斧用的数据包成对动作 ID；默认 `fiercerbattles:axe_execution`，旧配置缺少此字段时自动使用默认值。 |
 | `health_threshold` | 血量比例上限，必须严格低于此值；有效范围大于 0 且不超过 1，默认 `0.25`。 |
 | `range` | 玩家眼睛到目标可见身体的启动距离，单位为格；有效范围大于 0 且不超过 6，默认 `3.0`。按身体边界计算，贴身重叠也能选中。 |
-| `humanoid_entities` | 可处决实体 ID 白名单。只添加使用成人标准人形骨架的生物，例如 `minecraft:husk`、`minecraft:stray` 或 `minecraft:wither_skeleton`；非人形模型无法匹配本动画。 |
+| `humanoid_entities` | 可处决实体 ID 白名单，默认为上例的 10 种使用标准人形模型的怪物。配置文件里写了这个字段时**完整替换**默认列表，所以旧配置若只写了僵尸和骷髅，尸壳等仍会被拒绝（提示“该生物不在可处决列表中”），需手动补上。只添加使用成人标准人形骨架（`HumanoidModel`）的生物；凋零骷髅可以加，但处决期间会按统一的 1.0 比例渲染而变小；村民、灾厄村民、女巫、末影人等非标准模型无法匹配本动画。 |
 | `hurt_sound_frames` | 剑动作播放被处决生物自身受伤音效的帧列表，默认 `[12, 20, 24, 28, 32, 36, 40, 48]`。斧动作固定只在原动画第 13 帧播放一次，不使用此列表。仅播放声音，不额外扣血或改变动作。 |
 | `swing_sound_frames` | 播放挥剑音效 `minecraft:entity.player.attack.sweep` 的帧列表，默认 `[12, 24]`。 |
 
@@ -607,6 +621,18 @@ data/fiercerbattles/fiercerbattles/combat_skills/heal_10.json
 正常完成后，处决者接到当前动作末帧躯干髋部对应的水平站位。剑动作第 56 帧沿初始朝向前进 `0.4798867106` 格、朝向增加 `86.124866°`；斧动作第 30 帧不改变水平站位、朝向变化 `-144.676503°`。脚底均保持原地面高度。服务器在启动前和结束前都检查该站位、移动路径与落脚空间，完成消息同步最终位置和朝向，避免模型退回普通姿态时被拉回动画起点。中断或末尾空间被阻挡时不移动角色，也不结算处决伤害。
 
 处决时统一使用 1.0 渲染比例，避免原版玩家的 0.9375 比例与怪物的比例不同导致接触位置偏移。服装、护甲、手持物品、披风和鞘翅随身体变换。第一人称镜头在 0.2 秒内平滑拉到第三人称，处决中可用鼠标环绕观看，沿用鼠标灵敏度、平滑和反转设置；镜头角度独立于双方固定朝向，并保留原版镜头防穿墙检查。正常结束时，处决者用 5 tick（0.25 秒）从重基后的末帧平滑回到普通姿态和比例，复位结束后才恢复原视角模式、移动和攻击等输入；中止、切换维度或离线时及时恢复。被处决者在死亡消散期间保持动画末帧，避免倒地后突然站直。
+
+### 内置的额外处决动作
+
+模组另带三套以 `two.blend` 双人模板制作的动作，加载后即注册，但默认不使用。把 `execution.action_id`（剑）或 `execution.axe_action_id`（斧）改成下表 ID 并重启即可启用。三套都沿用斧动作的站位（被处决者在前方 `0.979` 格、偏右 `0.164` 格、面对面），结束时处决者朝向不变。
+
+| 动作 ID | 时长 | 内容 | 处决者收尾位移 | 建议 `hurt_sound_frames` / `swing_sound_frames` |
+| --- | --- | --- | --- | --- |
+| `fiercerbattles:impale_execution` | 40 tick | 左手扣住对方右肩，剑自腹部斜向上贯穿，僵持后一脚踢开，被处决者仰面倒地 | 前进 `0.1` 格 | `[9, 16, 20, 26]` / `[8]` |
+| `fiercerbattles:kneel_slash_execution` | 40 tick | 低踢左膝使其跪下，拧腰蓄力后横斩颈部，被处决者扭身面朝下扑倒 | 前进 `0.2125` 格 | `[5, 15, 22]` / `[14]` |
+| `fiercerbattles:ground_stab_execution` | 48 tick | 斜劈胸口将其砍倒，走进对方张开的双腿间，双手握剑向下刺入胸口后拔剑后退 | 前进 `0.45` 格、向右 `0.075` 格 | `[4, 28, 34]` / `[3, 27]` |
+
+音效帧是全局配置，不随动作切换；斧分类仍固定在第 13 帧播放受伤声。源文件为 `impale_execution.blend`、`kneel_slash_execution.blend`、`ground_stab_execution.blend`，与 `execution.blend` 放在同一目录。导出命令分别追加 `-- --name impale_execution --duration 40 --step 0.125`、`-- --name kneel_slash_execution --duration 40 --step 0.0625`、`-- --name ground_stab_execution --duration 48 --step 0.0625`，验证时再加 `--verify`。后两套的快速挥砍需要 `0.0625` 采样，才能满足半步回放误差上限。
 
 ### 注册新的双人动作
 
@@ -648,10 +674,100 @@ data/my_pack/fiercerbattles_animations/finish/victim.json
 
 斧动画验证资源位于 `assets/fiercerbattles/axe_execution/`，数据包 clips 位于 `data/fiercerbattles/fiercerbattles_animations/axe_execution/`，定义为 `data/fiercerbattles/fiercerbattles_actions/axe_execution.json`。导出 `axe_execution.blend` 时追加 `-- --name axe_execution --duration 30 --step 0.0625`，验证时再加 `--verify`。两套动画共用现有 `AnimationClip` / `AnimationPlayer`、人形适配器、双人同步和收尾机制。
 
-## 11. 近战弹反
+## 11. 近战弹反（黑魂 3 风格）
 
-主手持原版或匠魂的剑、斧，按独立弹反键（默认 `R`，可在控制设置重绑）启动。弹反者可以移动、转向，镜头不变；原动画第 **5–12 tick（含两端）** 取消符合条件的近战伤害，让攻击者进入被反弹动作，不造成反伤。同一窗口可挡多个攻击者，环境伤害、投射物及处决伤害不触发成功弹反。
+主手持原版或匠魂的剑、斧，按独立弹反键（默认 `R`，可在控制设置重绑）启动。动作参考《黑暗之魂 3》的副手弹反：左前臂先收到胸前，再向左外侧反手一挥，主手武器压低在身侧准备反击；副手持盾时就是盾反。弹反全程（含结束复位）固定在启动位置，禁止移动、跳跃、冲刺和潜行，重力、击退及惯性均不能使其移位，结束后恢复移动；仍可转向，镜头不变，骑乘时不能启动。按键请求等待期间客户端立即锁定，拒绝或超时后解除。原动画第 **5–12 tick（含两端）** 为有效窗口，期间符合条件的近战伤害被取消。同一窗口可挡多个攻击者，环境伤害、投射物及处决伤害不触发成功弹反。
 
-弹反原动作 17 tick，最初 3 tick 普通姿势淡入已计入时钟，结束另用 5 tick 复位。攻击者先倒放最近 5 tick 的真实六部位姿势历史，再完整播放 15 tick 被反弹动作，最后 5 tick 复位；全程 25 tick 由服务器禁止动作、移位并接管 AI，结束恢复原 AI 和重力。历史不足连续 6 tick 时记录 INFO 的 `ordinary fallback`，使用普通姿势衔接。第一、第三人称均显示对应手部或模型动作，不切换镜头。
+弹反成功时：
 
-弹反与处决互斥，已有 busy 状态不能互相覆盖；旧排队攻击按 epoch 作废。资源独立重载、压缩同步和 hash 校验，原处决资源与通用播放器保持不变。源码入口、资源路径、安全修改边界和只读导出验证命令见 [弹反模块速查](docs/parry_module.md)。
+- 播放弹开音效 `fiercerbattles:parry`（附近所有玩家都能听到，包括弹反者本人）。当前音效由提供的 `Voicy_ Parry #1.mp3` 转为单声道 48 kHz OGG Vorbis，保留完整约 4.3 秒；想替换时覆盖 `assets/fiercerbattles/sounds/parry/parry_clang.ogg` 即可。
+- 攻击者受到固定 **10 点**反击伤害（伤害类型 `fiercerbattles:parry_counter`，无视护甲和受伤冷却，不产生击退，击杀记在弹反者名下）。
+- 攻击者进入眩晕：先被弹开（攻击手甩高、上身后仰、退半步），随后弯腰低头、双手下垂地摇晃，最后站直恢复。
+- 眩晕期间可以对它**处决（相当于黑魂的反击处决）**：处决血量门槛从 `execution.health_threshold`（默认 25%）提高到 **60%**，其他处决条件不变。处决开始时眩晕立即结束，被处决者从眩晕姿势直接过渡到处决动作。
+
+弹反原动作 18 tick，最初 3 tick 普通姿势淡入已计入时钟，结束另用 5 tick 复位，共 23 tick。眩晕先倒放攻击者最近 5 tick 的真实六部位姿势，再从眩晕动画第二帧播放到末帧（39 tick），最后 5 tick 复位；全程 49 tick（2.45 秒）由服务器禁止动作、移位并接管 AI，结束恢复原 AI 和重力。弹反动作结束后约有 1.3 秒可以按处决键反击。历史不足连续 6 tick 时记录 INFO 的 `ordinary fallback`，使用普通姿势衔接。第一、第三人称均显示对应手部或模型动作，不切换镜头。
+
+`config/fiercerbattles.json` 的顶层可以加：
+
+```json
+{
+  "parry": {
+    "counter_damage": 10.0,
+    "stagger_execution_health_threshold": 0.6
+  }
+}
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `counter_damage` | 弹反成功对攻击者造成的固定伤害，默认 `10`；`0` 为不造成伤害。|
+| `stagger_execution_health_threshold` | 目标被弹反眩晕期间的处决血量比例（严格低于），默认 `0.6`，有效范围大于 0 且不超过 1。若低于普通处决门槛，则使用普通门槛。|
+
+弹反与处决互斥，已有 busy 状态不能互相覆盖（唯一例外是对被弹反眩晕的目标发起处决）；旧排队攻击按 epoch 作废。资源独立重载、压缩同步和 hash 校验，原处决资源与通用播放器保持不变。源码入口、资源路径、安全修改边界和只读导出验证命令见 [弹反模块速查](docs/parry_module.md)。
+
+## 12. 受击硬直
+
+玩家受到**有攻击来源**的实际伤害时（近战、投射物、爆炸等由生物或玩家造成的伤害，扣血大于 0），会播放 10 tick（0.5 秒）的受击硬直：上身被打得后仰、头往后甩、双臂张开，然后恢复（5 tick 的动作以半速播放）。硬直期间不能移动、跳跃、攻击、释放战技、弹反、处决或使用物品，受到的击退照常生效。第一人称会看到双手随之晃动，其他玩家看到完整的第三人称动作。
+
+如果被打中时正在出招，由这一段攻击的 `hit_interruptible` 决定结果：
+
+| `hit_interruptible` | 被打中时 |
+| --- | --- |
+| `true`（默认） | 立刻取消这一段挥击（还没结算的伤害不会打出），播放硬直 |
+| `false` | 霸体：继续出招，不播放硬直，正常受到伤害和击退 |
+
+取值优先级：攻击段内的值 > 同一文件 `attributes` 根级的值（含 `parent` 继承）> `config/fiercerbattles.json` 中该动画 `entries` 的值 > `hitstun.default_hit_interruptible`。普通武器文件和战技文件的攻击段都可以写，例如让重击或某个战技段带霸体：
+
+```json
+{
+  "hitbox": "VERTICAL_PLANE",
+  "damage_multiplier": 1.6,
+  "upswing": 0.7,
+  "animation": "bettercombat:two_handed_slam",
+  "hit_interruptible": false
+}
+```
+
+`config/fiercerbattles.json` 的顶层可以加：
+
+```json
+{
+  "hitstun": {
+    "enabled": true,
+    "default_hit_interruptible": true,
+    "humanoid_mobs": true,
+    "exempt_mobs": ["minecraft:zombie", "minecraft:husk"]
+  }
+}
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `enabled` | 是否启用受击硬直，默认 `true`。设为 `false` 后被打中不会硬直，出招也不会被打断。|
+| `default_hit_interruptible` | 攻击段、武器文件和 `entries` 都没写 `hit_interruptible` 时使用的值，默认 `true`。设为 `false` 时所有攻击默认霸体，只给想被打断的段写 `true`。|
+| `humanoid_mobs` | 人形敌人是否也会硬直，默认 `true`。范围与处决相同：`execution.humanoid_entities` 中的成年生物（骷髅、猪灵等），再除去 `exempt_mobs`。|
+| `exempt_mobs` | 即使开启 `humanoid_mobs` 也永不硬直的生物 ID，默认僵尸和尸壳（`minecraft:zombie`、`minecraft:husk`）。|
+
+补充说明：
+
+- 没有在出招时（站立、走动等），被打中都会硬直；霸体只覆盖这一段挥击的持续时间，挥击结束或被取消后立即失效。
+- 以下情况不会硬直：游泳/爬行、睡觉、鞘翅飞行、激流突进、骑乘、旁观模式、处决中、已经处于弹反的被反弹状态、自己伤害自己，以及护盾完全挡下（没有扣血）的攻击。
+- 弹反动作的有效窗口内挡下攻击不会硬直；窗口外被打中会中断弹反动作并硬直。
+- 正在硬直的玩家打不出近战伤害，但硬直前已射出的箭仍会命中。
+- 防连续硬控：2 秒（40 tick）内被硬直 3 次后，接下来 1 秒（20 tick，从第 3 次硬直开始计）内的伤害不会再造成硬直。玩家和生物都适用。
+- 人形敌人（见 `humanoid_mobs`）受到有攻击来源的伤害时同样播放硬直，并打断正在进行的攻击：武器攻击的前摇和空手攻击的延迟命中直接取消，拉弓中断，客户端的攻击动作立即停止；硬直期间不能发起新的攻击，近战伤害也会被拒绝。幼年生物、骑乘中、游泳中、被弹反眩晕或正在被处决的生物不会硬直。
+- 是否霸体由出招的客户端在挥击开始时报告给服务器，网络延迟期间（通常几十毫秒）按“可打断”处理。
+- 硬直动画位于 `data/fiercerbattles/fiercerbattles_animations/parry/hitstun.json`，与弹反动画一起同步到客户端。源文件为 `D:/code/mcmod/资源包/blender动画/弹反/受击硬直.blend`，用 `tools/export_parry.py -- --name hitstun` 导出（`--verify` 校验）。时长必须在 3–40 tick 之间，结束时人物须回到原位；缺少该文件时只会停用硬直，弹反照常工作。
+
+## 13. 翻滚、奔跑与卧倒
+
+三个单人动作都用 `one.blend` 模板制作（直肢、原地动画），由 `fiercerbattles_animations/locomotion/` 下的数据包 clip 驱动，服务器在登录和 `/reload` 时把它们压缩同步给客户端，其他玩家无需另装资源。
+
+| 动作 | 触发 | 行为 |
+| --- | --- | --- |
+| 翻滚 | 翻滚键（默认 `左 Alt`），需站在地面 | 朝按住的移动方向（相对镜头）翻滚，没有按方向键时向前；动画以 1.25 倍速播放（16 帧约 12.8 tick），期间移动约 3 格，照常碰撞，可滚下台阶，开始时播放翻滚音效。翻滚期间碰撞箱只有 0.6 格高（与原版爬行相同），可以滚过 1 格高的缝隙；如果翻滚结束时头顶仍只有 1 格空间，会自动转为原版爬行，出来后再站起。动画第 12 帧（约第 9.6 tick）之前无敌（摔落伤害和虚空、`/kill` 等无视无敌的伤害除外），不能攻击、使用物品或改变方向；从第 12 帧起可以移动或攻击，一移动、跳跃、攻击或使用物品就立即结束剩余的翻滚。翻滚结束（或提前结束）后 10 tick 冷却。第一人称下视角会在前 12 帧内先降低再回升，钻过低矮缝隙时视角会压在天花板以下。 |
+| 奔跑 | 疾跑时自动 | 纯客户端表现：疾跑且没有其他动作时，用奔跑循环替换原版走路摆臂，步频跟随实际移动距离（比 1:1 快 20%），头部仍随视线转动。Better Combat 攻击、使用物品、游泳、鞘翅飞行时自动让位。 |
+| 卧倒 | 卧倒键（默认 `Z`），需站在地面 | 播放 10 tick 卧倒动作后保持趴姿，身体着地时扬起一团地面尘土。疾跑中卧倒会沿移动方向向前扑滑约 2 格，滑行途中也会扬起尘土。趴下后：碰撞箱变为原版爬行高度（0.6 格），可用 WASD 以原版爬行速度匍匐，不能跳跃或疾跑。趴着时可以挖方块、使用物品，不能攻击生物、释放战技、处决或弹反。 |
+| 起身 | 趴着时再按卧倒键 | 头顶有站立空间时播放 12 tick 起身动作并恢复站立碰撞箱；空间不足时提示“上方空间不足”。进入水中、骑乘、飞行或死亡时自动取消趴姿。 |
+
+翻滚、卧倒与处决、弹反互斥：任一动作进行中，其余按键请求会被拒绝。源码入口、资源路径和导出命令见 [翻滚、奔跑与卧倒模块速查](docs/locomotion_module.md)。

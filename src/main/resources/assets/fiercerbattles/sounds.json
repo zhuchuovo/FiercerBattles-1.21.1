@@ -1,0 +1,28 @@
+{
+  "brutal_hit": {
+    "subtitle": "subtitles.fiercerbattles.brutal_hit",
+    "sounds": ["fiercerbattles:execution/brutal_hit"]
+  },
+  "push_open": {
+    "subtitle": "subtitles.fiercerbattles.push_open",
+    "sounds": ["fiercerbattles:execution/push_open"]
+  },
+  "parry": {
+    "subtitle": "subtitles.fiercerbattles.parry",
+    "sounds": [
+      "fiercerbattles:parry/parry_clang"
+    ]
+  },
+  "parry_use": {
+    "subtitle": "subtitles.fiercerbattles.parry_use",
+    "sounds": [
+      "fiercerbattles:parry/parry_use"
+    ]
+  },
+  "roll": {
+    "subtitle": "subtitles.fiercerbattles.roll",
+    "sounds": [
+      "fiercerbattles:locomotion/roll"
+    ]
+  }
+}

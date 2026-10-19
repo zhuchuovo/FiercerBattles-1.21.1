@@ -33,7 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * this accessor, so no field of Better Combat is mutated; flagged instances
  * are tracked in {@link FiercerBattlesCustomData} by identity.
  */
-@Mixin(targets = "net.bettercombat.api.WeaponAttributes", priority = 2000)
+@Mixin(targets = "com.fiercerbattles.bettercombat.api.WeaponAttributes", priority = 2000)
 public abstract class WeaponAttributesMixin {
 
     @Inject(method = "isTwoHanded", at = @At("HEAD"), cancellable = true, remap = false)

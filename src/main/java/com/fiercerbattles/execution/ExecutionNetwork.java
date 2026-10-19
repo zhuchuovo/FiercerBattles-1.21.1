@@ -2,6 +2,7 @@ package com.fiercerbattles.execution;
 
 import com.fiercerbattles.FiercerBattles;
 import com.fiercerbattles.FiercerBattlesExecutionServer;
+import com.fiercerbattles.config.FiercerBattlesConfig;
 import com.fiercerbattles.execution.action.PairedExecutionAction;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -13,8 +14,10 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
-import java.util.UUID;
 import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /** Common payloads contain no client classes, so dedicated servers can register them safely. */
@@ -24,6 +27,7 @@ public final class ExecutionNetwork {
     private static Consumer<End> clientEnd = ignored -> {};
     private static Consumer<Reject> clientReject = ignored -> {};
     private static Consumer<ActionSync> clientActionSync = ignored -> {};
+    private static Consumer<HighlightRules> clientHighlightRules = ignored -> {};
 
     private ExecutionNetwork() {}
 
@@ -34,6 +38,7 @@ public final class ExecutionNetwork {
     }
 
     public static void setClientActionSyncHandler(Consumer<ActionSync> sync) { clientActionSync = sync; }
+    public static void setClientHighlightRulesHandler(Consumer<HighlightRules> sync) { clientHighlightRules = sync; }
 
     public static void request(int targetEntityId) {
         PacketDistributor.sendToServer(new Request(targetEntityId));
@@ -41,7 +46,7 @@ public final class ExecutionNetwork {
 
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("execution-4");
+        var registrar = event.registrar("execution-5");
         registrar.playToServer(Request.TYPE, Request.STREAM_CODEC, (payload, context) -> {
             if (context.player() instanceof ServerPlayer player) {
                 FiercerBattlesExecutionServer.tryStart(player, payload.targetEntityId());
@@ -51,6 +56,34 @@ public final class ExecutionNetwork {
         registrar.playToClient(End.TYPE, End.STREAM_CODEC, (payload, context) -> clientEnd.accept(payload));
         registrar.playToClient(Reject.TYPE, Reject.STREAM_CODEC, (payload, context) -> clientReject.accept(payload));
         registrar.playToClient(ActionSync.TYPE, ActionSync.STREAM_CODEC, (payload, context) -> clientActionSync.accept(payload));
+        registrar.playToClient(HighlightRules.TYPE, HighlightRules.STREAM_CODEC, (payload, context) -> clientHighlightRules.accept(payload));
+    }
+
+    /** Sent once on login so visual hints follow this server's bloodlines and allowlist. */
+    public record HighlightRules(boolean enabled, double healthThreshold, double staggerHealthThreshold,
+                                 List<String> humanoidEntities) implements CustomPacketPayload {
+        public static final Type<HighlightRules> TYPE = ExecutionNetwork.type("execution_highlight_rules");
+        public static final StreamCodec<RegistryFriendlyByteBuf, HighlightRules> STREAM_CODEC = StreamCodec.of(
+                (buffer, value) -> {
+                    buffer.writeBoolean(value.enabled());
+                    buffer.writeDouble(value.healthThreshold());
+                    buffer.writeDouble(value.staggerHealthThreshold());
+                    buffer.writeCollection(value.humanoidEntities(), (buf, id) -> buf.writeUtf(id));
+                },
+                buffer -> new HighlightRules(buffer.readBoolean(), buffer.readDouble(), buffer.readDouble(),
+                        buffer.readList(buf -> buf.readUtf())));
+
+        public HighlightRules { humanoidEntities = List.copyOf(humanoidEntities); }
+
+        public static HighlightRules fromConfig() {
+            var config = FiercerBattlesConfig.getExecution();
+            return new HighlightRules(config.enabled, config.healthThreshold(),
+                    FiercerBattlesConfig.getParry().staggerExecutionHealthThreshold(),
+                    config.humanoid_entities == null ? List.of()
+                            : config.humanoid_entities.stream().filter(Objects::nonNull).toList());
+        }
+
+        @Override public Type<HighlightRules> type() { return TYPE; }
     }
 
     /** Compressed datapack definition and both pose clips, sent before the matching Start. */

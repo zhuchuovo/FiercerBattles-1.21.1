@@ -1,13 +1,13 @@
 {
-  "source_file": "\u88ab\u53cd\u5f39.blend",
-  "source_sha256": "9d0c5da6fbdb871e8215e84224a5ef57f4512ac7861bc7f8625b1ea6dbd31acf",
+  "source_file": "\u9ed1\u9b42\u7729\u6655.blend",
+  "source_sha256": "00cbfc3839ccbd4e3c5528f934e2b04d2192c2bedd1a7005d1e4e34d368c07b9",
   "source_fps": 20.0,
   "source_scene_frame_start": 0,
-  "source_scene_frame_end": 60,
+  "source_scene_frame_end": 40,
   "authored_begin_frame": 0,
-  "authored_end_frame": 15.0,
-  "authored_duration_game_ticks": 15.0,
-  "duration_ticks": 15,
+  "authored_end_frame": 40.0,
+  "authored_duration_game_ticks": 40.0,
+  "duration_ticks": 40,
   "frame_to_game_tick": "(source_frame - authored_begin_frame) * 20 / source_fps",
   "source_rig": "Bone_A plus six rigid humanoid mesh objects; zero-bend halves",
   "rig": "fiercerbattles:humanoid_v1",
@@ -20,43 +20,93 @@
   "active_rig_keyframes": {
     "head": [
       0.0,
+      2.0,
       5.0,
-      15.0
+      9.0,
+      12.0,
+      17.0,
+      23.0,
+      29.0,
+      33.0,
+      37.0,
+      40.0
     ],
     "leftArm": [
       0.0,
+      2.0,
       5.0,
-      15.0
+      9.0,
+      12.0,
+      17.0,
+      23.0,
+      29.0,
+      33.0,
+      37.0,
+      40.0
     ],
     "leftArm_bend": [
       0.0
     ],
     "leftLeg": [
-      0.0
+      0.0,
+      2.0,
+      5.0,
+      9.0,
+      12.0,
+      17.0,
+      23.0,
+      29.0,
+      33.0,
+      37.0,
+      40.0
     ],
     "leftLeg_bend": [
       0.0
     ],
     "rightArm": [
       0.0,
+      2.0,
       5.0,
-      15.0
+      9.0,
+      12.0,
+      17.0,
+      23.0,
+      29.0,
+      33.0,
+      37.0,
+      40.0
     ],
     "rightArm_bend": [
       0.0
     ],
     "rightLeg": [
       0.0,
+      2.0,
       5.0,
-      15.0
+      9.0,
+      12.0,
+      17.0,
+      23.0,
+      29.0,
+      33.0,
+      37.0,
+      40.0
     ],
     "rightLeg_bend": [
       0.0
     ],
     "torso": [
       0.0,
+      2.0,
       5.0,
-      15.0
+      9.0,
+      12.0,
+      17.0,
+      23.0,
+      29.0,
+      33.0,
+      37.0,
+      40.0
     ],
     "torso_bend": [
       0.0
@@ -64,11 +114,11 @@
   },
   "timeline_markers": [],
   "sample_step": 0.0625,
-  "sample_count": 241,
+  "sample_count": 641,
   "end_root": {
     "right": 0.0,
     "forward": -0.0,
-    "yaw": -3.223e-05
+    "yaw": 8.65e-06
   },
   "end_root_up_blocks": 0.0,
   "rest_mesh_bounds_model_pixels": {
@@ -76,12 +126,12 @@
       [
         -4.0,
         -8.0,
-        -3.99999976
+        -4.0
       ],
       [
         4.0,
-        -3.6e-07,
-        4.00000048
+        2e-08,
+        4.0
       ]
     ],
     "body": [
@@ -98,36 +148,36 @@
     ],
     "rightArm": [
       [
-        -3.00000119,
-        -1.99999964,
+        -3.00000095,
+        -1.99999988,
         -2.0
       ],
       [
         1.0,
         9.99999905,
-        2.0
+        2.00000024
       ]
     ],
     "leftArm": [
       [
         -1.0,
-        -1.99999928,
-        -2.0
+        -1.99999952,
+        -2.00000024
       ],
       [
-        3.00000048,
+        3.0,
         9.99999905,
-        2.0
+        1.99999988
       ]
     ],
     "rightLeg": [
       [
-        -2.00000024,
-        1e-08,
-        -2.0
+        -2.00000048,
+        -0.0,
+        -1.99999988
       ],
       [
-        2.00000024,
+        2.0,
         12.0,
         2.00000024
       ]
@@ -135,7 +185,7 @@
     "leftLeg": [
       [
         -2.00000024,
-        -1e-08,
+        -0.0,
         -2.00000024
       ],
       [
@@ -146,15 +196,15 @@
     ]
   },
   "verification": {
-    "max_source_mesh_vertex_error_pixels": 5.749871110783618e-06,
-    "max_half_sample_mesh_error_pixels": 0.004267559795338911,
+    "max_source_mesh_vertex_error_pixels": 6.036276293359834e-06,
+    "max_half_sample_mesh_error_pixels": 0.0219216687775538,
     "first_middle_last_source_mesh_errors_pixels": {
-      "0.0": 3.873843385999661e-06,
-      "7.5": 3.939321432556702e-06,
-      "15.0": 2.040891373707579e-06
+      "0.0": 1.0925711858167266e-06,
+      "20.0": 3.960906917056119e-06,
+      "40.0": 1.430511474609375e-06
     },
-    "end_hip_reconstruction_error_blocks": 6.000268792790103e-09,
-    "end_yaw_reconstruction_error_degrees": 1.5327719761857723e-07
+    "end_hip_reconstruction_error_blocks": 3.1249999725807344e-09,
+    "end_yaw_reconstruction_error_degrees": 5.133702269136435e-07
   },
   "notes": [
     "Every evaluated parent is baked, including the source root pitch. Only initial root yaw is removed.",

@@ -1,0 +1,30 @@
+{
+  "skill": {
+    "duration_seconds": 1,
+    "heal_percent": 0.10,
+    "cooldown": 5,
+    "action_json": "",
+    "sound": {
+      "id": "minecraft:block.beacon.activate",
+      "volume": 1.0,
+      "pitch": 1.0
+    }
+  },
+  "attributes": {
+    "attack_range": 3.0,
+    "category": "sword",
+    "attacks": [
+      {
+        "hitbox": "HORIZONTAL_PLANE",
+        "attack_speed_multiplier": 0.75,
+        "angle": 30,
+        "Multiplehits":"[5,8],[0.5,1.25]",
+        "upswing": 0.5,
+        "animation": "bettercombat:two_sword_combat_art",
+        "swing_sound": {
+          "id": "bettercombat:axe_slash"
+        }
+      }
+    ]
+  }
+}

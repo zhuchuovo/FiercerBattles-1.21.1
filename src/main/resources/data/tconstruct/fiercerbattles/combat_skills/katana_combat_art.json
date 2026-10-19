@@ -1,0 +1,36 @@
+{
+  "skill": {
+        "potion_effect": {
+    "id": "minecraft:strength",
+    "amplifier": 0,
+    "duration": 20,
+     "target": "self"
+    },
+    "duration_seconds": 1,
+    "heal_percent": 0.10,
+    "cooldown": 15,
+    "action_json": "",
+    "sound": {
+      "id": "minecraft:block.beacon.activate",
+      "volume": 1.0,
+      "pitch": 1.0
+    }
+  },
+  "attributes": {
+    "attack_range": 3,
+    "category": "sword",
+    "attacks": [
+      {
+        "hitbox": "HORIZONTAL_PLANE",
+        "angle": 60,
+        "attack_speed_multiplier": 0.5,
+        "damage_multiplier": 1.5,
+        "upswing": 0.5,
+        "animation": "bettercombat:two_handed_stab_left",
+        "swing_sound": {
+          "id": "bettercombat:axe_slash"
+        }
+      }
+    ]
+  }
+}

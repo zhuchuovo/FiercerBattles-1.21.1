@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(targets = "net.bettercombat.logic.PlayerAttackHelper")
+@Mixin(targets = "com.fiercerbattles.bettercombat.logic.PlayerAttackHelper")
 public abstract class PlayerAttackHelperCombatSkillMixin {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final ThreadLocal<Integer> FIERCERBATTLES_ATTACK_REQUEST = new ThreadLocal<>();

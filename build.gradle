@@ -12,6 +12,24 @@ java {
     withSourcesJar()
 }
 
+repositories {
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+    maven {
+        name = 'Shedaniel'
+        url = 'https://maven.shedaniel.me/'
+        content { includeGroup 'me.shedaniel.cloth' }
+    }
+    maven {
+        name = 'FTB'
+        url = 'https://maven.ftb.dev/releases'
+        content { includeGroup 'dev.ftb.mods' }
+    }
+}
+
 neoForge {
     version = project.neo_version
 
@@ -33,8 +51,15 @@ neoForge {
 }
 
 dependencies {
-    // BetterCombat is required at runtime, but we intentionally avoid a compile-time
-    // dependency by using string-targeted Mixins and reflection.
+    // Better Combat 2.4.0+1.21.1 is embedded under src/main/java/com/fiercerbattles/bettercombat.
+    // Player Animator and Cloth Config are its runtime dependencies; tiny-config is bundled.
+    implementation 'maven.modrinth:gedNE4y2:HJZB6bmA' // Player Animator 2.0.4+1.21.1-forge
+    implementation 'me.shedaniel.cloth:cloth-config-neoforge:15.0.130'
+    jarJar(implementation("maven.modrinth:tiny-config:${tiny_config_version}"))
+
+    // Optional Better Combat compat (FTB Teams), only used when the mod is present.
+    compileOnly("dev.ftb.mods:ftb-teams-neoforge:${ftb_teams_version}") { transitive = false }
+    compileOnly("dev.ftb.mods:ftb-library-neoforge:${ftb_library_version}") { transitive = false }
 }
 
 tasks.named('processResources', ProcessResources).configure {

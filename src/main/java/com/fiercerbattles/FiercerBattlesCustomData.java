@@ -85,6 +85,11 @@ public final class FiercerBattlesCustomData {
          * normal attack the decoded combo happened to select.
          */
         public double damageMultiplier = 0;
+        /**
+         * Whether being hit cancels this segment and plays the hitstun flinch;
+         * false gives the segment super armor. Null defers to the config.
+         */
+        public Boolean hitInterruptible;
 
         /** Optional effect payload inherited from a combat-skill JSON root. */
         public SkillEffectData skillEffect;
@@ -384,6 +389,7 @@ public final class FiercerBattlesCustomData {
                     double fixedDamage = positiveNumber(attributes, "fixed_damage", "flat_damage");
                     double knockback = positiveNumber(attributes, "knockback", "knockback_bonus");
                     double damageMultiplier = positiveNumber(attributes, "damage_multiplier", null);
+                    Boolean hitInterruptible = readFlag(attributes, HIT_INTERRUPTIBLE_KEYS);
                     if (attributes.has("attacks") && attributes.get("attacks").isJsonArray()) {
                         JsonArray attackArray = attributes.getAsJsonArray("attacks");
                         for (JsonElement element : attackArray) {
@@ -399,6 +405,9 @@ public final class FiercerBattlesCustomData {
                             }
                             if (data.damageMultiplier == 0) {
                                 data.damageMultiplier = damageMultiplier;
+                            }
+                            if (data.hitInterruptible == null) {
+                                data.hitInterruptible = hitInterruptible;
                             }
                             attacks.add(data);
                         }
@@ -548,6 +557,7 @@ public final class FiercerBattlesCustomData {
         merged.fixedDamage = child.fixedDamage != 0 ? child.fixedDamage : parent.fixedDamage;
         merged.knockback = child.knockback != 0 ? child.knockback : parent.knockback;
         merged.damageMultiplier = child.damageMultiplier != 0 ? child.damageMultiplier : parent.damageMultiplier;
+        merged.hitInterruptible = child.hitInterruptible != null ? child.hitInterruptible : parent.hitInterruptible;
         merged.skillEffect = child.skillEffect != null ? child.skillEffect : parent.skillEffect;
         merged.skillId = child.skillId != null ? child.skillId : parent.skillId;
         if (child.hasDisplacement) {
@@ -642,6 +652,7 @@ public final class FiercerBattlesCustomData {
         if (attack.has("damage_multiplier") && attack.get("damage_multiplier").isJsonPrimitive()) {
             data.damageMultiplier = Math.max(0, attack.get("damage_multiplier").getAsDouble());
         }
+        data.hitInterruptible = readFlag(attack, HIT_INTERRUPTIBLE_KEYS);
     }
 
     private static boolean isAnimationFrameUnit(JsonObject attack) {
@@ -965,6 +976,12 @@ public final class FiercerBattlesCustomData {
             "affect_attack_animation"
     };
 
+    /** Accepted spellings of the "being hit interrupts this attack" option. */
+    public static final String[] HIT_INTERRUPTIBLE_KEYS = {
+            "hit_interruptible",
+            "interruptible_on_hit"
+    };
+
     /** Accepted spellings of the "release this weapon's skill from the off-hand" option. */
     public static final String[] OFF_HAND_SKILL_KEYS = {
             "offhand_skill",
@@ -1064,7 +1081,7 @@ public final class FiercerBattlesCustomData {
     /** The BetterCombat weapon preset id assigned to the stack, or null. */
     public static String presetId(ItemStack stack) {
         try {
-            Class<?> componentClass = Class.forName("net.bettercombat.api.component.BetterCombatDataComponents");
+            Class<?> componentClass = Class.forName("com.fiercerbattles.bettercombat.api.component.BetterCombatDataComponents");
             Object componentType = componentClass.getField("WEAPON_PRESET_ID").get(null);
             Method getMethod = stack.getClass().getMethod("get", Class.forName("net.minecraft.core.component.DataComponentType"));
             Object value = getMethod.invoke(stack, componentType);

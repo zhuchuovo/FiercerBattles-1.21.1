@@ -3,6 +3,7 @@ package com.fiercerbattles.mixin;
 import com.fiercerbattles.FiercerBattlesCombatSkills;
 import com.fiercerbattles.FiercerBattlesRuntime;
 import com.fiercerbattles.FiercerBattlesExecutionClient;
+import com.fiercerbattles.locomotion.client.LocomotionClient;
 import com.fiercerbattles.parry.client.ParryClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -36,7 +37,7 @@ public abstract class MinecraftMixin {
     @Inject(method = "startUpswing", at = @At("HEAD"), remap = false, cancellable = true)
     private void fiercerbattles$blockDuringRecovery(@Coerce Object attributes, CallbackInfo ci) {
         Minecraft minecraft = (Minecraft) (Object) this;
-        if (FiercerBattlesExecutionClient.blocksInput() || ParryClient.blocksActions()) {
+        if (FiercerBattlesExecutionClient.blocksInput() || ParryClient.blocksActions() || LocomotionClient.blocksActions()) {
             ci.cancel();
             return;
         }
@@ -114,7 +115,7 @@ public abstract class MinecraftMixin {
 
     private static String presetId(ItemStack stack) {
         try {
-            Class<?> componentClass = Class.forName("net.bettercombat.api.component.BetterCombatDataComponents");
+            Class<?> componentClass = Class.forName("com.fiercerbattles.bettercombat.api.component.BetterCombatDataComponents");
             Object componentType = componentClass.getField("WEAPON_PRESET_ID").get(null);
             Object value = stack.getClass()
                     .getMethod("get", Class.forName("net.minecraft.core.component.DataComponentType"))
@@ -162,6 +163,7 @@ public abstract class MinecraftMixin {
     @Inject(method = "cancelWeaponSwing", at = @At("HEAD"), remap = false)
     private void fiercerbattles$cancelClientAttackState(CallbackInfo ci) {
         Minecraft minecraft = (Minecraft) (Object) this;
+        ParryClient.clearSwing();
         FiercerBattlesRuntime.cancelMultipleHits();
         FiercerBattlesCombatSkills.clearClientSkill();
         FiercerBattlesCombatSkills.clearActiveSkillRange(minecraft.player);
@@ -171,7 +173,7 @@ public abstract class MinecraftMixin {
             method = "cancelWeaponSwing",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/bettercombat/client/animation/PlayerAttackAnimatable;stopAttackAnimation(F)V"
+                    target = "Lcom/fiercerbattles/bettercombat/client/animation/PlayerAttackAnimatable;stopAttackAnimation(F)V"
             ),
             index = 0,
             remap = false
@@ -199,8 +201,9 @@ public abstract class MinecraftMixin {
     )
     private void fiercerbattles$markDamageResolved(CallbackInfo ci) {
         Minecraft minecraft = (Minecraft) (Object) this;
-        if (minecraft.player != null && hasAttackTargets(minecraft)) {
-            FiercerBattlesRuntime.markDamageResolved(minecraft.player.tickCount);
+        if (minecraft.player != null) {
+            ParryClient.damageChecked();
+            if (hasAttackTargets(minecraft)) FiercerBattlesRuntime.markDamageResolved(minecraft.player.tickCount);
         }
     }
 

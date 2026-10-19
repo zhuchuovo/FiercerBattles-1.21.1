@@ -20,7 +20,9 @@ Blender 中 `player` 是处决者，对应 `executioner`；`player_B` 是被处�
 
 处决与近战弹反/被反弹互斥。`parry/ParryServer.isBusy(entity)` 的任一参与者不能开始处决，弹反也不能覆盖正在处决的实体；客户端请求同样阻止已有动作互相覆盖。弹反使用独立 R 键，完整规则见 [弹反模块速查](parry_module.md)。
 
-共用模型渲染入口现还路由弹反：`execution/client/ExecutionRenderContext` 有处决 actor 时保持原流程，没有时委托 `parry/client/ParryRenderContext`；`ExecutionLivingEntityRendererMixin` 建立对应作用域，处决优先，单次姿势不叠加两套动作。其渲染 `isActive()` 因而可以表示任一动作源，服务端互斥及玩法判断仍应使用各模块的会话查询，不把它等同于处决中。`AnimationClip` / `AnimationPlayer` 及既有处决资源不变。
+共用模型渲染入口现还路由弹反：`execution/client/ExecutionRenderContext` 有处决 actor 时保持原流程，没有时委托 `parry/client/ParryRenderContext`；`ExecutionLivingEntityRendererMixin` 建立对应作用域，处决优先，单次姿势不叠加两套动作。弹反姿势在共享根中保留普通实体的尺寸与脚底锚点；眩晕转反击处决时，起点姿势携带实际缩放，接近段同时衔接位置、旋转和尺寸。其渲染 `isActive()` 因而可以表示任一动作源，服务端互斥及玩法判断仍应使用各模块的会话查询，不把它等同于处决中。`AnimationClip` / `AnimationPlayer` 及既有处决资源不变。
+
+血线提示由 `execution/client/ExecutionHighlight.java` 计算，服务器在登录时发送 `ExecutionNetwork.HighlightRules`（开关、普通/眩晕血线及白名单），客户端退出连接时清除，死亡重生和换维度保留。同一渲染作用域提供 partial tick，`ExecutionLivingEntityRendererMixin.getOverlayCoords` 为低于血线的成年白名单 Mob 选择泛白覆盖坐标；40 tick 正弦呼吸，强度 0～20%，处决中及不可见模型不提示，红色受伤/死亡覆盖与原有闪白优先。`ExecutionOverlayTextureMixin` 保留原版覆盖贴图前 16 列，扩展额外的 1/255 精度白色渐变列，避免原版 5% 步长造成呼吸跳变；沿用实体着色器、光照、透明度和模型渲染层。
 
 ## 改什么，读什么
 
@@ -30,7 +32,7 @@ Blender 中 `player` 是处决者，对应 `executioner`；`player_B` 是被处�
 | --- | --- | --- |
 | 血量、距离、可处决生物、音效帧、剑/斧动作 ID | `config/fiercerbattles.json`；`config/FiercerBattlesConfig.java` | `execution.action_id` 保留为剑动作；`axe_action_id` 为斧动作，旧配置缺少新字段时自动使用默认斧动作。剑受伤声沿用配置，斧受伤声固定在原动画第 13 帧。服务器以自己的配置为准。 |
 | 武器限制、独立处决键 | `execution/ExecutionWeapons.java`；`FiercerBattlesClient.java` | 共用注册 ID 分类；`EXECUTION_KEY` 默认 V，和默认 G 的 `COMBAT_SKILL_KEY` 独立。 |
-| 启动条件、开场移动、固定锚点、无敌、音效、击杀、状态恢复 | `FiercerBattlesExecutionServer.java` | 管理服务端处决会话；音效使用原动画起始时间，每个帧只播放一次。原动画结束时交接最终实体根位置并恢复 AI、重力和无敌状态；客户端随后另做 5 tick 视觉复位。 |
+| 启动条件、开场移动、固定锚点、无敌、音效、击杀、状态恢复 | `FiercerBattlesExecutionServer.java` | 管理服务端处决会话；音效使用原动画起始时间，每个帧只播放一次。原动画结束时交接最终实体根位置并恢复 AI 和重力；处决玩家的无敌再延续 `AFTER_GUARD_TICKS`（15 tick，0.75 秒，中止时同样延续，登出时清除）。客户端随后另做 5 tick 视觉复位。 |
 | 按键拾取、失败提示、播放时间、镜头、输入拦截 | `FiercerBattlesExecutionClient.java` | 优先使用画面准星已选中的活体目标，没有时再做六格扩展拾取，避免渲染插值与 tick 射线不一致。主手武器不支持、无目标或服务端拒绝时显示 actionbar 原因，并记录 INFO 日志。第一人称在 0.2 秒内平滑拉到第三人称；鼠标只转镜头，正常结束的 5 tick 复位完成后恢复原视角模式和输入。 |
 | 拉远镜头、鼠标环绕 | `mixin/ExecutionCameraMixin.java`；`mixin/ExecutionMouseHandlerMixin.java` | 拉远距离先平滑再做原版镜头碰撞检查；鼠标沿用灵敏度和反转设置，仅改变独立镜头角度，不能改双人动画朝向。 |
 | 客户端与服务器同步 | `execution/ExecutionNetwork.java`；`FiercerBattlesExecutionServer.java` | 同步已校验的动作定义与双方动画资源，再发送携带动作 ID、哈希、双方身份、开场起点、动画锚点、朝向和同一起始时间的 Start；原动画的 `startGameTime` 为请求成功的世界 tick 加 5。 |
@@ -47,6 +49,8 @@ Blender 中 `player` 是处决者，对应 `executioner`；`player_B` 是被处�
 上述时长只包含原动画。请求成功后先播放 5 tick（0.25 秒）开场，再从原动画第 0 帧开始，原动画完成后进行 5 tick（0.25 秒）复位。正常完整流程为剑 66 tick（3.3 秒）、斧 40 tick（2 秒）；`duration_ticks` 与原动画的帧号保持不变，音效仍按原动画帧号计时。
 
 导出工具是 `tools/export_execution.py`；源文件分别是 `D:/code/mcmod/资源包/blender动画/处决/execution.blend` 和同目录的 `axe_execution.blend`。默认参数仍导出剑；斧使用 `-- --name axe_execution --duration 30 --step 0.0625`，回算时追加 `--verify`。重导时需一起核对动作定义里的几何参数和时长。斧双方偏移为 right=-0.1636333615、forward=0.9793289900 格，朝向差约 -180°；结束水平位移为 0、朝向变化 -144.676503°。处决入口仍是服务端 `tryStart`；注册新动作不需要改播放器。
+
+指定音效由 `execution/ExecutionSoundTimeline.java` 按武器分类提供，`FiercerBattlesExecutionServer.playFrameSounds` 广播给附近玩家，每个帧只触发一次：剑在原动画第 12、20 帧播放 `fiercerbattles:brutal_hit`，第 46 帧播放 `fiercerbattles:push_open`；斧仅在第 12 帧播放 `brutal_hit`。开场 5 tick 不计入帧号，短动作忽略超出时长的音效帧。音效来自用户提供的 `brutalhit.mp3`（约 2.066 秒）和 `pushopen.mp3`（约 0.767 秒），保留完整长度并转为单声道 44.1 kHz OGG Vorbis，位于 `assets/fiercerbattles/sounds/execution/`。它们独立于现有原版挥剑声与生物受伤声配置。
 
 ## 用数据包注册双人动作
 
@@ -99,7 +103,7 @@ data/<命名空间>/fiercerbattles_animations/<动画路径>.json
 1. **一起摆位、一起计时。** 保留 Start 的双方开场起点、动画锚点与 `startGameTime`；后者是请求成功 tick 加 5。双方共享 `ExecutionTimeline`，先用 5 tick 移动并衔接到首帧，再按同一时间播放原动画，不要让两个角色分别启动计时。
 2. **保留源动画的相对位置。** 两套动作右方均约 `-0.163633` 格，剑动作前方约 `1.383237` 格、斧动作前方约 `0.979329` 格，朝向相差约 `180°`；读取各自 `action.geometry()`，偏移随整体朝向旋转。直接改成正面对齐会破坏手与身体的接触位置。
 3. **根位移只计算一次。** 开场移动只负责从起点到锚点；原动画阶段实体位置固定，运动已经烘焙在模型动画里，不要每 tick 再把动画位移加到实体上。保留播放时统一的模型缩放、已烘焙的父级变换，以及衣服和装备的跟随处理，避免叠加普通动画变换。
-4. **结束姿势交接给实体。** 原动画成功结束时读取该动作的 `executor_end_*`：剑沿局部前方约 `0.479887` 格、朝向增加约 `86.124866°`；斧水平位移为 0、朝向变化约 `-144.676503°`。保留地面高度，同时恢复服务端重力、AI 和无敌状态；客户端随后用 5 tick 过渡回普通姿势和比例，复位完成后恢复镜头与输入。视觉复位不延长服务端无敌。被处决者保留结束姿势 20 tick；中止时及时清理服务端状态和客户端控制。
+4. **结束姿势交接给实体。** 原动画成功结束时读取该动作的 `executor_end_*`：剑沿局部前方约 `0.479887` 格、朝向增加约 `86.124866°`；斧水平位移为 0、朝向变化约 `-144.676503°`。保留地面高度，同时恢复服务端重力和 AI；处决玩家的无敌再延续 15 tick（`AFTER_GUARD_TICKS`）。客户端随后用 5 tick 过渡回普通姿势和比例，复位完成后恢复镜头与输入。被处决者保留结束姿势 20 tick；中止时及时清理服务端状态和客户端控制。
 
 新增另一套双人动作时，在现有动作定义中提供各自几何与时长，并接入所需动作选择；继续使用已有 clip、播放器、会话同步和渲染流程。只换资源 ID 而不核对源动画几何与时长会造成错位。
 

@@ -1,0 +1,5 @@
+{
+  "Combatskill": true,
+  "json": "axe_combat_art.json",
+  "parent": "bettercombat:heavy_axe"
+}

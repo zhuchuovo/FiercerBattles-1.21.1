@@ -1,0 +1,38 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.fiercerbattles.mobcombat.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MobCombatMathMixin",
+    "MobAttackCollisionMixin",
+    "LivingEntityAttackStrengthAccessor",
+    "LivingEntitySwingMixin",
+    "CustomMobDamageAnimationMixin",
+    "LivingEntityWeaponMixin",
+    "MeleeAttackGoalMixin",
+    "MobCombatMixin"
+  ],
+  "client": [
+    "client.embedded.EntityModelMixin",
+    "client.embedded.HierarchicalModelMixin",
+    "client.embedded.HumanoidModelMixin",
+    "client.embedded.IllagerModelMixin",
+    "client.embedded.AbstractZombieModelMixin",
+    "client.embedded.SkeletonModelMixin",
+    "client.embedded.PiglinModelMixin",
+    "client.embedded.PlayerModelMixinMob",
+    "client.embedded.ZombieVillagerModelMixin",
+    "client.embedded.ItemInHandLayerMixin_VindicatorRenderer",
+    "client.embedded.ItemInHandLayerMixin_IllusionerRenderer",
+    "client.embedded.ItemInHandLayerMixin_EvokerRenderer",
+    "client.ClientMobAnimationMixin",
+    "client.LivingEntityRendererMixin",
+    "client.VillagerRetaliationModelMixin",
+    "client.DrownedOuterLayerMixin",
+    "client.EMFModelPartWithStateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

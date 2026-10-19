@@ -1,0 +1,14 @@
+{
+  "rig": "fiercerbattles:humanoid_v1",
+  "duration_ticks": 48,
+  "executor_clip": "fiercerbattles:ground_stab_execution/executioner",
+  "victim_clip": "fiercerbattles:ground_stab_execution/victim",
+  "geometry": {
+    "victim_right": -0.16363336145877838,
+    "victim_forward": 0.979328989982605,
+    "victim_yaw_delta": -179.999981,
+    "executor_end_right": -0.07500004023313522,
+    "executor_end_forward": 0.45000001788139343,
+    "executor_end_yaw_delta": 0.0
+  }
+}

@@ -17,7 +17,19 @@ import java.util.function.Consumer;
 /** The server owns both timing and interruption; no client classes are loaded here. */
 @EventBusSubscriber(modid = FiercerBattles.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public final class ParryNetwork {
-    public enum Kind { PARRY, STAGGER }
+    public enum Kind {
+        PARRY, STAGGER, HITSTUN;
+
+        public boolean locksMovement() { return this == PARRY || this == STAGGER; }
+
+        /**
+         * Only a stun pose suspends the actor in place. A parry pins the horizontal footprint and
+         * keeps falling under gravity for the whole gesture.
+         */
+        public boolean locksVertical() { return this == STAGGER; }
+    }
+    /** Swing guard modes reported by the attacking client; UNSET defers to the server config. */
+    public static final byte GUARD_UNSET = 0, GUARD_INTERRUPTIBLE = 1, GUARD_ARMORED = 2;
     private static Consumer<Sync> clientSync = ignored -> {};
     private static Consumer<Start> clientStart = ignored -> {};
     private static Consumer<Stop> clientStop = ignored -> {};
@@ -32,12 +44,32 @@ public final class ParryNetwork {
 
     public static void request() { PacketDistributor.sendToServer(new Request()); }
 
+    /** Reports whether the swing that just started may be interrupted by a hit, and how long it lasts. */
+    public static void guard(byte mode, int ticks) { guard(mode, ticks, ticks); }
+    public static void guard(byte mode, int ticks, int animationTicks) {
+        PacketDistributor.sendToServer(new Guard(mode, ticks, animationTicks));
+    }
+
+    public static void damageChecked() { PacketDistributor.sendToServer(new AttackPhase(false)); }
+    public static void animationFinished() { PacketDistributor.sendToServer(new AttackPhase(true)); }
+
     @SubscribeEvent
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("parry-1");
+        var registrar = event.registrar("parry-3");
         registrar.playToServer(Request.TYPE, Request.STREAM_CODEC, (payload, context) -> {
             if (context.player() instanceof ServerPlayer player && !ParryServer.tryStart(player)) {
                 PacketDistributor.sendToPlayer(player, new Reject());
+            }
+        });
+        registrar.playToServer(Guard.TYPE, Guard.STREAM_CODEC, (payload, context) -> {
+            if (context.player() instanceof ServerPlayer player) {
+                ParryServer.guard(player, payload.mode(), payload.ticks(), payload.animationTicks());
+            }
+        });
+        registrar.playToServer(AttackPhase.TYPE, AttackPhase.STREAM_CODEC, (payload, context) -> {
+            if (context.player() instanceof ServerPlayer player) {
+                if (payload.finished()) ParryServer.animationFinished(player);
+                else ParryServer.damageChecked(player);
             }
         });
         registrar.playToClient(Sync.TYPE, Sync.STREAM_CODEC, (payload, context) -> clientSync.accept(payload));
@@ -55,6 +87,21 @@ public final class ParryNetwork {
         public static final StreamCodec<RegistryFriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.of(
                 (buffer, value) -> {}, buffer -> new Request());
         @Override public Type<Request> type() { return TYPE; }
+    }
+
+    public record Guard(byte mode, int ticks, int animationTicks) implements CustomPacketPayload {
+        public static final Type<Guard> TYPE = ParryNetwork.type("hit_guard");
+        public static final StreamCodec<RegistryFriendlyByteBuf, Guard> STREAM_CODEC = StreamCodec.of(
+                (buffer, value) -> { buffer.writeByte(value.mode); buffer.writeVarInt(value.ticks); buffer.writeVarInt(value.animationTicks); },
+                buffer -> new Guard(buffer.readByte(), buffer.readVarInt(), buffer.readVarInt()));
+        @Override public Type<Guard> type() { return TYPE; }
+    }
+
+    public record AttackPhase(boolean finished) implements CustomPacketPayload {
+        public static final Type<AttackPhase> TYPE = ParryNetwork.type("parry_attack_phase");
+        public static final StreamCodec<RegistryFriendlyByteBuf, AttackPhase> STREAM_CODEC = StreamCodec.of(
+                (buffer, value) -> buffer.writeBoolean(value.finished), buffer -> new AttackPhase(buffer.readBoolean()));
+        @Override public Type<AttackPhase> type() { return TYPE; }
     }
 
     public record Reject() implements CustomPacketPayload {

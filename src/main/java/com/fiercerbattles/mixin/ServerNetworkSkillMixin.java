@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * This mixin is common so the integrated server in singleplayer is covered
  * as well.
  */
-@Mixin(targets = "net.bettercombat.network.ServerNetwork")
+@Mixin(targets = "com.fiercerbattles.bettercombat.network.ServerNetwork")
 public abstract class ServerNetworkSkillMixin {
 
     @Inject(method = "handleAttackRequest", at = @At("HEAD"), remap = false)

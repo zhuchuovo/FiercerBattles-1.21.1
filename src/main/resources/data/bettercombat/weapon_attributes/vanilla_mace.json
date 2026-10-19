@@ -1,0 +1,18 @@
+{
+  "attributes": {
+    "range_bonus": -0.25,
+    "category": "mace",
+    "attacks": [
+      {
+        "hitbox": "FORWARD_BOX",
+        "damage_multiplier": 1,
+        "angle": 90,
+        "upswing": 0.1,
+        "animation": "bettercombat:one_handed_slam_instant",
+        "swing_sound": {
+          "id": "bettercombat:mace_slam"
+        }
+      }
+    ]
+  }
+}

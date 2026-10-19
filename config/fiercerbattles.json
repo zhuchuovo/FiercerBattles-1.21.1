@@ -6,7 +6,15 @@
     "action_id": "fiercerbattles:execution",
     "humanoid_entities": [
       "minecraft:zombie",
-      "minecraft:skeleton"
+      "minecraft:husk",
+      "minecraft:drowned",
+      "minecraft:zombie_villager",
+      "minecraft:skeleton",
+      "minecraft:stray",
+      "minecraft:bogged",
+      "minecraft:piglin",
+      "minecraft:piglin_brute",
+      "minecraft:zombified_piglin"
     ],
     "hurt_sound_frames": [12, 20, 24, 28, 32, 36, 40, 48],
     "swing_sound_frames": [12, 24]

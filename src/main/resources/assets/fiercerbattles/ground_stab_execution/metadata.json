@@ -1,0 +1,324 @@
+{
+  "source_file": "ground_stab_execution.blend",
+  "source_sha256": "2518d8172032f77b8f39a7c8e2eeae369c018a7ffb1feb96a9adf29c19fe6c60",
+  "source_fps": 20.0,
+  "source_frame_start": 0,
+  "source_frame_end": 48,
+  "duration_ticks": 48,
+  "sample_step": 0.0625,
+  "pixels_per_blender_unit": 4.0,
+  "relative_victim_position_blocks_at_executor_yaw_zero": [
+    -0.16363336145877838,
+    0.0,
+    0.979328989982605
+  ],
+  "relative_victim_yaw_degrees": -179.999981,
+  "root_to_feet_blocks": 0.75,
+  "max_bend_radians": 0.0,
+  "conversion": {
+    "source_world_to_minecraft_world_at_executor_yaw_zero": "0.25 * (x, z, -y)",
+    "model_pivot_pixels": "4 * W * Rz(-rootYaw) * (worldPivot - rootPositionAtFrame0) + (0,12,0)",
+    "model_rotation": "W * Rz(-rootYaw) * worldRotation * inverse(H)",
+    "W": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "H": [
+      [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    ],
+    "body_source_local_pivot": [
+      0.0,
+      0.0,
+      3.0
+    ],
+    "quaternion_order": [
+      "x",
+      "y",
+      "z",
+      "w"
+    ]
+  },
+  "notes": [
+    "All evaluated parents are baked into the sampled humanoid model-part channels.",
+    "Model positions are absolute pixels. Do not add vanilla pivots or animate torso position a second time.",
+    "Both entities use a shared render scale of 1.0; standard player's 0.9375 scale causes contact drift.",
+    "Body uses shoulder pivot, source torso local (0,0,3), not the Blender hip origin.",
+    "Each quaternion's sign is made continuous. Java playback uses shortest-path slerp and linear pivot interpolation.",
+    "The paired clips end at 48 game ticks; later held scene frames are not exported.",
+    "At clip end, entity motion comes from the authored torso hip, recovered as bodyPivot + bodyQuaternion * (0,12,0), never directly from the shoulder pivot.",
+    "For the idle handoff, rotate actor-local (right,forward) using the starting entity yaw; ending body horizontal heading is a separate yaw offset."
+  ],
+  "verification": {
+    "executioner": {
+      "source_root": "Bone_A",
+      "root_position_blender": [
+        0.0,
+        -1.61563027,
+        0.0
+      ],
+      "root_yaw_radians": 0.0,
+      "sample_count": 769,
+      "rest_mesh_bounds_model_pixels": {
+        "head": {
+          "minimum": [
+            -4.0,
+            -8.0,
+            -4.0
+          ],
+          "maximum": [
+            4.0,
+            0.0,
+            4.0
+          ]
+        },
+        "body": {
+          "minimum": [
+            -4.0,
+            -9.5e-07,
+            -2.0
+          ],
+          "maximum": [
+            4.0,
+            12.0,
+            2.0
+          ]
+        },
+        "rightArm": {
+          "minimum": [
+            -3.00000095,
+            -1.99999988,
+            -2.0
+          ],
+          "maximum": [
+            1.0,
+            9.99999905,
+            2.00000024
+          ]
+        },
+        "leftArm": {
+          "minimum": [
+            -1.0,
+            -1.99999952,
+            -2.00000024
+          ],
+          "maximum": [
+            3.0,
+            9.99999905,
+            2.0
+          ]
+        },
+        "rightLeg": {
+          "minimum": [
+            -2.00000048,
+            0.0,
+            -1.99999988
+          ],
+          "maximum": [
+            2.0,
+            12.0,
+            2.00000024
+          ]
+        },
+        "leftLeg": {
+          "minimum": [
+            -2.00000024,
+            0.0,
+            -2.00000024
+          ],
+          "maximum": [
+            2.0,
+            12.0,
+            1.99999988
+          ]
+        }
+      },
+      "max_sample_pivot_error_pixels": 8.3e-09,
+      "max_sample_rotation_error_degrees": 0.0,
+      "max_source_mesh_vertex_error_pixels": 6.05e-06,
+      "max_half_sample_playback_mesh_error_pixels": 0.03584804,
+      "end_root": {
+        "tick": 48,
+        "source_torso_hip_world_blender": [
+          -0.3000001609325409,
+          -3.415630340576172,
+          0.0
+        ],
+        "source_torso_euler_xzy_radians": [
+          0.0,
+          0.0,
+          3.141592502593994
+        ],
+        "actor_local_hip_delta_blocks_right_up_forward": [
+          -0.07500004023313522,
+          0.0,
+          0.45000001788139343
+        ],
+        "actor_local_horizontal_yaw_delta_degrees": 8.651422209050105e-06,
+        "reconstructed_hip_model_pixels": [
+          -1.20000064,
+          12.0,
+          -7.20000029
+        ],
+        "max_hip_reconstruction_error_blocks": 0.0,
+        "yaw_reconstruction_error_degrees": 5.159024573288375e-07,
+        "body_tilt_from_vertical_degrees": 0.0
+      }
+    },
+    "victim": {
+      "source_root": "Bone_B",
+      "root_position_blender": [
+        -0.65453345,
+        -5.53294611,
+        0.0
+      ],
+      "root_yaw_radians": 3.1415929794,
+      "sample_count": 769,
+      "rest_mesh_bounds_model_pixels": {
+        "head": {
+          "minimum": [
+            -4.0,
+            -8.0,
+            -3.99999928
+          ],
+          "maximum": [
+            4.0,
+            -1e-08,
+            4.00000095
+          ]
+        },
+        "body": {
+          "minimum": [
+            -4.0,
+            -9.5e-07,
+            -1.99999917
+          ],
+          "maximum": [
+            4.0,
+            12.0,
+            2.00000072
+          ]
+        },
+        "rightArm": {
+          "minimum": [
+            -3.00000095,
+            -1.99999988,
+            -2.00000095
+          ],
+          "maximum": [
+            1.0,
+            9.99999905,
+            1.99999928
+          ]
+        },
+        "leftArm": {
+          "minimum": [
+            -0.99999994,
+            -1.99999952,
+            -1.99999964
+          ],
+          "maximum": [
+            3.0,
+            9.99999905,
+            2.00000072
+          ]
+        },
+        "rightLeg": {
+          "minimum": [
+            -2.00000048,
+            0.0,
+            -1.99999976
+          ],
+          "maximum": [
+            2.0,
+            12.0,
+            2.00000024
+          ]
+        },
+        "leftLeg": {
+          "minimum": [
+            -2.00000024,
+            0.0,
+            -2.00000048
+          ],
+          "maximum": [
+            2.0,
+            12.0,
+            1.99999952
+          ]
+        }
+      },
+      "max_sample_pivot_error_pixels": 8.3e-09,
+      "max_sample_rotation_error_degrees": 0.05595291,
+      "max_source_mesh_vertex_error_pixels": 7.92e-06,
+      "max_half_sample_playback_mesh_error_pixels": 0.0087387,
+      "end_root": {
+        "tick": 48,
+        "source_torso_hip_world_blender": [
+          -0.6545338034629822,
+          -7.4552764892578125,
+          -2.450000047683716
+        ],
+        "source_torso_euler_xzy_radians": [
+          1.5484824180603027,
+          -1.4325983954677213e-08,
+          3.141592025756836
+        ],
+        "actor_local_hip_delta_blocks_right_up_forward": [
+          2.7655272560878075e-07,
+          -0.612500011920929,
+          -0.480582594871521
+        ],
+        "actor_local_horizontal_yaw_delta_degrees": 3.752934795463214e-05,
+        "reconstructed_hip_model_pixels": [
+          4.36e-06,
+          21.79999733,
+          7.68932056
+        ],
+        "max_hip_reconstruction_error_blocks": 1.8852772798609698e-07,
+        "yaw_reconstruction_error_degrees": 2.1933874723310445e-06,
+        "body_tilt_from_vertical_degrees": 87.0000192959598
+      }
+    }
+  },
+  "end_root_reconstruction": {
+    "hip_model_pixels": "bodyPivot + bodyQuaternion * (0,12,0)",
+    "actor_local_delta_blocks_right_up_forward": "(hip.x / 16, (12 - hip.y) / 16, -hip.z / 16)",
+    "front_model": "bodyQuaternion * (0,0,-1)",
+    "actor_yaw_offset_radians": "atan2(-frontModel.x, -frontModel.z)",
+    "world_delta_xz_for_initial_actor_yaw_theta": "(right*cos(theta)-forward*sin(theta), right*sin(theta)+forward*cos(theta))",
+    "grounded_idle_handoff": "Use horizontal hip delta and preserve grounded entity Y; yaw becomes initial actor yaw plus projected final body yaw delta."
+  },
+  "verification_limits": {
+    "max_source_mesh_vertex_error_pixels": 0.0001,
+    "max_half_sample_playback_mesh_error_pixels": 0.075,
+    "max_half_sample_playback_mesh_error_blocks": 0.0046875,
+    "command": "blender --background --disable-autoexec ground_stab_execution.blend --python-exit-code 1 --python tools/export_execution.py -- --name ground_stab_execution --duration 48 --step 0.0625 --verify"
+  }
+}

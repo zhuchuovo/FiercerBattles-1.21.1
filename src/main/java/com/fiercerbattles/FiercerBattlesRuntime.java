@@ -1,6 +1,7 @@
 package com.fiercerbattles;
 
 import com.fiercerbattles.config.FiercerBattlesConfig;
+import com.fiercerbattles.parry.ParryAttackWindow;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -36,6 +37,7 @@ public final class FiercerBattlesRuntime {
     private static int animationResourceStopFrame = -1;
     private static boolean forceOriginalPlayback = false;
     private static int damageResolvedTick = -1;
+    private static ParryAttackWindow parryAttackWindow;
     private static boolean currentCombatSkill = false;
     private static String preparedAttackKey = "";
     private static double currentRangeBonus = 0;
@@ -79,6 +81,7 @@ public final class FiercerBattlesRuntime {
         animationResourceStopFrame = -1;
         forceOriginalPlayback = false;
         damageResolvedTick = -1;
+        parryAttackWindow = null;
         currentCombatSkill = false;
         preparedAttackKey = "";
         currentRangeBonus = 0;
@@ -160,6 +163,7 @@ public final class FiercerBattlesRuntime {
         currentAttackCooldownTicks = Math.max(1, Math.round(attackCooldownTicks));
         animationStartTick = startTick;
         animationPlaybackLengthTicks = Math.max(1.0F, animationLengthTicks);
+        parryAttackWindow = ParryAttackWindow.start(startTick, currentAnimationTicks());
         animationResourceStopFrame = animationStopFrame(currentAnimation);
         forceOriginalPlayback = forceOriginalPlayback(currentAnimation);
 
@@ -222,7 +226,63 @@ public final class FiercerBattlesRuntime {
         }
     }
 
-    /** Marks the point at which Better Combat has completed the attack's damage check. */
+    /**
+     * Whether being hit interrupts the current swing: the segment's (or its
+     * weapon file's) hit_interruptible, then the config entry for the
+     * animation; null leaves the decision to the server's default.
+     */
+    public static Boolean currentHitInterruptible() {
+        FiercerBattlesCustomData.AttackData custom = currentCustomData;
+        if (custom != null && custom.hitInterruptible != null) {
+            return custom.hitInterruptible;
+        }
+        return FiercerBattlesConfig.getHitInterruptible(currentAnimation);
+    }
+
+    /** Game ticks the current swing lasts: the longer of its cooldown and its animation playback. */
+    public static int currentSwingTicks() {
+        return (int) Math.ceil(Math.max(currentAttackCooldownTicks, animationPlaybackLengthTicks));
+    }
+
+    public static int currentAnimationTicks() {
+        return (int) Math.ceil(animationPlaybackLengthTicks);
+    }
+
+    /** Separate from recovery cancellation: misses and combat-skill damage checks also close the parry window. */
+    public static boolean markParryDamageChecked() {
+        if (parryAttackWindow == null || parryAttackWindow.damageChecked()) return false;
+        parryAttackWindow = parryAttackWindow.afterDamageCheck();
+        return true;
+    }
+
+    public static void clearParryAttack() { parryAttackWindow = null; }
+
+    public static boolean finishParryAttack(int currentTick) {
+        if (parryAttackWindow == null || !parryAttackWindow.damageChecked() || !canParry(currentTick)) return false;
+        parryAttackWindow = null;
+        return true;
+    }
+
+    public static boolean canParry(int currentTick) {
+        if (parryAttackWindow == null || !parryAttackWindow.damageChecked() || currentTick < animationStartTick) return true;
+        try {
+            Minecraft minecraft = Minecraft.getInstance();
+            LocalPlayer player = minecraft == null ? null : minecraft.player;
+            Object attack = player == null ? null : findFieldValue(player, "attackAnimation");
+            Object base = attack == null ? null : findFieldValue(attack, "base");
+            if (base != null) {
+                Object animation = invokeNoArg(base, "getAnimation");
+                if (animation == null) return true;
+                Object active = invokeNoArg(animation, "isActive");
+                if (active instanceof Boolean playing) return !playing;
+            }
+        } catch (RuntimeException ignored) {
+            // Use the captured animation duration when the live player is unavailable.
+        }
+        return parryAttackWindow.allowsParry(currentTick);
+    }
+
+        /** Marks the point at which Better Combat has completed the attack's damage check. */
     public static void markDamageResolved(int tick) {
         if (!currentCombatSkill) {
             damageResolvedTick = tick;

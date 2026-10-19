@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Adds per-attack range bonus from datapack custom fields.
  */
-@Mixin(targets = "net.bettercombat.logic.PlayerAttackHelper")
+@Mixin(targets = "com.fiercerbattles.bettercombat.logic.PlayerAttackHelper")
 public abstract class PlayerAttackHelperMixin {
 
     @Inject(method = "getStaticRange", at = @At("RETURN"), remap = false, cancellable = true)

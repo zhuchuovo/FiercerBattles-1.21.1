@@ -1,9 +1,11 @@
 package com.fiercerbattles.mixin;
 
 import com.fiercerbattles.execution.client.ExecutionRenderContext;
+import com.fiercerbattles.execution.client.ExecutionHighlight;
 import com.fiercerbattles.FiercerBattlesExecutionClient;
 import com.fiercerbattles.animation.core.AnimationClip;
 import com.fiercerbattles.animation.core.AnimationPoseContext;
+import com.fiercerbattles.locomotion.client.LocomotionRenderContext;
 import com.fiercerbattles.parry.client.ParryClient;
 import com.fiercerbattles.parry.client.ParryRenderContext;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -22,11 +24,20 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LivingEntityRenderer.class)
 public abstract class ExecutionLivingEntityRendererMixin {
     @Shadow protected abstract void setupRotations(LivingEntity entity, PoseStack poses, float age, float yaw, float partial, float scale);
     @Shadow protected abstract void scale(LivingEntity entity, PoseStack poses, float partial);
+
+    @Inject(method = "getOverlayCoords", at = @At("RETURN"), cancellable = true)
+    private static void fiercerbattles$highlightHealthLine(LivingEntity entity, float whiteProgress,
+                                                         CallbackInfoReturnable<Integer> cir) {
+        cir.setReturnValue(ExecutionHighlight.overlay(entity, ExecutionRenderContext.partialTick(entity),
+                cir.getReturnValueI()));
+    }
 
     @WrapMethod(method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V")
     private void fiercerbattles$renderExecution(LivingEntity entity, float yaw, float partial, PoseStack poses, MultiBufferSource buffers, int light, Operation<Void> original) {
@@ -49,12 +60,14 @@ public abstract class ExecutionLivingEntityRendererMixin {
             }
         }
         ParryRenderContext.begin(entity, partial, poses.last().pose(), actor != null);
+        LocomotionRenderContext.begin(entity, partial, actor != null || ParryRenderContext.isActive());
         ExecutionRenderContext.begin(entity, partial);
         try {
             original.call(entity, yaw, partial, poses, buffers, light);
         } finally {
             poses.popPose();
             ExecutionRenderContext.end();
+            LocomotionRenderContext.end();
             ParryRenderContext.end();
         }
     }

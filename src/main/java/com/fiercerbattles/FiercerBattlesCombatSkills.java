@@ -1035,7 +1035,7 @@ public final class FiercerBattlesCombatSkills {
 
     private static Object weaponAttributes(ItemStack stack) {
         try {
-            Class<?> registryClass = Class.forName("net.bettercombat.logic.WeaponRegistry");
+            Class<?> registryClass = Class.forName("com.fiercerbattles.bettercombat.logic.WeaponRegistry");
             for (Method method : registryClass.getDeclaredMethods()) {
                 if (!method.getName().equals("getAttributes") || method.getParameterCount() != 1
                         || !method.getParameterTypes()[0].isAssignableFrom(stack.getClass())) {
@@ -1144,7 +1144,7 @@ public final class FiercerBattlesCombatSkills {
             return null;
         }
         try {
-            Class<?> handClass = Class.forName("net.bettercombat.api.AttackHand");
+            Class<?> handClass = Class.forName("com.fiercerbattles.bettercombat.api.AttackHand");
             for (Constructor<?> constructor : handClass.getDeclaredConstructors()) {
                 if (constructor.getParameterCount() != 5) {
                     continue;
@@ -1166,7 +1166,7 @@ public final class FiercerBattlesCombatSkills {
     /** Combo state of the off-hand weapon's skill step, or null when unavailable. */
     private static Object comboStateFor(Selection selection) {
         try {
-            Class<?> stateClass = Class.forName("net.bettercombat.api.ComboState");
+            Class<?> stateClass = Class.forName("com.fiercerbattles.bettercombat.api.ComboState");
             for (Constructor<?> constructor : stateClass.getDeclaredConstructors()) {
                 Class<?>[] parameters = constructor.getParameterTypes();
                 if (parameters.length != 2 || parameters[0] != int.class || parameters[1] != int.class) {
@@ -1376,7 +1376,7 @@ public final class FiercerBattlesCombatSkills {
         private Object attributes() {
             if (attributes == null) {
                 try {
-                    Class<?> attributesClass = Class.forName("net.bettercombat.api.WeaponAttributes");
+                    Class<?> attributesClass = Class.forName("com.fiercerbattles.bettercombat.api.WeaponAttributes");
                     Object parsed = GSON.fromJson(attributesJson, attributesClass);
                     Field attacksField = attributesClass.getDeclaredField("attacks");
                     attacksField.setAccessible(true);
@@ -1487,6 +1487,8 @@ public final class FiercerBattlesCombatSkills {
                     && attributes.get("damage_multiplier").isJsonPrimitive()
                     ? Math.max(0, attributes.get("damage_multiplier").getAsDouble())
                     : 0;
+            Boolean hitInterruptible = FiercerBattlesCustomData.readFlag(
+                    attributes, FiercerBattlesCustomData.HIT_INTERRUPTIBLE_KEYS);
             JsonArray attacks = attributes.getAsJsonArray("attacks");
             for (JsonElement attack : attacks) {
                 if (!attack.isJsonObject()) {
@@ -1504,6 +1506,9 @@ public final class FiercerBattlesCombatSkills {
                 }
                 if (data.damageMultiplier == 0) {
                     data.damageMultiplier = damageMultiplier;
+                }
+                if (data.hitInterruptible == null) {
+                    data.hitInterruptible = hitInterruptible;
                 }
                 data.skillEffect = skillEffect;
                 data.skillId = skillId;

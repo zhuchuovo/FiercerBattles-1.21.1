@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(targets = "net.bettercombat.logic.PlayerAttackHelper")
+@Mixin(targets = "com.fiercerbattles.bettercombat.logic.PlayerAttackHelper")
 public abstract class ClientPlayerAttackHelperCombatSkillMixin {
     @Inject(method = "getCurrentAttack", at = @At("RETURN"), cancellable = true, remap = false)
     private static void fiercerbattles$selectClientCombatSkill(

@@ -16,7 +16,7 @@ import java.util.List;
  * The speed field is located reflectively, so this project does not need a
  * compile-time dependency on BetterCombat or PlayerAnimator internals.
  */
-@Mixin(targets = "net.bettercombat.client.animation.modifier.TransmissionSpeedModifier")
+@Mixin(targets = "com.fiercerbattles.bettercombat.client.animation.modifier.TransmissionSpeedModifier")
 public abstract class TransmissionSpeedModifierMixin {
 
     @Inject(

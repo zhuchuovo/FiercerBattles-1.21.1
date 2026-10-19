@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Guards both packet reception and already-queued Better Combat attack tasks. */
-@Mixin(targets = "net.bettercombat.network.ServerNetwork", priority = 2000)
+@Mixin(targets = "com.fiercerbattles.bettercombat.network.ServerNetwork", priority = 2000)
 public abstract class ExecutionServerNetworkMixin {
     @Inject(method = "handleAttackRequest", at = @At("HEAD"), cancellable = true, remap = false)
     private static void fiercerbattles$blockExecutionAttackRequest(

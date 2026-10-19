@@ -1,0 +1,193 @@
+{
+  "source_file": "\u8d77\u8eab.blend",
+  "source_sha256": "565cf7a84a0ccc6f4b851902b240dddc11297ba092e2e89a9797cf1de375fc51",
+  "source_fps": 20.0,
+  "source_scene_frame_start": 0,
+  "source_scene_frame_end": 12,
+  "authored_begin_frame": 0,
+  "authored_end_frame": 12.0,
+  "authored_duration_game_ticks": 12.0,
+  "duration_ticks": 12,
+  "frame_to_game_tick": "(source_frame - authored_begin_frame) * 20 / source_fps",
+  "source_rig": "Bone_A plus six rigid humanoid mesh objects; zero-bend halves",
+  "rig": "fiercerbattles:humanoid_v1",
+  "root_position_blender": [
+    0.0,
+    -1.61563027,
+    0.0
+  ],
+  "root_yaw_radians": 0.0,
+  "active_rig_keyframes": {
+    "head": [
+      0.0,
+      3.0,
+      5.0,
+      7.0,
+      9.0,
+      12.0
+    ],
+    "leftArm": [
+      0.0,
+      3.0,
+      5.0,
+      7.0,
+      9.0,
+      12.0
+    ],
+    "leftArm_bend": [
+      0.0
+    ],
+    "leftLeg": [
+      0.0,
+      3.0,
+      5.0,
+      7.0,
+      9.0,
+      12.0
+    ],
+    "leftLeg_bend": [
+      0.0
+    ],
+    "rightArm": [
+      0.0,
+      3.0,
+      5.0,
+      7.0,
+      9.0,
+      12.0
+    ],
+    "rightArm_bend": [
+      0.0
+    ],
+    "rightLeg": [
+      0.0,
+      3.0,
+      5.0,
+      7.0,
+      9.0,
+      12.0
+    ],
+    "rightLeg_bend": [
+      0.0
+    ],
+    "torso": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0,
+      10.0,
+      11.0,
+      12.0
+    ],
+    "torso_bend": [
+      0.0
+    ]
+  },
+  "timeline_markers": [],
+  "sample_step": 0.0625,
+  "sample_count": 193,
+  "end_root": {
+    "right": 0.0,
+    "forward": -0.0,
+    "yaw": -5.01e-06
+  },
+  "end_root_up_blocks": 0.0,
+  "rest_mesh_bounds_model_pixels": {
+    "head": [
+      [
+        -4.0,
+        -8.0,
+        -4.0
+      ],
+      [
+        4.0,
+        1.5e-07,
+        4.0
+      ]
+    ],
+    "body": [
+      [
+        -4.0,
+        -9.5e-07,
+        -2.00000072
+      ],
+      [
+        4.0,
+        12.0,
+        1.99999976
+      ]
+    ],
+    "rightArm": [
+      [
+        -3.00000072,
+        -2.00000048,
+        -2.00000072
+      ],
+      [
+        1.00000048,
+        9.99999905,
+        1.99999976
+      ]
+    ],
+    "leftArm": [
+      [
+        -1.00000036,
+        -2.00000024,
+        -2.00000167
+      ],
+      [
+        3.00000024,
+        9.99999905,
+        1.99999881
+      ]
+    ],
+    "rightLeg": [
+      [
+        -2.00000095,
+        -5.9e-07,
+        -2.00000024
+      ],
+      [
+        1.99999976,
+        12.0,
+        2.00000072
+      ]
+    ],
+    "leftLeg": [
+      [
+        -1.99999988,
+        1.4e-07,
+        -1.99999893
+      ],
+      [
+        2.00000024,
+        11.99999905,
+        2.00000143
+      ]
+    ]
+  },
+  "verification": {
+    "max_source_mesh_vertex_error_pixels": 6.050385256027947e-06,
+    "max_half_sample_mesh_error_pixels": 0.009246768780095862,
+    "first_middle_last_source_mesh_errors_pixels": {
+      "0.0": 6.050385256027947e-06,
+      "6.0": 3.814697265625e-06,
+      "12.0": 1.8370771643874008e-06
+    },
+    "end_hip_reconstruction_error_blocks": 0.0,
+    "end_yaw_reconstruction_error_degrees": 4.252937977858174e-07
+  },
+  "notes": [
+    "Every evaluated parent is baked, including the source root pitch. Only initial root yaw is removed.",
+    "In-place locomotion clip: the entity root stays put and gameplay moves the entity; end_root only describes the final pose.",
+    "loop_start_tick / loop_end_tick come from the loop_start / loop_end timeline markers; gameplay repeats that range.",
+    "Humanoid positions are absolute model pixels and quaternions use x,y,z,w; existing AnimationClip/AnimationPlayer interpolation applies.",
+    "Item helpers have no animated offset from the arm; the existing item-in-hand transform is retained."
+  ]
+}

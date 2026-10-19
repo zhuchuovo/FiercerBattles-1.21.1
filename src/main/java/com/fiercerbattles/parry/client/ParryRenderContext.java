@@ -70,16 +70,23 @@ public final class ParryRenderContext {
     public static AnimationClip.Transform sample(String channel, AnimationClip.Transform ordinary) {
         Frame frame = FRAMES.get().peek();
         if (frame == null || frame.actor == null || frame.actor.matrixReplay(frame.partial)) return null;
-        AnimationClip.Transform sampled = frame.actor.animation().sample(channel, frame.actor.tick(frame.partial));
-        if (sampled == null) return null;
-        float ordinaryWeight = frame.actor.ordinaryProgress(frame.partial);
-        if (ordinaryWeight <= 0) return sampled;
         float scale = ordinaryScale(frame.entity);
+        AnimationClip.Transform sampled = scaledPose(
+                frame.actor.animation().sample(channel, frame.actor.tick(frame.partial)), scale);
+        if (sampled == null) return null;
+        return blendOrdinary(frame.entity, sampled, ordinary, frame.actor.ordinaryProgress(frame.partial));
+    }
+
+    /** Fade a clip pose already at ordinary scale (see {@link #scaledPose}) toward the vanilla pose. */
+    public static AnimationClip.Transform blendOrdinary(LivingEntity entity, AnimationClip.Transform sampled,
+                                                       AnimationClip.Transform ordinary, float ordinaryWeight) {
+        if (ordinaryWeight <= 0) return sampled;
+        float scale = ordinaryScale(entity);
         return new AnimationClip.Transform(Mth.lerp(ordinaryWeight, sampled.x(), ordinary.x() * scale),
                 Mth.lerp(ordinaryWeight, sampled.y(), ordinary.y() * scale + 16 * 1.501F * (1 - scale)),
                 Mth.lerp(ordinaryWeight, sampled.z(), ordinary.z() * scale),
                 new Quaternionf(sampled.rotation()).slerp(ordinary.rotation(), ordinaryWeight),
-                Mth.lerp(ordinaryWeight, sampled.scale(), scale));
+                sampled.scale());
     }
 
     public static void capture(ModelPart part, PoseStack poses) {
@@ -127,7 +134,7 @@ public final class ParryRenderContext {
         AnimationClip.Transform ordinary = new AnimationClip.Transform(part.x, part.y, part.z,
                 new Quaternionf().rotationZYX(part.zRot, part.yRot, part.xRot));
         Matrix4f fallback = ordinaryMatrix(ordinary, frame.entity).scale(part.xScale, part.yScale, part.zScale);
-        Matrix4f relative = frame.actor.replay(channel, fallback, frame.partial);
+        Matrix4f relative = frame.actor.replay(channel, fallback, frame.partial, ordinaryScale(frame.entity));
         if (relative == null || !relative.isFinite() || Math.abs(relative.determinant3x3()) < 1.0E-8F) return false;
         Matrix4f desired = new Matrix4f(frame.root).mul(relative);
         Matrix4f correction = new Matrix4f(poses.last().pose()).invert().mul(desired);
@@ -140,7 +147,7 @@ public final class ParryRenderContext {
         Frame frame = FRAMES.get().peek();
         if (frame == null || frame.actor == null || !frame.actor.matrixReplay(frame.partial)) return null;
         return frame.actor.replay("body", ordinaryMatrix(new AnimationClip.Transform(0, 0, 0,
-                new Quaternionf()), frame.entity), frame.partial);
+                new Quaternionf()), frame.entity), frame.partial, ordinaryScale(frame.entity));
     }
 
     public static Matrix4f matrix(AnimationClip.Transform pose) {
@@ -155,7 +162,15 @@ public final class ParryRenderContext {
                 .rotate(ordinary.rotation()).scale(scale);
     }
 
-    private static float ordinaryScale(LivingEntity entity) {
+    /** Keep the ordinary entity size in the shared root, including its translated foot anchor. */
+    public static AnimationClip.Transform scaledPose(AnimationClip.Transform pose, float scale) {
+        if (pose == null) return null;
+        return new AnimationClip.Transform(pose.x() * scale,
+                pose.y() * scale + 16 * 1.501F * (1 - scale), pose.z() * scale,
+                new Quaternionf(pose.rotation()), pose.scale() * scale);
+    }
+
+    public static float ordinaryScale(LivingEntity entity) {
         return (entity instanceof Player ? 0.9375F : 1.0F) * entity.getScale();
     }
 

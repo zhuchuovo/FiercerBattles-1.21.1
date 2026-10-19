@@ -25,7 +25,7 @@ import java.util.Map;
  * This lets datapack/mod authors make a specific combo segment feel slower by
  * raising its upswing and/or reducing its movement speed multiplier.
  */
-@Mixin(targets = "net.bettercombat.logic.WeaponRegistry")
+@Mixin(targets = "com.fiercerbattles.bettercombat.logic.WeaponRegistry")
 public abstract class WeaponRegistryMixin {
 
     @Inject(method = "loadContainers", at = @At("HEAD"), remap = false)
@@ -53,7 +53,7 @@ public abstract class WeaponRegistryMixin {
      * mixin can answer {@code isTwoHanded()} accordingly on both sides.
      */
     @Inject(
-            method = "getAttributes(Lnet/minecraft/world/item/ItemStack;)Lnet/bettercombat/api/WeaponAttributes;",
+            method = "getAttributes(Lnet/minecraft/world/item/ItemStack;)Lcom/fiercerbattles/bettercombat/api/WeaponAttributes;",
             at = @At("RETURN"),
             remap = false
     )
@@ -104,7 +104,7 @@ public abstract class WeaponRegistryMixin {
             return null;
         }
         try {
-            Class<?> registryClass = Class.forName("net.bettercombat.logic.WeaponRegistry");
+            Class<?> registryClass = Class.forName("com.fiercerbattles.bettercombat.logic.WeaponRegistry");
             Field containersField = registryClass.getDeclaredField("containers");
             containersField.setAccessible(true);
             Object rawMap = containersField.get(null);

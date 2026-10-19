@@ -3,6 +3,7 @@ package com.fiercerbattles.execution.client;
 import com.fiercerbattles.FiercerBattlesExecutionClient;
 import com.fiercerbattles.animation.core.AnimationClip;
 import com.fiercerbattles.animation.core.AnimationPoseContext;
+import com.fiercerbattles.locomotion.client.LocomotionRenderContext;
 import com.fiercerbattles.parry.client.ParryRenderContext;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -27,12 +28,17 @@ public final class ExecutionRenderContext {
         AnimationPoseContext.begin(new AnimationPoseContext.PoseSource() {
             @Override
             public AnimationClip.Transform sample(String channel, AnimationClip.Transform rest) {
-                return frame.actor == null ? ParryRenderContext.sample(channel, rest) : transform(frame, channel, rest);
+                if (frame.actor != null) return transform(frame, channel, rest);
+                // Parry owns the pose whenever it is active, even when it returns null for matrix replay.
+                return ParryRenderContext.isActive() ? ParryRenderContext.sample(channel, rest)
+                        : LocomotionRenderContext.sample(channel, rest);
             }
 
             @Override
             public float blendProgress() {
-                return frame.actor == null ? ParryRenderContext.ordinaryProgress() : ordinaryProgress(frame);
+                if (frame.actor != null) return ordinaryProgress(frame);
+                return ParryRenderContext.isActive() ? ParryRenderContext.ordinaryProgress()
+                        : LocomotionRenderContext.ordinaryProgress();
             }
         });
     }
@@ -46,15 +52,22 @@ public final class ExecutionRenderContext {
 
     public static boolean isActive() {
         Frame frame = FRAMES.get().peek();
-        return frame != null && frame.actor != null || ParryRenderContext.isActive();
+        return frame != null && frame.actor != null || ParryRenderContext.isActive() || LocomotionRenderContext.isActive();
     }
 
     public static float yaw() {
         Frame frame = FRAMES.get().peek();
-        if (frame == null || frame.actor == null) return ParryRenderContext.yaw();
+        if (frame == null || frame.actor == null) {
+            return ParryRenderContext.isActive() ? ParryRenderContext.yaw() : LocomotionRenderContext.yaw();
+        }
         return frame.actor.returning()
                 ? Mth.rotLerp(frame.partial, frame.entity.yBodyRotO, frame.entity.yBodyRot)
                 : frame.actor.renderYaw(frame.partial);
+    }
+
+    public static float partialTick(LivingEntity entity) {
+        Frame frame = FRAMES.get().peek();
+        return frame != null && frame.entity == entity ? frame.partial : 0;
     }
 
     public static float returnProgress() {
@@ -84,6 +97,15 @@ public final class ExecutionRenderContext {
                     sampled.x() - (float) (geometry.executorEndRight() * 16),
                     sampled.y(), sampled.z() + (float) (geometry.executorEndForward() * 16)));
             rotation = new Quaternionf(rebase).mul(sampled.rotation());
+        }
+        AnimationClip.Transform startPose = frame.actor.startPose(name);
+        if (startPose != null) {
+            // Riposte: approach from the parry-stun pose, already in shared-scale model pixels.
+            return new AnimationClip.Transform(
+                    Mth.lerp(progress, position.x, startPose.x()), Mth.lerp(progress, position.y, startPose.y()),
+                    Mth.lerp(progress, position.z, startPose.z()),
+                    rotation.slerp(new Quaternionf(startPose.rotation()), progress),
+                    Mth.lerp(progress, sampled.scale(), startPose.scale()));
         }
         float ordinaryScale = (frame.entity instanceof Player ? 0.9375F : 1.0F) * frame.entity.getScale();
         float targetX = ordinaryPose.x() * ordinaryScale;

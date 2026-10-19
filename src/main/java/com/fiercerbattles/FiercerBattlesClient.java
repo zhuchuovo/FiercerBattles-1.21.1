@@ -2,6 +2,7 @@ package com.fiercerbattles;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
+import com.fiercerbattles.locomotion.client.LocomotionClient;
 import com.fiercerbattles.parry.client.ParryClient;
 import net.minecraft.Util;
 import net.minecraft.client.KeyMapping;
@@ -47,6 +48,18 @@ public final class FiercerBattlesClient {
             GLFW.GLFW_KEY_R,
             KEY_CATEGORY
     );
+    public static final KeyMapping ROLL_KEY = new KeyMapping(
+            "key.fiercerbattles.roll",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_LEFT_ALT,
+            KEY_CATEGORY
+    );
+    public static final KeyMapping PRONE_KEY = new KeyMapping(
+            "key.fiercerbattles.prone",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_Z,
+            KEY_CATEGORY
+    );
 
     private FiercerBattlesClient() {
     }
@@ -73,7 +86,7 @@ public final class FiercerBattlesClient {
 
     public static void resumeCombatSkill(Minecraft minecraft) {
         if (minecraft.player == null || minecraft.screen != null || FiercerBattlesExecutionClient.blocksInput()
-                || ParryClient.blocksActions()) {
+                || ParryClient.blocksActions() || LocomotionClient.blocksActions()) {
             return;
         }
         if (minecraft.getSingleplayerServer() != null) {
@@ -388,9 +401,12 @@ public final class FiercerBattlesClient {
         public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
             FiercerBattlesExecutionClient.initialize();
             ParryClient.initialize();
+            LocomotionClient.initialize();
             event.register(COMBAT_SKILL_KEY);
             event.register(EXECUTION_KEY);
             event.register(PARRY_KEY);
+            event.register(ROLL_KEY);
+            event.register(PRONE_KEY);
         }
     }
 
@@ -404,6 +420,7 @@ public final class FiercerBattlesClient {
             Minecraft minecraft = Minecraft.getInstance();
             FiercerBattlesExecutionClient.tick();
             ParryClient.tick();
+            LocomotionClient.tick();
             while (EXECUTION_KEY.consumeClick()) {
                 FiercerBattlesExecutionClient.tryRequest(minecraft);
             }
@@ -412,6 +429,12 @@ public final class FiercerBattlesClient {
             }
             while (COMBAT_SKILL_KEY.consumeClick()) {
                 tryStartCombatSkill(minecraft);
+            }
+            while (ROLL_KEY.consumeClick()) {
+                LocomotionClient.tryRoll(minecraft);
+            }
+            while (PRONE_KEY.consumeClick()) {
+                LocomotionClient.toggleProne(minecraft);
             }
         }
 
@@ -432,6 +455,8 @@ public final class FiercerBattlesClient {
             FiercerBattlesExecutionClient.clearActionCache();
             ParryClient.reset();
             ParryClient.clearAnimations();
+            LocomotionClient.reset();
+            LocomotionClient.clearAnimations();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();
@@ -443,6 +468,7 @@ public final class FiercerBattlesClient {
         public static void onPlayerClone(ClientPlayerNetworkEvent.Clone event) {
             FiercerBattlesExecutionClient.reset();
             ParryClient.reset();
+            LocomotionClient.reset();
             FiercerBattlesCombatSkills.clearClientState();
             FiercerBattlesSkillEffects.resetClientCooldowns();
             FiercerBattlesRuntime.resetClientState();

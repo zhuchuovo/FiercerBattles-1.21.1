@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "fiercerbattles:scar_strike"
+    "fiercerbattles:scar_strike",
+    "fiercerbattles:parry_counter"
   ]
 }

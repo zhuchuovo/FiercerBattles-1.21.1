@@ -31,6 +31,7 @@ public final class FiercerBattlesConfig {
         public Double flat_damage;
         public Double knockback;
         public Double knockback_bonus;
+        public Boolean hit_interruptible;
     }
 
     public static class Displacement {
@@ -45,6 +46,40 @@ public final class FiercerBattlesConfig {
     public static class Root {
         public List<Entry> entries = List.of();
         public Execution execution = new Execution();
+        public Hitstun hitstun = new Hitstun();
+        public Parry parry = new Parry();
+    }
+
+    /** Successful parry: counter damage to the attacker and a riposte window while it is stunned. */
+    public static class Parry {
+        public double counter_damage = 10.0;
+        /** Execution health ratio while the target is stunned by a parry (normally execution.health_threshold). */
+        public double stagger_execution_health_threshold = 0.6;
+
+        public float counterDamage() {
+            return Double.isFinite(counter_damage) && counter_damage > 0 ? (float) Math.min(counter_damage, 1000) : 0;
+        }
+
+        public double staggerExecutionHealthThreshold() {
+            return Double.isFinite(stagger_execution_health_threshold) && stagger_execution_health_threshold > 0
+                    && stagger_execution_health_threshold <= 1 ? stagger_execution_health_threshold : 0.6;
+        }
+    }
+
+    /** Hit reaction for players: a short flinch that cancels interruptible attacks. */
+    public static class Hitstun {
+        public boolean enabled = true;
+        /** Used when neither the attack segment, its weapon file nor an entry sets hit_interruptible. */
+        public boolean default_hit_interruptible = true;
+        /** Adult mobs listed in execution.humanoid_entities flinch too, losing the attack they were winding up. */
+        public boolean humanoid_mobs = true;
+        /** Humanoid mobs that never flinch even when humanoid_mobs is on. */
+        public List<String> exempt_mobs = List.of("minecraft:zombie", "minecraft:husk");
+
+        public boolean exempts(LivingEntity entity) {
+            return exempt_mobs != null
+                    && exempt_mobs.contains(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+        }
     }
 
     /** The entity allowlist also declares that these mobs use an adult humanoid model. */
@@ -58,7 +93,11 @@ public final class FiercerBattlesConfig {
         /** Retained for existing configs: the first paired action is selected by swords. */
         public String action_id = ExecutionWeapons.SWORD_ACTION;
         public String axe_action_id = ExecutionWeapons.AXE_ACTION;
-        public List<String> humanoid_entities = List.of("minecraft:zombie", "minecraft:skeleton");
+        /** Mobs rendered by a standard HumanoidModel; wider or rescaled models are left to explicit configs. */
+        public List<String> humanoid_entities = List.of(
+                "minecraft:zombie", "minecraft:husk", "minecraft:drowned", "minecraft:zombie_villager",
+                "minecraft:skeleton", "minecraft:stray", "minecraft:bogged",
+                "minecraft:piglin", "minecraft:piglin_brute", "minecraft:zombified_piglin");
         /** Configurable sword hurt sounds; axes use the single authored frame 13. */
         public List<Integer> hurt_sound_frames = DEFAULT_HURT_SOUND_FRAMES;
         public List<Integer> swing_sound_frames = DEFAULT_SWING_SOUND_FRAMES;
@@ -129,6 +168,12 @@ public final class FiercerBattlesConfig {
                     if (loaded.execution == null) {
                         loaded.execution = new Execution();
                     }
+                    if (loaded.hitstun == null) {
+                        loaded.hitstun = new Hitstun();
+                    }
+                    if (loaded.parry == null) {
+                        loaded.parry = new Parry();
+                    }
                     return loaded;
                 }
             } catch (IOException | RuntimeException ignored) {
@@ -143,6 +188,24 @@ public final class FiercerBattlesConfig {
 
     public static Execution getExecution() {
         return get().execution;
+    }
+
+    public static Hitstun getHitstun() {
+        return get().hitstun;
+    }
+
+    public static Parry getParry() {
+        return get().parry;
+    }
+
+    /** Per-animation override of whether being hit interrupts the attack, or null when unset. */
+    public static Boolean getHitInterruptible(String animation) {
+        for (Entry entry : get().entries) {
+            if (entry.animation != null && entry.animation.equals(animation) && entry.hit_interruptible != null) {
+                return entry.hit_interruptible;
+            }
+        }
+        return null;
     }
 
     public static Double getUpswing(String animation) {

@@ -5,8 +5,10 @@ import com.fiercerbattles.animation.core.AnimationPlayer;
 import com.fiercerbattles.execution.ExecutionNetwork;
 import com.fiercerbattles.execution.ExecutionWeapons;
 import com.fiercerbattles.execution.ExecutionTimeline;
+import com.fiercerbattles.locomotion.client.LocomotionClient;
 import com.fiercerbattles.parry.client.ParryClient;
 import com.fiercerbattles.execution.client.ExecutionRenderContext;
+import com.fiercerbattles.execution.client.ExecutionHighlight;
 import com.fiercerbattles.execution.action.PairedExecutionAction;
 import com.mojang.logging.LogUtils;
 import net.minecraft.Util;
@@ -64,6 +66,8 @@ public final class FiercerBattlesExecutionClient {
         final float executorFromHeadYaw;
         final float victimFromPitch;
         final float victimFromHeadYaw;
+        /** Parry-stun pose the victim was released from (riposte), blended out during the approach. */
+        final Map<String, AnimationClip.Transform> victimStartPose;
 
         Playing(ExecutionNetwork.Start start, PairedExecutionAction action) {
             this.start = start;
@@ -75,14 +79,21 @@ public final class FiercerBattlesExecutionClient {
             executorFromHeadYaw = executor instanceof LivingEntity living ? living.yHeadRot : start.executorFromYaw();
             victimFromPitch = victim == null ? 0 : victim.getXRot();
             victimFromHeadYaw = victim instanceof LivingEntity living ? living.yHeadRot : start.victimFromYaw();
+            victimStartPose = ParryClient.takeReleasedPose(start.victimUuid());
         }
     }
 
     public record Actor(AnimationPlayer playback, PairedExecutionAction action, float yaw, double x, double y, double z,
                         int duration, boolean ended, boolean returning,
                         long returnStart, float returnYawDelta,
-                        double fromX, double fromY, double fromZ, float fromYaw) {
+                        double fromX, double fromY, double fromZ, float fromYaw,
+                        Map<String, AnimationClip.Transform> startPose) {
         public AnimationClip animation() { return playback.clip(); }
+
+        /** Pose to approach from instead of the ordinary model pose, or null. */
+        public AnimationClip.Transform startPose(String channel) {
+            return startPose == null || returning ? null : startPose.get(channel);
+        }
 
         public float tick(float partial) {
             Minecraft minecraft = Minecraft.getInstance();
@@ -119,12 +130,13 @@ public final class FiercerBattlesExecutionClient {
         ExecutionNetwork.setClientHandlers(FiercerBattlesExecutionClient::start,
                 FiercerBattlesExecutionClient::end, FiercerBattlesExecutionClient::reject);
         ExecutionNetwork.setClientActionSyncHandler(FiercerBattlesExecutionClient::acceptActionPayload);
+        ExecutionNetwork.setClientHighlightRulesHandler(ExecutionHighlight::acceptRules);
     }
 
     /** The dedicated execution key requests an eligible target; the server validates the action. */
     public static boolean tryRequest(Minecraft minecraft) {
         LOGGER.info("Execution key invoked");
-        if (blocksInput() || ParryClient.blocksActions()) {
+        if (blocksInput() || ParryClient.blocksActions() || LocomotionClient.blocksActions()) {
             LOGGER.info("Execution request blocked: pending target={}, execution active={}", pendingTarget,
                     minecraft.player != null && isExecuting(minecraft.player));
             return true;
@@ -257,18 +269,21 @@ public final class FiercerBattlesExecutionClient {
                             playing.action, entity.yBodyRot, entity.getX(), entity.getY(), entity.getZ(),
                             start.durationTicks(), true, true,
                             playing.returnStart, playing.returnYawDelta,
-                            start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw());
+                            start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw(),
+                            null);
                 }
                 return new Actor(new AnimationPlayer(playing.action.executorClip(), start.startGameTime()),
                         playing.action, start.executorYaw(), start.executorX(), start.executorY(), start.executorZ(),
                         start.durationTicks(), false, false, 0, 0,
-                        start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw());
+                        start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw(),
+                        null);
             }
             if (entity.getId() == start.victimId() && entity.getUUID().equals(start.victimUuid())) {
                 return new Actor(new AnimationPlayer(playing.action.victimClip(), start.startGameTime()),
                         playing.action, start.victimYaw(), start.victimX(), start.victimY(), start.victimZ(),
                         start.durationTicks(), playing.ended, false, 0, 0,
-                        start.victimFromX(), start.victimFromY(), start.victimFromZ(), start.victimFromYaw());
+                        start.victimFromX(), start.victimFromY(), start.victimFromZ(), start.victimFromYaw(),
+                        playing.victimStartPose);
             }
         }
         return null;
@@ -403,7 +418,10 @@ public final class FiercerBattlesExecutionClient {
         ExecutionRenderContext.clear();
     }
 
-    public static void clearActionCache() { ACTIONS.clear(); }
+    public static void clearActionCache() {
+        ACTIONS.clear();
+        ExecutionHighlight.clearRules();
+    }
 
     @SubscribeEvent
     public static void onMovementInput(MovementInputUpdateEvent event) {

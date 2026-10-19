@@ -1,0 +1,188 @@
+{
+  "source_file": "\u53d7\u51fb\u786c\u76f4.blend",
+  "source_sha256": "71b9861219f551d199dcd14d8d5e4d50636afab3179b640d5e0d4a98bdcf5cc6",
+  "source_fps": 20.0,
+  "source_scene_frame_start": 0,
+  "source_scene_frame_end": 5,
+  "authored_begin_frame": 0,
+  "authored_end_frame": 5.0,
+  "authored_duration_game_ticks": 5.0,
+  "duration_ticks": 5,
+  "frame_to_game_tick": "(source_frame - authored_begin_frame) * 20 / source_fps",
+  "source_rig": "Bone_A plus six rigid humanoid mesh objects; zero-bend halves",
+  "rig": "fiercerbattles:humanoid_v1",
+  "root_position_blender": [
+    0.0,
+    -1.61563027,
+    0.0
+  ],
+  "root_yaw_radians": 0.0,
+  "active_rig_keyframes": {
+    "head": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "leftArm": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "leftArm_bend": [
+      0.0
+    ],
+    "leftLeg": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "leftLeg_bend": [
+      0.0
+    ],
+    "rightArm": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "rightArm_bend": [
+      0.0
+    ],
+    "rightLeg": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "rightLeg_bend": [
+      0.0
+    ],
+    "torso": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "torso_bend": [
+      0.0
+    ]
+  },
+  "timeline_markers": [],
+  "sample_step": 0.0625,
+  "sample_count": 81,
+  "end_root": {
+    "right": 0.0,
+    "forward": -0.0,
+    "yaw": 8.65e-06
+  },
+  "end_root_up_blocks": 0.0,
+  "rest_mesh_bounds_model_pixels": {
+    "head": [
+      [
+        -4.0,
+        -8.0,
+        -4.0
+      ],
+      [
+        4.0,
+        2e-08,
+        4.0
+      ]
+    ],
+    "body": [
+      [
+        -4.0,
+        -9.5e-07,
+        -2.0
+      ],
+      [
+        4.0,
+        12.0,
+        2.0
+      ]
+    ],
+    "rightArm": [
+      [
+        -3.00000095,
+        -1.99999988,
+        -2.0
+      ],
+      [
+        1.0,
+        9.99999905,
+        2.00000024
+      ]
+    ],
+    "leftArm": [
+      [
+        -1.0,
+        -1.99999952,
+        -2.00000024
+      ],
+      [
+        3.0,
+        9.99999905,
+        1.99999988
+      ]
+    ],
+    "rightLeg": [
+      [
+        -2.00000048,
+        -0.0,
+        -1.99999988
+      ],
+      [
+        2.0,
+        12.0,
+        2.00000024
+      ]
+    ],
+    "leftLeg": [
+      [
+        -2.00000024,
+        -0.0,
+        -2.00000024
+      ],
+      [
+        2.0,
+        12.0,
+        1.99999988
+      ]
+    ]
+  },
+  "verification": {
+    "max_source_mesh_vertex_error_pixels": 5.823056545225341e-06,
+    "max_half_sample_mesh_error_pixels": 0.018836339714463256,
+    "first_middle_last_source_mesh_errors_pixels": {
+      "0.0": 1.0925711858167266e-06,
+      "2.5": 3.9148830973390135e-06,
+      "5.0": 1.0925711858167266e-06
+    },
+    "end_hip_reconstruction_error_blocks": 3.1249999725807344e-09,
+    "end_yaw_reconstruction_error_degrees": 5.133702269136435e-07
+  },
+  "notes": [
+    "Every evaluated parent is baked, including the source root pitch. Only initial root yaw is removed.",
+    "The clip's first and last poses are authored poses; ordinary/attack pose transitions belong to gameplay rendering.",
+    "The parry game window uses source frames 5 through 12 because both provided sources run at 20 FPS.",
+    "No independent transition marker/track exists; stagger frames 0 through 5 are part of its reaction and are retained.",
+    "Embedded export texts contain conflicting stop frames inherited from previous animation files and are not executed or used.",
+    "Humanoid positions are absolute model pixels and quaternions use x,y,z,w; existing AnimationClip/AnimationPlayer interpolation applies.",
+    "Item helpers have no animated offset from the arm; the existing item-in-hand transform is retained."
+  ]
+}

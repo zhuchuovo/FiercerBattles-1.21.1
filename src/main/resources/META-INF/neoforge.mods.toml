@@ -1,6 +1,6 @@
 modLoader = "javafml"
 loaderVersion = "${loader_range}"
-license = "MIT"
+license = "MIT (Fiercer Battles); All Rights Reserved (embedded Better Combat, see META-INF/THIRD_PARTY_NOTICES.md)"
 
 [[mods]]
 modId = "fiercerbattles"
@@ -25,12 +25,73 @@ versionRange = "${minecraft_range}"
 ordering = "NONE"
 side = "BOTH"
 
+# Better Combat is embedded (com.fiercerbattles.bettercombat). A standalone copy would apply
+# the same mixins twice, so refuse to load next to it.
 [[dependencies.fiercerbattles]]
 modId = "bettercombat"
+type = "incompatible"
+reason = "Fiercer Battles already contains Better Combat. Remove the standalone Better Combat jar."
+versionRange = "[0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "playeranimator"
 type = "required"
-versionRange = "[1.21.1,)"
+versionRange = "[2.0.4,3)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "cloth_config"
+type = "required"
+versionRange = "[15.0.130,16)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "entity_texture_features"
+type = "optional"
+versionRange = "[7.1,)"
+ordering = "AFTER"
+side = "CLIENT"
+
+[[dependencies.fiercerbattles]]
+modId = "entity_model_features"
+type = "optional"
+versionRange = "[3.0.6,)"
+ordering = "AFTER"
+side = "CLIENT"
+
+# Tinkers' Construct and its add-ons ship weapons covered by the bundled weapon_attributes
+# (data/tconstruct, data/tinkers_katanas, data/tinkers_things). Load after them so the bundled
+# files take priority over the add-ons' own copies (TinkersKatanas ships katana.json).
+[[dependencies.fiercerbattles]]
+modId = "tconstruct"
+type = "optional"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "tinkers_katanas"
+type = "optional"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.fiercerbattles]]
+modId = "tinkers_things"
+type = "optional"
+versionRange = "[0,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[mixins]]
+config = "fiercerbattles.bettercombat.mixins.json"
+
+[[mixins]]
 config = "fiercerbattles.mixins.json"
+
+[[mixins]]
+config = "fiercerbattles.mobcombat.mixins.json"

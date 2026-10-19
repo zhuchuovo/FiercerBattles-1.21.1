@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * lookup. This must be a common mixin: the server performs its own distance
  * validation after receiving the attack packet.
  */
-@Mixin(targets = "net.bettercombat.logic.PlayerAttackHelper")
+@Mixin(targets = "com.fiercerbattles.bettercombat.logic.PlayerAttackHelper")
 public abstract class PlayerAttackRangeMixin {
     @Inject(method = "getRangeForItem", at = @At("RETURN"), remap = false, cancellable = true)
     private static void fiercerbattles$applySkillRange(

@@ -24,13 +24,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * environment; a server-only mixin would never apply there and the per-frame
  * multipliers would silently do nothing.
  */
-@Mixin(targets = "net.bettercombat.network.ServerNetwork")
+@Mixin(targets = "com.fiercerbattles.bettercombat.network.ServerNetwork")
 public abstract class ServerNetworkMultipleHitsMixin {
     @Redirect(
             method = "lambda$handleAttackRequest$3",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/bettercombat/api/WeaponAttributes$Attack;damageMultiplier()D"
+                    target = "Lcom/fiercerbattles/bettercombat/api/WeaponAttributes$Attack;damageMultiplier()D"
             ),
             remap = false
     )

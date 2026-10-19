@@ -28,18 +28,28 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-/** Loads and synchronizes the two independent humanoid clips as one immutable bundle. */
+/** Loads and synchronizes the independent humanoid gesture clips as one immutable bundle. */
 @EventBusSubscriber(modid = FiercerBattles.MOD_ID)
 public final class ParryAnimations {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final int MAX_SYNC_BYTES = 512 * 1024;
     private static final int MAX_EXPANDED_BYTES = 2 * 1024 * 1024;
     private static final Gson GSON = new Gson();
+    /** The hitstun flinch must cover its in and out fades; longer clips would stall the player. */
+    private static final int MAX_HITSTUN_TICKS = 40;
     private static volatile Clips current;
+    private static volatile Encoded encoded;
 
-    public record Clips(AnimationClip parry, AnimationClip stagger, String hash) {
+    private record Encoded(Clips clips, byte[] bytes) {}
+
+    /** {@code hitstun} is optional: without it, hits never start a flinch but parry still works. */
+    public record Clips(AnimationClip parry, AnimationClip stagger, AnimationClip hitstun, String hash) {
         public AnimationClip clip(ParryNetwork.Kind kind) {
-            return kind == ParryNetwork.Kind.PARRY ? parry : stagger;
+            return switch (kind) {
+                case PARRY -> parry;
+                case STAGGER -> stagger;
+                case HITSTUN -> hitstun;
+            };
         }
     }
 
@@ -56,10 +66,13 @@ public final class ParryAnimations {
                 try {
                     JsonElement parry = definitions.get(ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, "parry/parry"));
                     JsonElement stagger = definitions.get(ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, "parry/stagger"));
+                    JsonElement hitstun = definitions.get(ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, "parry/hitstun"));
                     if (parry == null || stagger == null) throw new IOException("Missing parry or stagger clip");
                     JsonObject bundle = new JsonObject();
                     bundle.add("parry", parry);
                     bundle.add("stagger", stagger);
+                    if (hitstun != null) bundle.add("hitstun", hitstun);
+                    else LOGGER.warn("No parry/hitstun clip: hits will not start a hitstun flinch");
                     String json = GSON.toJson(bundle);
                     byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
                     if (bytes.length > MAX_EXPANDED_BYTES) throw new IOException("Parry bundle is too large");
@@ -67,7 +80,8 @@ public final class ParryAnimations {
                     // Validate compressed limits before advertising a usable server bundle.
                     encode(loaded);
                     current = loaded;
-                    LOGGER.info("Loaded parry clips: parry={} ticks, stagger={} ticks", loaded.parry.duration(), loaded.stagger.duration());
+                    LOGGER.info("Loaded parry clips: parry={} ticks, stagger={} ticks, hitstun={} ticks", loaded.parry.duration(),
+                            loaded.stagger.duration(), loaded.hitstun == null ? 0 : loaded.hitstun.duration());
                 } catch (IOException | RuntimeException exception) {
                     current = null;
                     LOGGER.error("Unable to load parry animations", exception);
@@ -77,15 +91,20 @@ public final class ParryAnimations {
     }
 
     public static byte[] encode(Clips clips) throws IOException {
+        // Every hit can start a hitstun, so the bundle is compressed once per reload.
+        Encoded cached = encoded;
+        if (cached != null && cached.clips == clips) return cached.bytes;
         JsonObject bundle = new JsonObject();
         bundle.add("parry", clips.parry.sourceJson());
         bundle.add("stagger", clips.stagger.sourceJson());
+        if (clips.hitstun != null) bundle.add("hitstun", clips.hitstun.sourceJson());
         byte[] bytes = GSON.toJson(bundle).getBytes(StandardCharsets.UTF_8);
         if (bytes.length > MAX_EXPANDED_BYTES) throw new IOException("Parry bundle is too large");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (GZIPOutputStream gzip = new GZIPOutputStream(output)) { gzip.write(bytes); }
         byte[] compressed = output.toByteArray();
         if (compressed.length > MAX_SYNC_BYTES) throw new IOException("Compressed parry bundle is too large");
+        encoded = new Encoded(clips, compressed);
         return compressed;
     }
 
@@ -110,7 +129,12 @@ public final class ParryAnimations {
         AnimationClip parry = clip("parry", bundle.getAsJsonObject("parry"));
         AnimationClip stagger = clip("stagger", bundle.getAsJsonObject("stagger"));
         if (parry.duration() < ParryTimeline.WINDOW_END) throw new IOException("Parry clip does not cover its timing window");
-        return new Clips(parry, stagger, hash);
+        AnimationClip hitstun = bundle.has("hitstun") ? clip("hitstun", bundle.getAsJsonObject("hitstun")) : null;
+        if (hitstun != null && (hitstun.duration() < ParryTimeline.HITSTUN_IN_TICKS + ParryTimeline.HITSTUN_OUT_TICKS
+                || hitstun.duration() > MAX_HITSTUN_TICKS)) {
+            throw new IOException("Hitstun clip must last between 3 and " + MAX_HITSTUN_TICKS + " ticks");
+        }
+        return new Clips(parry, stagger, hitstun, hash);
     }
 
     private static AnimationClip clip(String name, JsonObject source) throws IOException {

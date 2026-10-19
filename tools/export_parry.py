@@ -1,10 +1,14 @@
-"""Read-only Blender bake of the single-actor parry/stagger mesh rigs.
+"""Read-only Blender bake of single-actor humanoid mesh rigs (parry and locomotion clips).
 
-blender --background --disable-autoexec SOURCE.blend --python-exit-code 1 \
-    --python tools/export_parry.py -- --name parry
-Use --name stagger for the attacker reaction. Add --verify to compare all saved
+blender --background --disable-autoexec SOURCE.blend --python-exit-code 1     --python tools/export_parry.py -- --name parry
+Use --name stagger for the attacker reaction, --name hitstun for the 5-tick hit flinch,
+or roll / run / prone_down / prone_crawl / prone_up for the locomotion clips (written
+under fiercerbattles_animations/locomotion/). Add --verify to compare all saved
 resources without writing them. No embedded scripts run and the source is never
 saved. This exporter does not execute or write any execution-animation resources.
+
+Locomotion sources may carry loop_start / loop_end timeline markers; they are exported
+as loop_start_tick / loop_end_tick for clips that gameplay repeats (run, prone_crawl).
 
 Game ticks map to authored frames through source_fps / 20. The last actual rig
 keyframe determines the clip endpoint; a fractional game tick gets a held tail
@@ -28,6 +32,8 @@ BODY_PIVOT = Vector((0, 0, 3))
 HIP_OFFSET = Vector((0, 12, 0))
 PIXELS_PER_UNIT = 4.0
 RIG = "fiercerbattles:humanoid_v1"
+FOLDERS = {"parry": "parry", "stagger": "parry", "hitstun": "parry", "roll": "locomotion", "run": "locomotion",
+           "prone_down": "locomotion", "prone_crawl": "locomotion", "prone_up": "locomotion"}
 REST_BOUNDS = {
     "head": ((-4, -8, -4), (4, 0, 4)),
     "body": ((-4, 0, -2), (4, 12, 2)),
@@ -70,7 +76,7 @@ def quaternion(sample):
 def main():
     script_arguments = sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--name", required=True, choices=("parry", "stagger"))
+    parser.add_argument("--name", required=True, choices=tuple(FOLDERS))
     parser.add_argument("--step", type=float, default=0.0625)
     parser.add_argument("--verify", action="store_true")
     arguments = parser.parse_args(script_arguments)
@@ -218,6 +224,15 @@ def main():
                 "yaw": round(math.degrees(source_yaw), 8)}
     document = {"format": 1, "rig": RIG, "role": arguments.name, "duration_ticks": duration,
                 "sample_step": arguments.step, "end_root": end_root, "parts": parts}
+    locomotion = FOLDERS[arguments.name] == "locomotion"
+    markers = {marker.name: marker.frame for marker in scene.timeline_markers}
+    if locomotion and ("loop_start" in markers) != ("loop_end" in markers):
+        raise RuntimeError("Loop markers must come as a loop_start / loop_end pair")
+    if locomotion and "loop_start" in markers:
+        loop = [(markers[name]-begin_frame)*20/fps for name in ("loop_start", "loop_end")]
+        if not all(math.isclose(tick, round(tick), abs_tol=1e-8) for tick in loop) or not 0 <= loop[0] < loop[1] <= duration:
+            raise RuntimeError("Loop markers must sit on whole game ticks inside the clip")
+        document["loop_start_tick"], document["loop_end_tick"] = round(loop[0]), round(loop[1])
     metadata = {
         "source_file": source.name, "source_sha256": source_hash, "source_fps": fps,
         "source_scene_frame_start": scene.frame_start, "source_scene_frame_end": scene.frame_end,
@@ -237,6 +252,12 @@ def main():
                          "end_yaw_reconstruction_error_degrees": math.degrees(yaw_error)},
         "notes": [
             "Every evaluated parent is baked, including the source root pitch. Only initial root yaw is removed.",
+            "In-place locomotion clip: the entity root stays put and gameplay moves the entity; end_root only describes the final pose.",
+            "loop_start_tick / loop_end_tick come from the loop_start / loop_end timeline markers; gameplay repeats that range.",
+            "Humanoid positions are absolute model pixels and quaternions use x,y,z,w; existing AnimationClip/AnimationPlayer interpolation applies.",
+            "Item helpers have no animated offset from the arm; the existing item-in-hand transform is retained.",
+        ] if locomotion else [
+            "Every evaluated parent is baked, including the source root pitch. Only initial root yaw is removed.",
             "The clip's first and last poses are authored poses; ordinary/attack pose transitions belong to gameplay rendering.",
             "The parry game window uses source frames 5 through 12 because both provided sources run at 20 FPS.",
             "No independent transition marker/track exists; stagger frames 0 through 5 are part of its reaction and are retained.",
@@ -246,8 +267,8 @@ def main():
         ],
     }
     repository = Path(__file__).resolve().parents[1]
-    assets = repository / "src/main/resources/assets/fiercerbattles/parry"
-    datapack = repository / "src/main/resources/data/fiercerbattles/fiercerbattles_animations/parry"
+    assets = repository / "src/main/resources/assets/fiercerbattles" / FOLDERS[arguments.name]
+    datapack = repository / "src/main/resources/data/fiercerbattles/fiercerbattles_animations" / FOLDERS[arguments.name]
     if arguments.verify:
         for folder in (assets, datapack):
             if json.loads((folder/(arguments.name+".json")).read_text(encoding="utf-8")) != document:

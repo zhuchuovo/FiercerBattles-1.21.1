@@ -1,0 +1,45 @@
+{
+  "attributes": {
+    "attack_range": 3.0,
+    "pose": "bettercombat:pose_two_handed_scythe",
+    "two_handed": true,
+    "category": "scythe",
+    "attacks": [
+      {
+        "hitbox": "HORIZONTAL_PLANE",
+        "damage_multiplier": 1,
+        "angle": 360,
+        "upswing": 0.55,
+        "animation": "bettercombat:two_handed_spin",
+        "randomness": 0.1,
+        "swing_sound": {
+          "id": "bettercombat:scythe_slash"
+        }
+      },
+      {
+        "hitbox": "HORIZONTAL_PLANE",
+        "damage_multiplier": 1,
+        "attack_speed_multiplier": 2.0,
+        "angle": 360,
+        "upswing": 0.55,
+        "randomness": 0.7,
+        "animation": "bettercombat:two_handed_spin",
+        "swing_sound": {
+          "id": "bettercombat:scythe_slash"
+        }
+       },
+      {
+        "hitbox": "HORIZONTAL_PLANE",
+        "damage_multiplier": 1,
+        "attack_speed_multiplier": 2.0,
+        "angle": 360,
+        "upswing": 0.55,
+        "randomness": 0.7,
+        "animation": "bettercombat:two_handed_spin",
+        "swing_sound": {
+          "id": "bettercombat:scythe_slash"
+        }
+      }
+    ]
+  }
+}

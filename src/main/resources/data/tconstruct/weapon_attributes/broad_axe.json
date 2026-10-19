@@ -1,6 +1,6 @@
 {
   "Combatskill": true,
-  "json": "axe_combat_art.json",
+  "json": "broadaxe_combat_art.json",
   "attributes": {
     "attack_range": 3.2,
     "two_handed": true,
@@ -11,8 +11,10 @@
         "hitbox": "FORWARD_BOX",
         "angle": 180,
         "damage_multiplier": 1,
+        "movement_speed_multiplier": 0,
+        "recovery_cancel_frames": [50, 60],
         "upswing": 0.6,
-        "animation": "bettercombat:two_handed_slash_vertical_left",
+        "animation": "bettercombat:broad_axe_attack1",
         "swing_sound": {
           "id": "bettercombat:axe_slash"
         }
@@ -21,18 +23,22 @@
         "hitbox": "FORWARD_BOX",
         "angle": 180,
         "damage_multiplier": 1,
+        "movement_speed_multiplier": 0,
+        "recovery_cancel_frames": [50, 60],
         "upswing": 0.6,
-        "animation": "bettercombat:two_handed_slash_vertical_right",
+        "animation": "bettercombat:broad_axe_attack2",
         "swing_sound": {
-          "id": "bettercombat:hammer_slam"
+          "id": "bettercombat:axe_slash"
         }
       },
       {
         "hitbox": "FORWARD_BOX",
-        "angle": 360,
-        "damage_multiplier": 1.1,
+        "angle": 180,
+        "damage_multiplier": 1,
+        "movement_speed_multiplier": 0,
+        "recovery_cancel_frames": [50, 60],
         "upswing": 0.6,
-        "animation": "bettercombat:two_handed_spin",
+        "animation": "bettercombat:broad_axe_attack3",
         "swing_sound": {
           "id": "bettercombat:hammer_slam"
         }

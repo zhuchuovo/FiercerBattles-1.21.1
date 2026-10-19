@@ -1,6 +1,7 @@
 package com.fiercerbattles.mixin;
 
 import com.fiercerbattles.FiercerBattlesRuntime;
+import com.fiercerbattles.parry.client.ParryClient;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -40,6 +41,7 @@ public abstract class AbstractClientPlayerMixin {
                     ((LocalPlayer) (Object) this).getCurrentItemAttackStrengthDelay(),
                     length
             );
+            ParryClient.reportSwing();
         }
         fiercerbattles$setAttackAdjustmentEnabled(
                 !fiercerbattles$forceOriginalPlayback
@@ -79,7 +81,7 @@ public abstract class AbstractClientPlayerMixin {
             method = "playAttackAnimation",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/bettercombat/client/animation/modifier/TransmissionSpeedModifier;set(FLjava/util/List;)V"
+                    target = "Lcom/fiercerbattles/bettercombat/client/animation/modifier/TransmissionSpeedModifier;set(FLjava/util/List;)V"
             ),
             index = 0,
             remap = false
@@ -92,7 +94,7 @@ public abstract class AbstractClientPlayerMixin {
             method = "playAttackAnimation",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/bettercombat/client/animation/modifier/TransmissionSpeedModifier;set(FLjava/util/List;)V"
+                    target = "Lcom/fiercerbattles/bettercombat/client/animation/modifier/TransmissionSpeedModifier;set(FLjava/util/List;)V"
             ),
             index = 1,
             remap = false

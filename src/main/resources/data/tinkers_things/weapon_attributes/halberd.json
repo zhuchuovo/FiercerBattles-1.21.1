@@ -1,0 +1,48 @@
+{
+  "Combatskill": true,
+  "json": "tconstruct:fiercerbattles/combat_skills/axe_combat_art.json",
+  "attributes": {
+    "attack_range": 4,
+    "pose": "bettercombat:pose_two_handed_polearm",
+    "two_handed": true,
+    "category": "spear",
+    "attacks": [
+      {
+        "hitbox": "FORWARD_BOX",
+        "damage_multiplier": 1,
+        "movement_speed_multiplier": 0,
+        "angle": 0,
+        "upswing": 0.5,
+        "animation": "bettercombat:two_handed_stab_right",
+        "swing_sound": {
+          "id": "bettercombat:spear_stab"
+        }
+      },
+        {
+        "hitbox": "FORWARD_BOX",
+        "damage_multiplier": 1,
+        "movement_speed_multiplier": 0,
+        "attack_speed_multiplier": 1.25,
+        "angle": 70,
+        "upswing": 0.5,
+        "animation": "bettercombat:two_handed_slash_vertical_left",
+        "swing_sound": {
+          "id": "bettercombat:spear_stab"
+        }
+      },
+        {
+        "hitbox": "FORWARD_BOX",
+        "damage_multiplier": 1,
+        "movement_speed_multiplier": 0,
+        "attack_speed_multiplier": 1.5,
+        "range_bonus": 0.5,
+        "angle": 65,
+        "upswing": 0.4,
+        "animation": "bettercombat:two_handed_slam",
+        "swing_sound": {
+          "id": "bettercombat:spear_stab"
+        }
+      }
+    ]
+  }
+}

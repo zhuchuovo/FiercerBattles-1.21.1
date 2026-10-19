@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Prevents interrupted Better Combat attacks from surviving in the server queue. */
-@Mixin(targets = "net.bettercombat.network.ServerNetwork", priority = 2100)
+@Mixin(targets = "com.fiercerbattles.bettercombat.network.ServerNetwork", priority = 2100)
 public abstract class ParryServerNetworkMixin {
     @Inject(method = "handleAttackRequest", at = @At("HEAD"), cancellable = true, remap = false)
     private static void fiercerbattles$blockParryAttackRequest(
@@ -45,6 +45,7 @@ public abstract class ParryServerNetworkMixin {
             @Coerce Object attributes, @Coerce Object attack, @Coerce Object level,
             boolean vanillaPacket, @Coerce Object listener, CallbackInfo ci) {
         if (ParryServer.blocksActions(player)) ci.cancel();
+        else ParryServer.damageChecked(player);
     }
 
     @Inject(method = "handleAttackAnimation", at = @At("HEAD"), cancellable = true, remap = false)

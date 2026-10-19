@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
-@Mixin(targets = "net.bettercombat.network.Packets$C2S_AttackRequest")
+@Mixin(targets = "com.fiercerbattles.bettercombat.network.Packets$C2S_AttackRequest")
 public abstract class AttackRequestCombatSkillMixin {
     @ModifyVariable(method = "<init>(IZII[I)V", at = @At("HEAD"), argsOnly = true, ordinal = 0, remap = false)
     private static int fiercerbattles$markCombatSkillPacket(int comboCount) {

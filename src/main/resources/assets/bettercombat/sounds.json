@@ -1,0 +1,135 @@
+{
+  "anchor_slam": {
+    "sounds": [
+      "bettercombat:anchor_slam-01"
+    ]
+  },
+  "axe_slash": {
+    "sounds": [
+      "bettercombat:axe_slash-01"
+    ]
+  },
+  "claymore_swing": {
+    "sounds": [
+      "bettercombat:claymore_swing-01"
+    ]
+  },
+  "claymore_stab": {
+    "sounds": [
+      "bettercombat:claymore_stab-01"
+    ]
+  },
+  "claymore_slam": {
+    "sounds": [
+      {
+        "name": "bettercombat:claymore_slam-01",
+        "pitch": 0.87
+      }
+    ]
+  },
+  "dagger_slash": {
+    "sounds": [
+      "bettercombat:dagger_slash-01"
+    ]
+  },
+  "double_axe_swing": {
+    "sounds": [
+      "bettercombat:double_axe_swing-01"
+    ]
+  },
+  "fist_punch": {
+    "sounds": [
+      "bettercombat:fist_punch-01"
+    ]
+  },
+  "glaive_slash_quick": {
+    "sounds": [
+      "bettercombat:glaive_slash-01"
+    ]
+  },
+  "glaive_slash_slow": {
+    "sounds": [
+      "bettercombat:glaive_slash-02"
+    ]
+  },
+  "hammer_slam": {
+    "sounds": [
+      "bettercombat:hammer_slam-01"
+    ]
+  },
+  "katana_slash": {
+    "sounds": [
+      "bettercombat:katana_slash-01"
+    ]
+  },
+  "mace_slam": {
+    "sounds": [
+      "bettercombat:mace_slam-01"
+    ]
+  },
+  "mace_slash": {
+    "sounds": [
+      "bettercombat:mace_slash-01"
+    ]
+  },
+  "pickaxe_swing": {
+    "sounds": [
+      "bettercombat:pickaxe_swing-01"
+    ]
+  },
+  "rapier_slash": {
+    "sounds": [
+      "bettercombat:rapier_slash-01"
+    ]
+  },
+  "rapier_stab": {
+    "sounds": [
+      "bettercombat:rapier_stab-01"
+    ]
+  },
+  "scythe_slash": {
+    "sounds": [
+      "bettercombat:scythe_slash-01"
+    ]
+  },
+  "spear_stab": {
+    "sounds": [
+      "bettercombat:spear_stab-01"
+    ]
+  },
+  "staff_slam": {
+    "sounds": [
+      "bettercombat:staff_slam-01"
+    ]
+  },
+  "staff_slash": {
+    "sounds": [
+      "bettercombat:staff_slash-01"
+    ]
+  },
+  "staff_spin": {
+    "sounds": [
+      "bettercombat:staff_spin-01"
+    ]
+  },
+  "staff_stab": {
+    "sounds": [
+      "bettercombat:staff_stab-01"
+    ]
+  },
+  "sickle_slash": {
+    "sounds": [
+      "bettercombat:sickle_slash-01"
+    ]
+  },
+  "sword_slash": {
+    "sounds": [
+      "bettercombat:sword_slash-01"
+    ]
+  },
+  "wand_swing": {
+    "sounds": [
+      "bettercombat:wand_swing-01"
+    ]
+  }
+}

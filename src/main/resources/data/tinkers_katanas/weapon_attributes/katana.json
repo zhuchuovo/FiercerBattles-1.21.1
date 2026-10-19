@@ -1,0 +1,5 @@
+{
+  "Combatskill": true,
+  "json": "tconstruct:fiercerbattles/combat_skills/katana_combat_art.json",
+  "parent": "tconstruct:katana"
+}

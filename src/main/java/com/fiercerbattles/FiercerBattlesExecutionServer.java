@@ -5,6 +5,9 @@ import com.fiercerbattles.execution.ExecutionGeometry;
 import com.fiercerbattles.execution.ExecutionNetwork;
 import com.fiercerbattles.execution.ExecutionPlacement;
 import com.fiercerbattles.execution.ExecutionTimeline;
+import com.fiercerbattles.execution.ExecutionSoundTimeline;
+import com.fiercerbattles.sound.ModSounds;
+import com.fiercerbattles.locomotion.LocomotionServer;
 import com.fiercerbattles.parry.ParryServer;
 import com.fiercerbattles.execution.ExecutionWeapons;
 import com.fiercerbattles.execution.action.ExecutionActionRegistry;
@@ -12,6 +15,7 @@ import com.fiercerbattles.execution.action.PairedExecutionAction;
 import com.fiercerbattles.mixin.ExecutionLivingEntityInvoker;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -19,6 +23,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
@@ -64,8 +69,21 @@ public final class FiercerBattlesExecutionServer {
     private static final Map<UUID, Session> ACTORS = new ConcurrentHashMap<>();
     private static final Map<UUID, Map<ResourceLocation, String>> SYNCED_ACTIONS = new HashMap<>();
     private static final ThreadLocal<Boolean> EXECUTION_DAMAGE = ThreadLocal.withInitial(() -> false);
+    /** The executor stays untouchable for 0.75 s after the session ends, so the finisher cannot be punished at once. */
+    public static final int AFTER_GUARD_TICKS = 15;
+    /** Executor UUID to the game time its post-execution guard ends. */
+    private static final Map<UUID, Long> AFTER_GUARD = new ConcurrentHashMap<>();
 
     private FiercerBattlesExecutionServer() {}
+
+    private static boolean isGuarded(Entity entity) {
+        if (!(entity instanceof ServerPlayer player)) return false;
+        Long until = AFTER_GUARD.get(player.getUUID());
+        if (until == null) return false;
+        if (player.serverLevel().getGameTime() < until) return true;
+        AFTER_GUARD.remove(player.getUUID(), until);
+        return false;
+    }
 
     public static boolean isExecuting(Entity entity) {
         if (entity == null || entity.level().isClientSide()) {
@@ -105,9 +123,10 @@ public final class FiercerBattlesExecutionServer {
         }
         Entity entity = level.getEntity(targetEntityId);
         if (!executor.isAlive() || executor.isSpectator() || executor.hasDisconnected()
-                || ParryServer.isBusy(executor)
+                || ParryServer.isBusy(executor) || LocomotionServer.isBusy(executor)
                 || !(entity instanceof Mob victim) || !victim.isAlive()
-                || victim.isInvulnerable() || isExecuting(victim) || ParryServer.isBusy(victim) || !config.allows(victim)
+                || victim.isInvulnerable() || isExecuting(victim)
+                || ParryServer.isBusy(victim) && !ParryServer.isStaggered(victim)
                 || !eligiblePose(executor) || !eligiblePose(victim) || victim.isBaby()) {
             LOGGER.info("Execution rejected: ineligible target {}, player pose={}, grounded={}",
                     entity, executor.getPose(), executor.onGround());
@@ -118,10 +137,20 @@ public final class FiercerBattlesExecutionServer {
             }
             return deny(executor, "ineligible");
         }
+        if (!config.allows(victim)) {
+            LOGGER.info("Execution rejected: {} is not listed in execution.humanoid_entities",
+                    BuiltInRegistries.ENTITY_TYPE.getKey(victim.getType()));
+            return deny(executor, "entity");
+        }
         float maxHealth = victim.getMaxHealth();
-        if (!(maxHealth > 0) || !(victim.getHealth() < maxHealth * config.healthThreshold())) {
-            LOGGER.info("Execution rejected: health={}/{}, threshold={}",
-                    victim.getHealth(), maxHealth, config.healthThreshold());
+        // A parry stun opens a riposte: the target can be executed at a higher health ratio.
+        boolean riposte = ParryServer.isStaggered(victim);
+        double threshold = riposte
+                ? Math.max(config.healthThreshold(), FiercerBattlesConfig.getParry().staggerExecutionHealthThreshold())
+                : config.healthThreshold();
+        if (!(maxHealth > 0) || !(victim.getHealth() < maxHealth * threshold)) {
+            LOGGER.info("Execution rejected: health={}/{}, threshold={}, riposte={}",
+                    victim.getHealth(), maxHealth, threshold, riposte);
             return deny(executor, "health");
         }
         if (!ExecutionPlacement.canReach(executor, victim, config.range())) {
@@ -149,6 +178,8 @@ public final class FiercerBattlesExecutionServer {
             return deny(executor, "sync");
         }
 
+        // Restore the stunned target's own AI and gravity before the session records them.
+        if (riposte) ParryServer.releaseStagger(victim);
         Session session = new Session(level, executor, victim, executorAnchor, victimAnchor, executorYaw, victimYaw,
                 action, config, ExecutionWeapons.AXE_ACTION.equals(weaponAction));
         SESSIONS.put(session.id, session);
@@ -295,6 +326,15 @@ public final class FiercerBattlesExecutionServer {
                 DamageSource source = session.level.damageSources().playerAttack(session.executor);
                 session.victim.makeSound(((ExecutionLivingEntityInvoker) session.victim).fiercerbattles$getHurtSound(source));
             }
+            for (ExecutionSoundTimeline.Cue cue : session.customSoundCues) {
+                if (cue.frame() != frame) continue;
+                var sound = switch (cue.sound()) {
+                    case BRUTAL_HIT -> ModSounds.BRUTAL_HIT.get();
+                    case PUSH_OPEN -> ModSounds.PUSH_OPEN.get();
+                };
+                session.level.playSound(null, session.victim.getX(), session.victim.getEyeY(), session.victim.getZ(),
+                        sound, SoundSource.PLAYERS, 1.0F, 1.0F);
+            }
         }
         session.lastSoundFrame = currentFrame;
     }
@@ -330,6 +370,9 @@ public final class FiercerBattlesExecutionServer {
         session.victim.getPersistentData().remove(RECOVERY_TAG);
         session.executor.setDeltaMovement(Vec3.ZERO);
         session.victim.setDeltaMovement(Vec3.ZERO);
+        if (session.executor.isAlive() && !session.executor.hasDisconnected()) {
+            AFTER_GUARD.put(session.executor.getUUID(), session.level.getGameTime() + AFTER_GUARD_TICKS);
+        }
         if (completed && session.executor.isAlive() && !session.executor.hasDisconnected()
                 && session.executor.level() == session.level) {
             Vec3 finishPosition = session.action.geometry().executorEndPosition(session.executorAnchor, session.executorYaw);
@@ -345,15 +388,16 @@ public final class FiercerBattlesExecutionServer {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onInvulnerabilityCheck(EntityInvulnerabilityCheckEvent event) {
-        // Session membership expires on completion or abort; no persistent player flag needs restoring.
-        if (event.getEntity() instanceof ServerPlayer && isExecuting(event.getEntity())) {
+        // Session membership and the after-guard expire on their own; no persistent player flag needs restoring.
+        if (event.getEntity() instanceof ServerPlayer && (isExecuting(event.getEntity()) || isGuarded(event.getEntity()))) {
             event.setInvulnerable(true);
         }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onIncomingDamage(LivingIncomingDamageEvent event) {
-        boolean executingPlayer = event.getEntity() instanceof ServerPlayer && isExecuting(event.getEntity());
+        boolean executingPlayer = event.getEntity() instanceof ServerPlayer
+                && (isExecuting(event.getEntity()) || isGuarded(event.getEntity()));
         if (executingPlayer || (!isExecutionDamage()
                 && (isExecuting(event.getEntity()) || isExecuting(event.getSource().getEntity())))) {
             event.setCanceled(true);
@@ -402,9 +446,17 @@ public final class FiercerBattlesExecutionServer {
         }
     }
 
+    @SubscribeEvent
+    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            PacketDistributor.sendToPlayer(player, ExecutionNetwork.HighlightRules.fromConfig());
+        }
+    }
+
     @SubscribeEvent public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         SYNCED_ACTIONS.remove(event.getEntity().getUUID());
         abort(event.getEntity());
+        AFTER_GUARD.remove(event.getEntity().getUUID());
     }
     @SubscribeEvent public static void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) { abort(event.getEntity()); }
 
@@ -451,6 +503,7 @@ public final class FiercerBattlesExecutionServer {
         }
         SESSIONS.clear();
         ACTORS.clear();
+        AFTER_GUARD.clear();
     }
 
     private static void abort(Entity entity) {
@@ -478,6 +531,7 @@ public final class FiercerBattlesExecutionServer {
         final boolean victimNoAi;
         final List<Integer> hurtSoundFrames;
         final List<Integer> swingSoundFrames;
+        final List<ExecutionSoundTimeline.Cue> customSoundCues;
         int lastSoundFrame = -1;
 
         Session(ServerLevel level, ServerPlayer executor, Mob victim, Vec3 executorAnchor, Vec3 victimAnchor,
@@ -501,6 +555,7 @@ public final class FiercerBattlesExecutionServer {
             this.victimNoAi = victim.isNoAi();
             this.hurtSoundFrames = config.hurtSoundFrames(action.durationTicks(), axe);
             this.swingSoundFrames = config.swingSoundFrames(action.durationTicks());
+            this.customSoundCues = ExecutionSoundTimeline.cues(axe, action.durationTicks());
         }
 
         ExecutionNetwork.Start payload() {
