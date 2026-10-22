@@ -20,8 +20,10 @@ public enum ZombieLordAction {
     QUAKE_END("quake", Playback.ONCE),
     /** Wind-up, then the dash cycle looped for as long as the dash lasts. */
     CHARGE("charge", Playback.CHARGE),
-    /** The charge clip's recovery, started mid-clip by the server. */
+    /** The charge clip after the dash (slam and recovery), started mid-clip by the server. */
     CHARGE_END("charge", Playback.ONCE),
+    /** Dazed after charging into a wall; the clip is the whole stun. */
+    STUN("stun", Playback.ONCE),
     /** Never sent by the server: the client plays it from the entity's death time. */
     DEATH("death", Playback.ONCE);
 

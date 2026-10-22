@@ -16,6 +16,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
@@ -62,8 +63,11 @@ public class ZombieLord extends Monster {
 
     // Three-hit combo.
     public static final double MELEE_TRIGGER_RANGE = 3.0;
-    static final int STEP_TICKS = 4;
-    static final double STEP_DISTANCE = 0.5;
+    /** Each attack advances 1.5 blocks over its wind-up, before the blade comes round. */
+    static final int STEP_TICKS = 10;
+    static final double STEP_DISTANCE = 1.5;
+    /** The step stops this far short of the target's hitbox, so the boss never walks into the target. */
+    static final double STEP_MIN_GAP = 0.5;
     static final double SWEEP_RANGE = 3.0;
     static final float SWEEP_HALF_ANGLE = 60.0F;
     /** Each hit tick checks its slice of the arc plus this margin, so a target near a slice edge is not skipped. */
@@ -103,10 +107,15 @@ public class ZombieLord extends Monster {
 
     // Shoulder charge after two full rounds of the combo (attack1-2-3, or 1-2 and the leap that replaced 3).
     static final int CHARGE_AFTER_ROUNDS = 2;
-    /** zombie_lord_charge: wind-up 0-18, one dash cycle 18-30 (looped while dashing), recovery 30-52. */
+    /** zombie_lord_charge: wind-up 0-18, one dash cycle 18-30 (looped while dashing), slam and recovery 30-57. */
     public static final int CHARGE_WINDUP_FRAMES = 18;
     public static final int CHARGE_CYCLE_FRAMES = 12;
-    static final int CHARGE_RECOVER_FRAMES = 22;
+    static final int CHARGE_RECOVER_FRAMES = 27;
+    /** A dash that runs its full length ends in an overhead chop into the ground, this many ticks later (frame 37). */
+    static final int CHARGE_SLAM_TICKS = 7;
+    static final double CHARGE_SLAM_RADIUS = 5.0;
+    static final float CHARGE_SLAM_DAMAGE_NEAR = 7.0F;
+    static final float CHARGE_SLAM_DAMAGE_FAR = 2.0F;
     /** The wind-up keeps turning toward the target until this frame, then the line is fixed. */
     static final int CHARGE_AIM_LOCK_FRAME = 12;
     static final int CHARGE_DASH_TICKS = 16;
@@ -118,6 +127,17 @@ public class ZombieLord extends Monster {
     static final double CHARGE_KNOCKBACK = 1.6;
     /** Client-side ground scar left by the dash. */
     public static final int CHARGE_TRAIL_TICKS = 60;
+    /** Dash progress below this share of CHARGE_SPEED against a wall: the boss crashes into it instead of sliding along. */
+    static final double CHARGE_WALL_PROGRESS = 0.6;
+
+    // Stun after charging into a wall: zombie_lord_stun (80 frames) is the whole 4 s, getting up included.
+    static final int STUN_TICKS = 4 * 20;
+    /** The rebound off the wall, in blocks, over the first ticks of the stun. */
+    static final double STUN_REBOUND = 1.0;
+    static final int STUN_REBOUND_TICKS = 4;
+    /** Clip frames between which stars circle the lolling head (until he shakes it off). */
+    static final int STUN_DAZE_FROM = 6;
+    static final int STUN_DAZE_TO = 68;
 
     // Death: the 60 frame death clip, then a short hold before the body disappears.
     public static final int DEATH_CLIP_FRAMES = 60;
@@ -141,6 +161,8 @@ public class ZombieLord extends Monster {
     /** A target farther than this also triggers a summon, at most once per cooldown. */
     static final double SUMMON_DISTANCE = 12.0;
     static final int QUAKE_COOLDOWN_TICKS = 20 * 20;
+    /** Share of incoming damage the boss takes for the whole quake (80% reduction). */
+    static final float QUAKE_DAMAGE_TAKEN = 0.2F;
 
     static final int LOCOMOTION_BLEND_TICKS = 4;
     static final int ACTION_BLEND_TICKS = 4;
@@ -262,10 +284,8 @@ public class ZombieLord extends Monster {
             case ATTACK3 -> tickAttack3(target, t);
             case LEAP_SLAM -> tickLeap(target, t);
             case CHARGE -> tickCharge(target, t);
-            case CHARGE_END -> {
-                applyYaw(lockedYaw);
-                if (t >= CHARGE_WINDUP_FRAMES + CHARGE_CYCLE_FRAMES + CHARGE_RECOVER_FRAMES) endAction();
-            }
+            case CHARGE_END -> tickChargeEnd(t);
+            case STUN -> tickStun(t);
             case QUAKE -> tickQuake(target, t);
             case QUAKE_END -> {
                 applyYaw(lockedYaw);
@@ -331,7 +351,7 @@ public class ZombieLord extends Monster {
 
     private void tickAttack1(@Nullable LivingEntity target, int t) {
         applyYaw(lockedYaw);
-        stepForward(t);
+        stepForward(target, t);
         if (t == SWEEP_FIRST_FRAME) playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.5F, 0.6F);
         if (t >= SWEEP_FIRST_FRAME && t <= SWEEP_LAST_FRAME) sweep(t, true);
         if (t >= ATTACK1_CHAIN_FRAME) {
@@ -351,7 +371,7 @@ public class ZombieLord extends Monster {
             return;
         }
         applyYaw(lockedYaw);
-        stepForward(t);
+        stepForward(target, t);
         if (t == SWEEP_FIRST_FRAME) playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.5F, 0.7F);
         if (t >= SWEEP_FIRST_FRAME && t <= SWEEP_LAST_FRAME) sweep(t, false);
         if (t >= ATTACK2_LENGTH) {
@@ -367,7 +387,7 @@ public class ZombieLord extends Monster {
             startLeap(target, true);
             return;
         }
-        stepForward(t);
+        stepForward(target, t);
         if (t == ATTACK3_SLAM_FRAME) {
             radialBlow(position(), SLAM_RADIUS, SLAM_DAMAGE_NEAR, SLAM_DAMAGE_FAR);
             dustBurst(position(), SLAM_RADIUS);
@@ -443,7 +463,10 @@ public class ZombieLord extends Monster {
         playSound(SoundEvents.RAVAGER_ROAR, 2.5F, 0.7F);
     }
 
-    /** Wind-up (turning to the target, two boot scrapes), a straight dash that tramples what it meets, recovery. */
+    /**
+     * Wind-up (turning to the target, two boot scrapes), then a straight dash that tramples what it meets. A dash
+     * that runs its full length ends in a slam; one stopped by a wall leaves the boss stunned.
+     */
     private void tickCharge(@Nullable LivingEntity target, int t) {
         if (t < CHARGE_AIM_LOCK_FRAME && target != null && horizontalDistance(target.position()) > 1.5) {
             lockedYaw = Mth.approachDegrees(lockedYaw, yawToward(target.position()), 12.0F);
@@ -459,7 +482,7 @@ public class ZombieLord extends Monster {
         Vec3 dir = forward(lockedYaw);
         Vec3 before = position();
         move(MoverType.SELF, dir.scale(CHARGE_SPEED));
-        double moved = position().subtract(before).horizontalDistance();
+        double progress = position().subtract(before).dot(dir);
         DamageSource source = damageSources().source(BossEntities.LORD_SLASH, this);
         for (LivingEntity victim : victims(getBoundingBox().inflate(0.6, 0.2, 0.6))) {
             if (!hitThisSegment.add(victim.getId())) continue;
@@ -475,18 +498,47 @@ public class ZombieLord extends Monster {
             level.sendParticles(ParticleTypes.FLAME, ground.x, ground.y + 0.1, ground.z, 2, 0.3, 0.0, 0.3, 0.01);
             if (dashTick % 3 == 0) playSound(SoundEvents.IRON_GOLEM_STEP, 1.5F, 0.6F);
         }
-        boolean blocked = dashTick > 0 && moved < CHARGE_SPEED * 0.4;
-        if (blocked) {
-            playSound(SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, 1.5F, 0.6F);
-            if (level() instanceof ServerLevel level) {
-                Vec3 front = position().add(dir.scale(0.8));
-                level.sendParticles(ParticleTypes.EXPLOSION, front.x, front.y + 1.2, front.z, 1, 0.0, 0.0, 0.0, 0.0);
-            }
-        }
-        if (blocked || dashTick + 1 >= CHARGE_DASH_TICKS) {
-            // Recovery: the rest of the clip from the end of the dash cycle.
+        // A wall met head-on (or near it) stops the dash; a glancing one is slid along. Mobs and players never block.
+        if (dashTick > 0 && horizontalCollision && progress < CHARGE_SPEED * CHARGE_WALL_PROGRESS) {
+            startStun(dir);
+        } else if (dashTick + 1 >= CHARGE_DASH_TICKS) {
+            // Arrival: the rest of the clip from the end of the dash cycle, the slam and the recovery.
             setAction(ZombieLordAction.CHARGE_END, 3, -(CHARGE_WINDUP_FRAMES + CHARGE_CYCLE_FRAMES));
         }
+    }
+
+    private void tickChargeEnd(int t) {
+        applyYaw(lockedYaw);
+        if (t == CHARGE_WINDUP_FRAMES + CHARGE_CYCLE_FRAMES + CHARGE_SLAM_TICKS) {
+            radialBlow(position(), CHARGE_SLAM_RADIUS, CHARGE_SLAM_DAMAGE_NEAR, CHARGE_SLAM_DAMAGE_FAR);
+            dustBurst(position(), CHARGE_SLAM_RADIUS);
+        }
+        if (t >= CHARGE_WINDUP_FRAMES + CHARGE_CYCLE_FRAMES + CHARGE_RECOVER_FRAMES) endAction();
+    }
+
+    private void startStun(Vec3 dir) {
+        LOGGER.debug("Zombie Lord {} charged into a wall at {}", getId(), position());
+        playSound(SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, 2.0F, 0.5F);
+        playSound(SoundEvents.ANVIL_LAND, 1.0F, 0.6F);
+        if (level() instanceof ServerLevel level) {
+            Vec3 front = position().add(dir.scale(getBbWidth() / 2 + 0.2));
+            BlockState wall = level.getBlockState(BlockPos.containing(front.x, getY() + 1.2, front.z));
+            if (wall.isAir()) wall = level.getBlockState(BlockPos.containing(front.x, getY() + 0.5, front.z));
+            if (!wall.isAir()) {
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, wall), front.x, getY() + 1.4, front.z,
+                        40, 0.2, 0.7, 0.2, 0.2);
+            }
+            level.sendParticles(ParticleTypes.EXPLOSION, front.x, getY() + 1.2, front.z, 1, 0.0, 0.0, 0.0, 0.0);
+        }
+        setAction(ZombieLordAction.STUN, 2, 0);
+    }
+
+    /** Rebound off the wall, then dazed until the clip has him back in the stance; he does nothing else meanwhile. */
+    private void tickStun(int t) {
+        applyYaw(lockedYaw);
+        // The stun starts mid-tick (from the dash), so its first AI tick is t = 1.
+        if (t >= 1 && t <= STUN_REBOUND_TICKS) move(MoverType.SELF, forward(lockedYaw).scale(-STUN_REBOUND / STUN_REBOUND_TICKS));
+        if (t >= STUN_TICKS) endAction();
     }
 
     private void startQuake(String reason) {
@@ -555,9 +607,15 @@ public class ZombieLord extends Monster {
 
     // ---------------------------------------------------------------- hits
 
-    private void stepForward(int t) {
-        if (t < 0 || t >= STEP_TICKS) return;
-        move(MoverType.SELF, forward(lockedYaw).scale(STEP_DISTANCE / STEP_TICKS));
+    private void stepForward(@Nullable LivingEntity target, int t) {
+        // Ticks 1..STEP_TICKS: attack1 and attack3 are started mid-tick, so their first AI tick is already t = 1.
+        if (t < 1 || t > STEP_TICKS) return;
+        double step = STEP_DISTANCE / STEP_TICKS;
+        if (target != null) {
+            double gap = horizontalDistance(target.position()) - (getBbWidth() + target.getBbWidth()) / 2 - STEP_MIN_GAP;
+            step = Math.min(step, Math.max(0.0, gap));
+        }
+        if (step > 0) move(MoverType.SELF, forward(lockedYaw).scale(step));
     }
 
     /**
@@ -741,9 +799,21 @@ public class ZombieLord extends Monster {
             if (getAction() == ZombieLordAction.CHARGE && actionTime(0) >= CHARGE_WINDUP_FRAMES) {
                 poseState.trail.add(new ZombieLordPoseState.TrailPoint(getX(), getY(), getZ(), now));
             }
+            if (getAction() == ZombieLordAction.STUN) dazeStars(actionTime(0));
         } else {
             setYHeadRot(getYRot());
             setYBodyRot(getYRot());
+        }
+    }
+
+    /** Three sparks circling above the hanging head while the boss is dazed. */
+    private void dazeStars(double time) {
+        if (time < STUN_DAZE_FROM || time > STUN_DAZE_TO) return;
+        Vec3 centre = position().add(forward(getYRot()).scale(0.45)).add(0, 2.85, 0);
+        for (int i = 0; i < 3; i++) {
+            double angle = time * 0.3 + i * Mth.TWO_PI / 3;
+            level().addParticle(ParticleTypes.ELECTRIC_SPARK, centre.x + Math.cos(angle) * 0.55, centre.y + 0.08 * Math.sin(angle * 2),
+                    centre.z + Math.sin(angle) * 0.55, 0.0, 0.0, 0.0);
         }
     }
 
@@ -796,6 +866,17 @@ public class ZombieLord extends Monster {
                 remove(RemovalReason.KILLED);
             }
         }
+    }
+
+    @Override
+    public boolean hurt(DamageSource source, float amount) {
+        // The sword planted for the summon braces the boss for the whole quake. /kill and the void still go through.
+        ZombieLordAction action = getAction();
+        if ((action == ZombieLordAction.QUAKE || action == ZombieLordAction.QUAKE_END)
+                && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+            amount *= QUAKE_DAMAGE_TAKEN;
+        }
+        return super.hurt(source, amount);
     }
 
     @Override
