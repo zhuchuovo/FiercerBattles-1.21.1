@@ -82,9 +82,10 @@ public class ZombieLord extends Monster {
     static final float SLAM_DAMAGE_NEAR = 10.0F;
     static final float SLAM_DAMAGE_FAR = 2.0F;
 
-    // Leap slam: replaces attack3 when the target stands between 6 and 12 blocks away, and closes the
+    // Leap slam: replaces attack3 when the target stands beyond the slam's 5 blocks but within 12, and closes the
     // gap when the target has stayed outside melee range for 3 s while the boss was not attacking.
-    static final double LEAP_MIN_DISTANCE = 6.0;
+    /** Same measure as the slam (to the near side of the target), so one of the two always reaches it. */
+    static final double LEAP_MIN_DISTANCE = SLAM_RADIUS;
     static final double LEAP_MAX_DISTANCE = 12.0;
     // Clip frames; the wind-up before take-off plays 50% slower in game (11 frames over 17 ticks).
     static final int LEAP_TAKEOFF_FRAME = 11;
@@ -386,7 +387,7 @@ public class ZombieLord extends Monster {
 
     private boolean leapRange(LivingEntity target) {
         double distance = horizontalDistance(target.position());
-        return distance > LEAP_MIN_DISTANCE && distance < LEAP_MAX_DISTANCE;
+        return distance - target.getBbWidth() / 2 > LEAP_MIN_DISTANCE && distance < LEAP_MAX_DISTANCE;
     }
 
     private void startLeap(LivingEntity target, boolean endsRound) {
