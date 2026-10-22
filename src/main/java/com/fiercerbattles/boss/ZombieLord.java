@@ -74,12 +74,15 @@ public class ZombieLord extends Monster {
     static final int CHAIN_BLEND_TICKS = 5;
     static final int ATTACK2_LENGTH = 32;
     static final int ATTACK3_SLAM_FRAME = 20;
+    /** From this attack3 frame on, a target stepping away no longer turns it into a leap slam. */
+    static final int ATTACK3_LEAP_CUTOFF_FRAME = 5;
     static final int ATTACK3_LENGTH = 40;
     static final double SLAM_RADIUS = 6.0;
     static final float SLAM_DAMAGE_NEAR = 10.0F;
     static final float SLAM_DAMAGE_FAR = 2.0F;
 
-    // Leap slam, replacing attack3 when the target stands between 6 and 12 blocks away.
+    // Leap slam: replaces attack3 when the target stands between 6 and 12 blocks away, and closes the
+    // gap when the target has stayed outside melee range for 3 s while the boss was not attacking.
     static final double LEAP_MIN_DISTANCE = 6.0;
     static final double LEAP_MAX_DISTANCE = 12.0;
     static final int LEAP_TAKEOFF_FRAME = 11;
@@ -88,6 +91,7 @@ public class ZombieLord extends Monster {
     static final double LEAP_RADIUS = 5.0;
     static final float LEAP_DAMAGE_NEAR = 7.0F;
     static final float LEAP_DAMAGE_FAR = 2.0F;
+    static final int CHASE_LEAP_TICKS = 3 * 20;
 
     // Quake summon.
     public static final int QUAKE_PLANT_FRAME = 21;
@@ -123,6 +127,8 @@ public class ZombieLord extends Monster {
     private Vec3 leapFrom = Vec3.ZERO;
     private Vec3 leapTo = Vec3.ZERO;
     private int quakeCooldown;
+    /** Consecutive chase ticks with the target outside melee range. */
+    private int outOfRangeTicks;
     /** Health-loss summons already used; each 40% lost earns one. */
     private int healthSummonsUsed;
     private int repathTicks;
@@ -148,7 +154,7 @@ public class ZombieLord extends Monster {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
-                .add(Attributes.MAX_HEALTH, 400.0)
+                .add(Attributes.MAX_HEALTH, 300.0)
                 .add(Attributes.ARMOR, 10.0)
                 .add(Attributes.ATTACK_DAMAGE, SWEEP_DAMAGE)
                 .add(Attributes.MOVEMENT_SPEED, WALK_SPEED)
@@ -231,6 +237,7 @@ public class ZombieLord extends Monster {
     private void tickChase(@Nullable LivingEntity target) {
         if (target == null) {
             getNavigation().stop();
+            outOfRangeTicks = 0;
             setLocomotion(ZombieLordAction.IDLE);
             return;
         }
@@ -245,8 +252,16 @@ public class ZombieLord extends Monster {
             startQuake("target " + String.format("%.1f", distance) + " blocks away");
             return;
         }
-        if (distance <= MELEE_TRIGGER_RANGE && Math.abs(target.getY() - getY()) < 2.5 && hasLineOfSight(target)) {
+        boolean inReach = distance <= MELEE_TRIGGER_RANGE && Math.abs(target.getY() - getY()) < 2.5;
+        if (inReach && hasLineOfSight(target)) {
             startAttack1(target);
+            return;
+        }
+        // Out of reach for 3 s straight (above or below counts too): leap onto the target.
+        if (inReach) {
+            outOfRangeTicks = 0;
+        } else if (++outOfRangeTicks > CHASE_LEAP_TICKS && hasLineOfSight(target)) {
+            startLeap(target);
             return;
         }
         if (--repathTicks <= 0 || getNavigation().isDone()) {
@@ -265,6 +280,7 @@ public class ZombieLord extends Monster {
 
     private void startAttack1(LivingEntity target) {
         getNavigation().stop();
+        outOfRangeTicks = 0;
         // The attack locks the facing it starts with; no turning until the chain re-targets.
         lockedYaw = yawToward(target.position());
         applyYaw(lockedYaw);
@@ -305,7 +321,7 @@ public class ZombieLord extends Monster {
 
     private void tickAttack3(@Nullable LivingEntity target, int t) {
         applyYaw(lockedYaw);
-        if (t < ATTACK3_SLAM_FRAME && target != null && leapRange(target)) {
+        if (t < ATTACK3_LEAP_CUTOFF_FRAME && target != null && leapRange(target)) {
             startLeap(target);
             return;
         }
@@ -323,6 +339,8 @@ public class ZombieLord extends Monster {
     }
 
     private void startLeap(LivingEntity target) {
+        getNavigation().stop();
+        outOfRangeTicks = 0;
         // The landing point is locked once; the leap never follows the target afterwards.
         leapFrom = position();
         leapTo = target.position();
@@ -357,6 +375,7 @@ public class ZombieLord extends Monster {
     private void startQuake(String reason) {
         LOGGER.debug("Zombie Lord {} summons: {}", getId(), reason);
         getNavigation().stop();
+        outOfRangeTicks = 0;
         lockedYaw = getYRot();
         skulls.clear();
         minions.clear();
@@ -411,6 +430,7 @@ public class ZombieLord extends Monster {
     }
 
     private void endAction() {
+        outOfRangeTicks = 0;
         setNoGravity(false);
         setAction(ZombieLordAction.IDLE, ACTION_BLEND_TICKS, 0);
     }
