@@ -19,16 +19,18 @@ final class ZombieLordPoser {
     private ZombieLordPoser() {}
 
     static Map<String, AnimationClip.Transform> pose(ZombieLord lord, float partialTick) {
-        ZombieLordAction action = lord.getAction();
+        boolean dying = lord.isDeadOrDying();
+        ZombieLordAction action = dying ? ZombieLordAction.DEATH : lord.getAction();
         AnimationClip clip = ZombieLordAssets.clip(action.clip);
         if (clip == null) return Map.of();
         ZombieLordPoseState state = lord.poseState;
-        long start = lord.getActionStart();
         double now = lord.level().getGameTime() + (double) partialTick;
+        // The death clip runs on the entity's own death clock.
+        long start = dying ? lord.level().getGameTime() - lord.deathTime : lord.getActionStart();
         if (state.action != action.ordinal() || state.actionStart != start) {
             state.blendFrom = state.lastPose.isEmpty() ? Map.of() : Map.copyOf(state.lastPose);
             state.blendStart = now;
-            state.blendTicks = state.action < 0 ? 0 : lord.getActionBlend();
+            state.blendTicks = state.action < 0 ? 0 : dying ? 4 : lord.getActionBlend();
             state.action = action.ordinal();
             state.actionStart = start;
         }
@@ -54,6 +56,13 @@ final class ZombieLordPoser {
             }
             case HOLD_START -> 0.0F;
             case HOLD_AT_FREEZE -> (float) Mth.clamp(elapsed, 0.0, ZombieLord.QUAKE_FREEZE_FRAME);
+            case LEAP -> (float) Mth.clamp(ZombieLord.leapClipTime(elapsed), 0.0, clip.duration());
+            case CHARGE -> {
+                if (elapsed < ZombieLord.CHARGE_WINDUP_FRAMES) yield (float) Math.max(0.0, elapsed);
+                // The dash cycle repeats at the speed the boss actually covers ground.
+                double cycles = (elapsed - ZombieLord.CHARGE_WINDUP_FRAMES) * ZombieLord.CHARGE_SPEED / ZombieLord.CHARGE_CLIP_SPEED;
+                yield (float) (ZombieLord.CHARGE_WINDUP_FRAMES + cycles % ZombieLord.CHARGE_CYCLE_FRAMES);
+            }
             case ONCE -> (float) Mth.clamp(elapsed, 0.0, clip.duration());
         };
     }

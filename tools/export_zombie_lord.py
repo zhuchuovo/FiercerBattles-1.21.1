@@ -33,7 +33,7 @@ PIXELS_PER_UNIT = 4.0
 RIG = "fiercerbattles:zombie_lord_v1"
 ROOT = "Bone_A"
 CLIPS = ("attack1", "attack2", "attack3", "combo", "quake", "summon", "leap_slam",
-         "leap_slam_inplace", "walk")
+         "leap_slam_inplace", "walk", "charge", "death")
 LOOPS = {"walk"}
 REPOSITORY = Path(__file__).resolve().parents[1]
 ASSETS = REPOSITORY / "src/main/resources/assets/fiercerbattles/zombie_lord"

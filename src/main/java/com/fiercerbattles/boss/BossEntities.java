@@ -49,6 +49,8 @@ public final class BossEntities {
 
     /** Boss blows: a sword cleave or ground slam. Not a vanilla melee type, so a parry cannot stun the boss. */
     public static final ResourceKey<DamageType> LORD_SLASH = damageType("zombie_lord_slash");
+    /** Ground blows (attack3 slam, leap landing): listed in minecraft:bypasses_shield. */
+    public static final ResourceKey<DamageType> LORD_SMASH = damageType("zombie_lord_smash");
     /** Blast of a skull landing. */
     public static final ResourceKey<DamageType> LORD_SKULL_BLAST = damageType("zombie_lord_skull");
 

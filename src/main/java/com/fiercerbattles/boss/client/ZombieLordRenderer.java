@@ -3,6 +3,7 @@ package com.fiercerbattles.boss.client;
 import com.fiercerbattles.FiercerBattles;
 import com.fiercerbattles.boss.ZombieLord;
 import com.fiercerbattles.boss.ZombieLordAction;
+import com.fiercerbattles.boss.ZombieLordPoseState;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -11,27 +12,30 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
-import net.minecraft.client.renderer.entity.layers.EyesLayer;
+import net.minecraft.client.renderer.entity.RenderLayerParent;
+import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FastColor;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
+
+import java.util.List;
 
 public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLordModel> {
     static final ResourceLocation TEXTURE = texture("zombie_lord");
     static final ResourceLocation GLOW = texture("zombie_lord_glow");
     static final ResourceLocation RING = texture("quake_ring");
+    static final ResourceLocation TRAIL = texture("charge_trail");
     private static final RenderType GLOW_TYPE = RenderType.eyes(GLOW);
     /** The ring grows from this radius to its full size over the two-second tremor. */
     private static final float RING_START_RADIUS = 0.6F;
     private static final float RING_FULL_RADIUS = 5.0F;
+    private static final float TRAIL_HALF_WIDTH = 0.55F;
 
     public ZombieLordRenderer(EntityRendererProvider.Context context) {
         super(context, new ZombieLordModel(), 0.9F);
-        addLayer(new EyesLayer<>(this) {
-            @Override
-            public RenderType renderType() { return GLOW_TYPE; }
-        });
+        addLayer(new GlowLayer(this));
     }
 
     static ResourceLocation texture(String name) {
@@ -46,16 +50,21 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
         poses.scale(ZombieLord.RENDER_SCALE, ZombieLord.RENDER_SCALE, ZombieLord.RENDER_SCALE);
     }
 
+    /** The death clip collapses the body itself; no vanilla tip-over on top of it. */
+    @Override
+    protected float getFlipDegrees(ZombieLord lord) { return 0.0F; }
+
     @Override
     public void render(ZombieLord lord, float yaw, float partialTick, PoseStack poses, MultiBufferSource buffers, int light) {
         super.render(lord, yaw, partialTick, poses, buffers, light);
         renderQuakeRing(lord, partialTick, poses, buffers);
+        renderChargeTrail(lord, partialTick, poses, buffers, light);
     }
 
     /** Light ring under the boss from the sword plant on, growing over the tremor and fading as it rises. */
     private static void renderQuakeRing(ZombieLord lord, float partialTick, PoseStack poses, MultiBufferSource buffers) {
         ZombieLordAction action = lord.getAction();
-        if (action != ZombieLordAction.QUAKE && action != ZombieLordAction.QUAKE_END) return;
+        if (lord.isDeadOrDying() || action != ZombieLordAction.QUAKE && action != ZombieLordAction.QUAKE_END) return;
         float time = (float) lord.actionTime(partialTick);
         float since = time - ZombieLord.QUAKE_PLANT_FRAME;
         if (since < 0) return;
@@ -73,6 +82,47 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
         poses.popPose();
     }
 
+    /** Scorched furrow behind a charge: one ground strip per pair of dash samples, fading over three seconds. */
+    private static void renderChargeTrail(ZombieLord lord, float partialTick, PoseStack poses, MultiBufferSource buffers, int light) {
+        List<ZombieLordPoseState.TrailPoint> trail = lord.poseState.trail;
+        if (trail.size() < 2) return;
+        double originX = Mth.lerp(partialTick, lord.xo, lord.getX());
+        double originY = Mth.lerp(partialTick, lord.yo, lord.getY());
+        double originZ = Mth.lerp(partialTick, lord.zo, lord.getZ());
+        double now = lord.level().getGameTime() + (double) partialTick;
+        VertexConsumer buffer = buffers.getBuffer(RenderType.entityTranslucent(TRAIL));
+        PoseStack.Pose pose = poses.last();
+        Matrix4f matrix = pose.pose();
+        float v = 0.0F;
+        for (int i = 0; i + 1 < trail.size(); i++) {
+            ZombieLordPoseState.TrailPoint a = trail.get(i), b = trail.get(i + 1);
+            double dx = b.x() - a.x(), dz = b.z() - a.z();
+            double length = Math.sqrt(dx * dx + dz * dz);
+            if (length < 1.0E-3 || length > 2.0) continue;
+            float sideX = (float) (-dz / length) * TRAIL_HALF_WIDTH, sideZ = (float) (dx / length) * TRAIL_HALF_WIDTH;
+            int colorA = trailColor(now - a.time()), colorB = trailColor(now - b.time());
+            float ax = (float) (a.x() - originX), ay = (float) (a.y() - originY) + 0.02F, az = (float) (a.z() - originZ);
+            float bx = (float) (b.x() - originX), by = (float) (b.y() - originY) + 0.02F, bz = (float) (b.z() - originZ);
+            float v2 = v + (float) length / (2 * TRAIL_HALF_WIDTH);
+            trailVertex(buffer, matrix, pose, ax - sideX, ay, az - sideZ, 0.0F, v, colorA, light);
+            trailVertex(buffer, matrix, pose, ax + sideX, ay, az + sideZ, 1.0F, v, colorA, light);
+            trailVertex(buffer, matrix, pose, bx + sideX, by, bz + sideZ, 1.0F, v2, colorB, light);
+            trailVertex(buffer, matrix, pose, bx - sideX, by, bz - sideZ, 0.0F, v2, colorB, light);
+            v = v2;
+        }
+    }
+
+    private static int trailColor(double age) {
+        float alpha = (float) Mth.clamp(1.0 - age / ZombieLord.CHARGE_TRAIL_TICKS, 0.0, 1.0);
+        return FastColor.ARGB32.color((int) (alpha * alpha * 230), 255, 255, 255);
+    }
+
+    private static void trailVertex(VertexConsumer buffer, Matrix4f matrix, PoseStack.Pose pose, float x, float y, float z,
+                                    float u, float v, int color, int light) {
+        buffer.addVertex(matrix, x, y, z).setColor(color).setUv(u, v).setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(light).setNormal(pose, 0.0F, 1.0F, 0.0F);
+    }
+
     /** Horizontal textured quad centred on the pose origin, full bright. */
     static void groundQuad(PoseStack poses, VertexConsumer buffer, float halfX, float halfZ, float alpha) {
         PoseStack.Pose pose = poses.last();
@@ -82,6 +132,24 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
         for (float[] corner : corners) {
             buffer.addVertex(matrix, corner[0], 0.0F, corner[1]).setColor(color).setUv(corner[2], corner[3])
                     .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(pose, 0.0F, 1.0F, 0.0F);
+        }
+    }
+
+    /** Glowing eyes, runes and heart; they die out over the death clip. */
+    private static final class GlowLayer extends RenderLayer<ZombieLord, ZombieLordModel> {
+        GlowLayer(RenderLayerParent<ZombieLord, ZombieLordModel> parent) {
+            super(parent);
+        }
+
+        @Override
+        public void render(PoseStack poses, MultiBufferSource buffers, int light, ZombieLord lord, float limbSwing,
+                           float limbSwingAmount, float partialTick, float ageInTicks, float netHeadYaw, float headPitch) {
+            float glow = lord.isDeadOrDying()
+                    ? Mth.clamp(1.0F - (lord.deathTime + partialTick) / ZombieLord.DEATH_CLIP_FRAMES, 0.0F, 1.0F) : 1.0F;
+            if (glow <= 0.0F) return;
+            int channel = (int) (glow * 255);
+            getParentModel().renderToBuffer(poses, buffers.getBuffer(GLOW_TYPE), LightTexture.FULL_BRIGHT,
+                    OverlayTexture.NO_OVERLAY, FastColor.ARGB32.color(255, channel, channel, channel));
         }
     }
 }

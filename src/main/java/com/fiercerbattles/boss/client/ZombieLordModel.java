@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -17,6 +18,8 @@ import java.util.Map;
  */
 public final class ZombieLordModel extends EntityModel<ZombieLord> {
     private Map<String, AnimationClip.Transform> pose = Map.of();
+    /** Past the first moments of the death clip the red death tint is dropped. */
+    private boolean clearOverlay;
 
     public ZombieLordModel() {
         super(RenderType::entityCutoutNoCull);
@@ -26,10 +29,12 @@ public final class ZombieLordModel extends EntityModel<ZombieLord> {
     public void setupAnim(ZombieLord lord, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch) {
         // LivingEntityRenderer passes tickCount + partialTick as ageInTicks.
         pose = ZombieLordPoser.pose(lord, ageInTicks - lord.tickCount);
+        clearOverlay = lord.isDeadOrDying() && lord.deathTime > 8;
     }
 
     @Override
     public void renderToBuffer(PoseStack poses, VertexConsumer buffer, int light, int overlay, int color) {
+        if (clearOverlay) overlay = OverlayTexture.NO_OVERLAY;
         Vector3f position = new Vector3f();
         Vector3f normal = new Vector3f();
         for (ZombieLordAssets.MeshObject object : ZombieLordAssets.mesh()) {
