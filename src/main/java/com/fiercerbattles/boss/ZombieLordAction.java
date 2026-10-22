@@ -9,7 +9,6 @@ public enum ZombieLordAction {
     /** Combat stance: the first frame of attack1, which is also where the walk cycle grips the sword. */
     IDLE("attack1", Playback.HOLD_START),
     WALK("walk", Playback.LOOP),
-    RUN("run", Playback.LOOP),
     ATTACK1("attack1", Playback.ONCE),
     ATTACK2("attack2", Playback.ONCE),
     ATTACK3("attack3", Playback.ONCE),
@@ -31,7 +30,7 @@ public enum ZombieLordAction {
         this.playback = playback;
     }
 
-    public boolean locomotion() { return this == IDLE || this == WALK || this == RUN; }
+    public boolean locomotion() { return this == IDLE || this == WALK; }
 
     public static ZombieLordAction byId(int id) {
         return id >= 0 && id < VALUES.length ? VALUES[id] : IDLE;

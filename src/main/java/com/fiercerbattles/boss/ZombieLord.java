@@ -52,15 +52,12 @@ import java.util.Set;
  */
 public class ZombieLord extends Monster {
     private static final Logger LOGGER = LogUtils.getLogger();
-    // Locomotion: 2.5 m/s inside 12 blocks, 6 m/s beyond. Speeds are exact blocks per tick on flat ground.
+    // Locomotion: always walks, 2.5 m/s (exact blocks per tick on flat ground).
     public static final double WALK_SPEED = 2.5 / 20.0;
-    public static final double RUN_SPEED = 6.0 / 20.0;
-    public static final double RUN_DISTANCE = 12.0;
     /** The one.blend rig is drawn 1.5x (敌军动作 README); the hitbox in BossEntities matches. */
     public static final float RENDER_SCALE = 1.5F;
-    /** Ground speed the clips are authored for (zombie_lord README: 1.0 / 2.25 px per tick at scale 1). */
+    /** Ground speed the walk clip is authored for (zombie_lord README: 1.0 px per tick at scale 1). */
     public static final double WALK_CLIP_SPEED = 1.0 / 16.0 * RENDER_SCALE;
-    public static final double RUN_CLIP_SPEED = 2.25 / 16.0 * RENDER_SCALE;
 
     // Three-hit combo.
     public static final double MELEE_TRIGGER_RANGE = 3.0;
@@ -78,17 +75,17 @@ public class ZombieLord extends Monster {
     static final int ATTACK2_LENGTH = 32;
     static final int ATTACK3_SLAM_FRAME = 20;
     static final int ATTACK3_LENGTH = 40;
-    static final double SLAM_RADIUS = 4.0;
+    static final double SLAM_RADIUS = 6.0;
     static final float SLAM_DAMAGE_NEAR = 10.0F;
     static final float SLAM_DAMAGE_FAR = 2.0F;
 
-    // Leap slam, replacing attack3 when the target stands between 3 and 10 blocks away.
-    static final double LEAP_MIN_DISTANCE = 3.0;
-    static final double LEAP_MAX_DISTANCE = 10.0;
+    // Leap slam, replacing attack3 when the target stands between 6 and 12 blocks away.
+    static final double LEAP_MIN_DISTANCE = 6.0;
+    static final double LEAP_MAX_DISTANCE = 12.0;
     static final int LEAP_TAKEOFF_FRAME = 11;
     static final int LEAP_LAND_FRAME = 23;
     static final int LEAP_LENGTH = 48;
-    static final double LEAP_RADIUS = 3.0;
+    static final double LEAP_RADIUS = 5.0;
     static final float LEAP_DAMAGE_NEAR = 7.0F;
     static final float LEAP_DAMAGE_FAR = 2.0F;
 
@@ -99,12 +96,14 @@ public class ZombieLord extends Monster {
     public static final int TREMOR_TICKS = 40;
     static final int[] SHOCKWAVE_FRAMES = {21, 25, 29};
     static final int SKULL_COUNT = 3;
-    /** Skulls spiral up during the two-second tremor, then leave one every 0.5 s. */
+    /** Skulls spiral up during the two-second tremor, then leave one every 3 s. */
     public static final int SKULL_RISE_TICKS = TREMOR_TICKS;
-    static final int SKULL_FIRE_INTERVAL = 10;
+    static final int SKULL_FIRE_INTERVAL = 3 * 20;
     static final int SUMMON_TIMEOUT_TICKS = 20 * 20;
-    /** The target must stay outside melee range this long (5 s) before the boss summons. */
-    static final int QUAKE_TRIGGER_TICKS = 100;
+    /** One summon for every 40% of maximum health lost (at 60% and 20% left). */
+    static final float SUMMON_HEALTH_STEP = 0.4F;
+    /** A target farther than this also triggers a summon, at most once per cooldown. */
+    static final double SUMMON_DISTANCE = 12.0;
     static final int QUAKE_COOLDOWN_TICKS = 20 * 20;
 
     static final int LOCOMOTION_BLEND_TICKS = 4;
@@ -123,10 +122,10 @@ public class ZombieLord extends Monster {
     private final Set<Integer> hitThisSegment = new HashSet<>();
     private Vec3 leapFrom = Vec3.ZERO;
     private Vec3 leapTo = Vec3.ZERO;
-    private int outOfRangeTicks;
     private int quakeCooldown;
+    /** Health-loss summons already used; each 40% lost earns one. */
+    private int healthSummonsUsed;
     private int repathTicks;
-    private double pathSpeed;
     @Nullable private Vec3 lastTargetPos;
     private final List<LordSkull> skulls = new ArrayList<>();
     private final List<LordSkeleton> minions = new ArrayList<>();
@@ -216,7 +215,7 @@ public class ZombieLord extends Monster {
         if (target != null) lastTargetPos = target.position();
         int t = actionTick();
         switch (getAction()) {
-            case IDLE, WALK, RUN -> tickChase(target);
+            case IDLE, WALK -> tickChase(target);
             case ATTACK1 -> tickAttack1(target, t);
             case ATTACK2 -> tickAttack2(target, t);
             case ATTACK3 -> tickAttack3(target, t);
@@ -232,35 +231,40 @@ public class ZombieLord extends Monster {
     private void tickChase(@Nullable LivingEntity target) {
         if (target == null) {
             getNavigation().stop();
-            outOfRangeTicks = 0;
             setLocomotion(ZombieLordAction.IDLE);
             return;
         }
+        // Summons only start between actions, never in the middle of the combo.
+        if (healthSummonsUsed < healthSummonsEarned()) {
+            healthSummonsUsed++;
+            startQuake("health " + Math.round(getHealth()) + "/" + Math.round(getMaxHealth()));
+            return;
+        }
         double distance = horizontalDistance(target.position());
+        if (distance > SUMMON_DISTANCE && quakeCooldown <= 0 && hasLineOfSight(target)) {
+            startQuake("target " + String.format("%.1f", distance) + " blocks away");
+            return;
+        }
         if (distance <= MELEE_TRIGGER_RANGE && Math.abs(target.getY() - getY()) < 2.5 && hasLineOfSight(target)) {
             startAttack1(target);
             return;
         }
-        outOfRangeTicks++;
-        if (outOfRangeTicks >= QUAKE_TRIGGER_TICKS && quakeCooldown <= 0 && hasLineOfSight(target)) {
-            startQuake();
-            return;
-        }
-        boolean run = distance > RUN_DISTANCE;
-        double speed = run ? RUN_SPEED : WALK_SPEED;
-        if (--repathTicks <= 0 || getNavigation().isDone() || pathSpeed != speed) {
-            getNavigation().moveTo(target, speed);
-            pathSpeed = speed;
+        if (--repathTicks <= 0 || getNavigation().isDone()) {
+            getNavigation().moveTo(target, WALK_SPEED);
             repathTicks = 5;
         }
         boolean moving = !getNavigation().isDone();
-        setLocomotion(moving ? (run ? ZombieLordAction.RUN : ZombieLordAction.WALK) : ZombieLordAction.IDLE);
+        setLocomotion(moving ? ZombieLordAction.WALK : ZombieLordAction.IDLE);
         if (!moving) applyYaw(Mth.approachDegrees(getYRot(), yawToward(target.position()), 12.0F));
+    }
+
+    private int healthSummonsEarned() {
+        float lost = 1.0F - getHealth() / getMaxHealth();
+        return (int) Math.floor(lost / SUMMON_HEALTH_STEP + 1.0E-4F);
     }
 
     private void startAttack1(LivingEntity target) {
         getNavigation().stop();
-        outOfRangeTicks = 0;
         // The attack locks the facing it starts with; no turning until the chain re-targets.
         lockedYaw = yawToward(target.position());
         applyYaw(lockedYaw);
@@ -350,9 +354,9 @@ public class ZombieLord extends Monster {
         if (t >= LEAP_LENGTH) endAction();
     }
 
-    private void startQuake() {
+    private void startQuake(String reason) {
+        LOGGER.debug("Zombie Lord {} summons: {}", getId(), reason);
         getNavigation().stop();
-        outOfRangeTicks = 0;
         lockedYaw = getYRot();
         skulls.clear();
         minions.clear();
@@ -407,7 +411,6 @@ public class ZombieLord extends Monster {
     }
 
     private void endAction() {
-        outOfRangeTicks = 0;
         setNoGravity(false);
         setAction(ZombieLordAction.IDLE, ACTION_BLEND_TICKS, 0);
     }
@@ -600,7 +603,7 @@ public class ZombieLord extends Monster {
         }
     }
 
-    /** Distance walked on this client, interpolated; drives the walk/run cycle so the feet do not slide. */
+    /** Distance walked on this client, interpolated; drives the walk cycle so the feet do not slide. */
     public double walkDistance(float partialTick) {
         return Mth.lerp(partialTick, walkDistanceO, walkDistance);
     }
@@ -673,12 +676,14 @@ public class ZombieLord extends Monster {
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putInt("QuakeCooldown", quakeCooldown);
+        tag.putInt("HealthSummonsUsed", healthSummonsUsed);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         quakeCooldown = tag.getInt("QuakeCooldown");
+        healthSummonsUsed = tag.getInt("HealthSummonsUsed");
         if (hasCustomName()) bossEvent.setName(getDisplayName());
     }
 
