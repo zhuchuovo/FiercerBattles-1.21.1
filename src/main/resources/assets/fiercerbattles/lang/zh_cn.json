@@ -33,5 +33,14 @@
   "subtitles.fiercerbattles.parry_use": "弹反起手",
   "subtitles.fiercerbattles.roll": "翻滚",
   "death.attack.parry_counter": "%1$s 被弹反反击致死",
-  "death.attack.parry_counter.player": "%1$s 被 %2$s 弹反反击致死"
+  "death.attack.parry_counter.player": "%1$s 被 %2$s 弹反反击致死",
+  "entity.fiercerbattles.zombie_lord": "僵尸领主",
+  "entity.fiercerbattles.zombie_lord_skull": "领主骷髅头",
+  "entity.fiercerbattles.zombie_lord_skeleton": "复苏骷髅",
+  "item.fiercerbattles.zombie_lord_spawn_egg": "僵尸领主刷怪蛋",
+  "item.fiercerbattles.zombie_lord_skeleton_spawn_egg": "复苏骷髅刷怪蛋",
+  "death.attack.zombie_lord_slash": "%1$s 被 %2$s 劈碎了",
+  "death.attack.zombie_lord_slash.player": "%1$s 被 %2$s 劈碎了",
+  "death.attack.zombie_lord_skull": "%1$s 被 %2$s 的骷髅头击中了",
+  "death.attack.zombie_lord_skull.player": "%1$s 被 %2$s 的骷髅头击中了"
 }

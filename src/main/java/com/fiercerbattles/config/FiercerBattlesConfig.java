@@ -2,6 +2,7 @@ package com.fiercerbattles.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.fiercerbattles.boss.BossEntities;
 import com.fiercerbattles.execution.ExecutionWeapons;
 import net.neoforged.fml.loading.FMLPaths;
 
@@ -112,8 +113,8 @@ public final class FiercerBattlesConfig {
         }
 
         public boolean allows(LivingEntity entity) {
-            return humanoid_entities != null
-                    && humanoid_entities.contains(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+            return BossEntities.BUILTIN_HUMANOIDS.contains(id) || humanoid_entities != null && humanoid_entities.contains(id);
         }
 
         public List<Integer> hurtSoundFrames(int durationTicks) {

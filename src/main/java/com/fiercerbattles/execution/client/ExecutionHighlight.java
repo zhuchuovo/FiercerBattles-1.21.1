@@ -2,6 +2,7 @@ package com.fiercerbattles.execution.client;
 
 import com.fiercerbattles.FiercerBattlesExecutionClient;
 import com.fiercerbattles.execution.ExecutionNetwork;
+import com.fiercerbattles.execution.RiposteTarget;
 import com.fiercerbattles.parry.client.ParryClient;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -33,6 +34,7 @@ public final class ExecutionHighlight {
         if (!staggered && ParryClient.isBusy(entity)) return false;
         double threshold = staggered ? Math.max(current.healthThreshold(), current.staggerHealthThreshold())
                 : current.healthThreshold();
+        if (staggered && entity instanceof RiposteTarget target && target.riposteAtAnyHealth()) return entity.getMaxHealth() > 0;
         return entity.getMaxHealth() > 0 && entity.getHealth() < entity.getMaxHealth() * threshold;
     }
 

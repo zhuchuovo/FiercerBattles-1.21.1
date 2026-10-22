@@ -1,6 +1,7 @@
 package com.fiercerbattles.mobcombat.logic;
 
 import com.fiercerbattles.mobcombat.BetterMobCombatReimagined;
+import com.fiercerbattles.mobcombat.api.MobAttackRhythm;
 import com.fiercerbattles.mobcombat.api.MobCombatState;
 import com.fiercerbattles.mobcombat.config.BMCConfig;
 import com.fiercerbattles.mobcombat.network.BMCNetwork;
@@ -392,7 +393,8 @@ public final class MobCombatLogic {
                 );
             }
         }
-        state.bmc$setAttackCooldown(interval + BMCConfig.ADDITIONAL_ATTACK_COOLDOWN.get());
+        int rhythm = mob instanceof MobAttackRhythm paced ? Math.max(0, paced.bmc$extraCooldownAfterSwing()) : 0;
+        state.bmc$setAttackCooldown(interval + BMCConfig.ADDITIONAL_ATTACK_COOLDOWN.get() + rhythm);
         state.bmc$setWindupTicks(MobCombatMath.impactTick(mob, hand));
 
         BMCNetwork.sendAttackAnimation(

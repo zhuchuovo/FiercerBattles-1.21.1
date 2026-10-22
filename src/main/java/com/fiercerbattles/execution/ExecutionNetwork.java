@@ -2,6 +2,7 @@ package com.fiercerbattles.execution;
 
 import com.fiercerbattles.FiercerBattles;
 import com.fiercerbattles.FiercerBattlesExecutionServer;
+import com.fiercerbattles.boss.BossEntities;
 import com.fiercerbattles.config.FiercerBattlesConfig;
 import com.fiercerbattles.execution.action.PairedExecutionAction;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /** Common payloads contain no client classes, so dedicated servers can register them safely. */
 @EventBusSubscriber(modid = FiercerBattles.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
@@ -79,8 +81,8 @@ public final class ExecutionNetwork {
             var config = FiercerBattlesConfig.getExecution();
             return new HighlightRules(config.enabled, config.healthThreshold(),
                     FiercerBattlesConfig.getParry().staggerExecutionHealthThreshold(),
-                    config.humanoid_entities == null ? List.of()
-                            : config.humanoid_entities.stream().filter(Objects::nonNull).toList());
+                    Stream.concat(BossEntities.BUILTIN_HUMANOIDS.stream(), config.humanoid_entities == null ? Stream.<String>empty()
+                            : config.humanoid_entities.stream().filter(Objects::nonNull)).distinct().toList());
         }
 
         @Override public Type<HighlightRules> type() { return TYPE; }

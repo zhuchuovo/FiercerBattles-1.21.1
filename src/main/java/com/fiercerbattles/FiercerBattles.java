@@ -1,6 +1,7 @@
 package com.fiercerbattles;
 
 import com.fiercerbattles.bettercombat.neoforge.NeoForgeMod;
+import com.fiercerbattles.boss.BossEntities;
 import com.fiercerbattles.effect.ModEffects;
 import com.fiercerbattles.mobcombat.BetterMobCombatReimagined;
 import com.fiercerbattles.sound.ModSounds;
@@ -16,6 +17,7 @@ public class FiercerBattles {
         NeoForgeMod.initialize(modEventBus);
         ModEffects.register(modEventBus);
         ModSounds.register(modEventBus);
+        BossEntities.register(modEventBus);
         BetterMobCombatReimagined.initialize(modEventBus, container);
     }
 }

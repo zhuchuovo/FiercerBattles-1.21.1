@@ -33,5 +33,14 @@
   "subtitles.fiercerbattles.parry_use": "Parry wind-up",
   "subtitles.fiercerbattles.roll": "Dodge roll",
   "death.attack.parry_counter": "%1$s was riposted",
-  "death.attack.parry_counter.player": "%1$s was riposted by %2$s"
+  "death.attack.parry_counter.player": "%1$s was riposted by %2$s",
+  "entity.fiercerbattles.zombie_lord": "Zombie Lord",
+  "entity.fiercerbattles.zombie_lord_skull": "Lord's Skull",
+  "entity.fiercerbattles.zombie_lord_skeleton": "Risen Skeleton",
+  "item.fiercerbattles.zombie_lord_spawn_egg": "Zombie Lord Spawn Egg",
+  "item.fiercerbattles.zombie_lord_skeleton_spawn_egg": "Risen Skeleton Spawn Egg",
+  "death.attack.zombie_lord_slash": "%1$s was cleaved by %2$s",
+  "death.attack.zombie_lord_slash.player": "%1$s was cleaved by %2$s",
+  "death.attack.zombie_lord_skull": "%1$s was struck by a skull of %2$s",
+  "death.attack.zombie_lord_skull.player": "%1$s was struck by a skull of %2$s"
 }

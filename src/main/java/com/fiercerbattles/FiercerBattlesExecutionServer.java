@@ -4,6 +4,7 @@ import com.fiercerbattles.config.FiercerBattlesConfig;
 import com.fiercerbattles.execution.ExecutionGeometry;
 import com.fiercerbattles.execution.ExecutionNetwork;
 import com.fiercerbattles.execution.ExecutionPlacement;
+import com.fiercerbattles.execution.RiposteTarget;
 import com.fiercerbattles.execution.ExecutionTimeline;
 import com.fiercerbattles.execution.ExecutionSoundTimeline;
 import com.fiercerbattles.sound.ModSounds;
@@ -148,7 +149,8 @@ public final class FiercerBattlesExecutionServer {
         double threshold = riposte
                 ? Math.max(config.healthThreshold(), FiercerBattlesConfig.getParry().staggerExecutionHealthThreshold())
                 : config.healthThreshold();
-        if (!(maxHealth > 0) || !(victim.getHealth() < maxHealth * threshold)) {
+        boolean anyHealth = riposte && victim instanceof RiposteTarget target && target.riposteAtAnyHealth();
+        if (!(maxHealth > 0) || !anyHealth && !(victim.getHealth() < maxHealth * threshold)) {
             LOGGER.info("Execution rejected: health={}/{}, threshold={}, riposte={}",
                     victim.getHealth(), maxHealth, threshold, riposte);
             return deny(executor, "health");
