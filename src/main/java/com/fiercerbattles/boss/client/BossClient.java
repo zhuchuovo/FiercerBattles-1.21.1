@@ -65,12 +65,22 @@ public final class BossClient {
             float strength = 0.0F;
             for (ZombieLord lord : minecraft.level.getEntitiesOfClass(ZombieLord.class,
                     new net.minecraft.world.phys.AABB(camera, camera).inflate(TREMOR_RANGE))) {
+                float near = Mth.clamp((float) (1.0 - lord.position().distanceTo(camera) / TREMOR_RANGE), 0.0F, 1.0F);
+                if (lord.getAction() == ZombieLordAction.TRANSITION) {
+                    // A jolt as the breastplate bursts, then the roar's rumble.
+                    double time = lord.actionTime(partialTick);
+                    double burst = time - ZombieLord.TRANSITION_BURST_FRAME, roar = time - ZombieLord.TRANSITION_ROAR_FRAME;
+                    if (burst >= 0 && burst < 12) strength = Math.max(strength, near * 1.6F * (float) (1.0 - burst / 12));
+                    if (roar >= 0 && roar < ZombieLord.TREMOR_TICKS) {
+                        strength = Math.max(strength, near * 0.7F * (float) (1.0 - roar / ZombieLord.TREMOR_TICKS));
+                    }
+                    continue;
+                }
                 if (lord.getAction() != ZombieLordAction.QUAKE) continue;
                 double since = lord.actionTime(partialTick) - ZombieLord.QUAKE_PLANT_FRAME;
                 if (since < 0 || since >= ZombieLord.TREMOR_TICKS) continue;
                 float fade = (float) (1.0 - since / ZombieLord.TREMOR_TICKS);
-                float near = (float) (1.0 - lord.position().distanceTo(camera) / TREMOR_RANGE);
-                strength = Math.max(strength, Mth.clamp(near, 0.0F, 1.0F) * (0.35F + 0.65F * fade));
+                strength = Math.max(strength, near * (0.35F + 0.65F * fade));
             }
             if (strength <= 0.0F) return;
             float time = (minecraft.level.getGameTime() % 100000L) + partialTick;

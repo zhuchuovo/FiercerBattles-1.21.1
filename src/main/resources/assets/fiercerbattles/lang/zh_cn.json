@@ -46,5 +46,11 @@
   "death.attack.zombie_lord_smash": "%1$s 被 %2$s 砸碎了",
   "death.attack.zombie_lord_smash.player": "%1$s 被 %2$s 砸碎了",
   "death.attack.zombie_lord_grab": "%1$s 被 %2$s 抓起来摔了出去",
-  "death.attack.zombie_lord_grab.player": "%1$s 被 %2$s 抓起来摔了出去"
+  "death.attack.zombie_lord_grab.player": "%1$s 被 %2$s 抓起来摔了出去",
+  "death.attack.zombie_lord_chop": "%1$s 被 %2$s 一剑劈倒了",
+  "death.attack.zombie_lord_chop.player": "%1$s 被 %2$s 一剑劈倒了",
+  "death.attack.zombie_lord_strike": "%1$s 被 %2$s 撞飞了",
+  "death.attack.zombie_lord_strike.player": "%1$s 被 %2$s 撞飞了",
+  "death.attack.zombie_lord_ghost_blade": "%1$s 被 %2$s 的鬼刃烧死了",
+  "death.attack.zombie_lord_ghost_blade.player": "%1$s 被 %2$s 的鬼刃烧死了"
 }

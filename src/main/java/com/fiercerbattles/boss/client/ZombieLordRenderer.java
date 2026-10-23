@@ -18,6 +18,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.List;
@@ -27,6 +28,7 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
     static final ResourceLocation GLOW = texture("zombie_lord_glow");
     static final ResourceLocation RING = texture("quake_ring");
     static final ResourceLocation TRAIL = texture("charge_trail");
+    static final ResourceLocation WARNING = texture("skull_warning");
     private static final RenderType GLOW_TYPE = RenderType.eyes(GLOW);
     /** The ring grows from this radius to its full size over the two-second tremor. */
     private static final float RING_START_RADIUS = 0.6F;
@@ -59,6 +61,25 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
         super.render(lord, yaw, partialTick, poses, buffers, light);
         renderQuakeRing(lord, partialTick, poses, buffers);
         renderChargeTrail(lord, partialTick, poses, buffers, light);
+        renderLeapMark(lord, partialTick, poses, buffers);
+    }
+
+    /** While the ghost blade's charged leap is in the air: a burning ring on its landing point, pulsing faster as it falls. */
+    private static void renderLeapMark(ZombieLord lord, float partialTick, PoseStack poses, MultiBufferSource buffers) {
+        if (lord.isDeadOrDying() || lord.getAction() != ZombieLordAction.GHOST_BLADE) return;
+        float time = (float) lord.actionTime(partialTick);
+        if (time < ZombieLord.GB_LEAP_TAKEOFF || time >= ZombieLord.GB_LEAP_LAND) return;
+        float progress = (time - ZombieLord.GB_LEAP_TAKEOFF) / (ZombieLord.GB_LEAP_LAND - ZombieLord.GB_LEAP_TAKEOFF);
+        float alpha = Mth.clamp(progress * 4.0F, 0.0F, 1.0F) * (0.65F + 0.3F * Mth.sin(time * (0.4F + progress * 0.8F)));
+        Vec3 mark = lord.getLeapMark();
+        poses.pushPose();
+        poses.translate(mark.x - Mth.lerp(partialTick, lord.xo, lord.getX()), mark.y - Mth.lerp(partialTick, lord.yo, lord.getY()) + 0.05,
+                mark.z - Mth.lerp(partialTick, lord.zo, lord.getZ()));
+        poses.mulPose(Axis.YP.rotationDegrees(time * 3.0F));
+        float radius = (float) ZombieLord.GB_LEAP_RADIUS;
+        groundQuad(poses, buffers.getBuffer(RenderType.entityTranslucentEmissive(RING)), radius, radius, alpha, 0xFF7A2A);
+        groundQuad(poses, buffers.getBuffer(RenderType.entityTranslucentEmissive(WARNING)), 1.5F, 1.5F, alpha, 0xFFFFFF);
+        poses.popPose();
     }
 
     /** Light ring under the boss from the sword plant on, growing over the tremor and fading as it rises. */
@@ -125,9 +146,14 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
 
     /** Horizontal textured quad centred on the pose origin, full bright. */
     static void groundQuad(PoseStack poses, VertexConsumer buffer, float halfX, float halfZ, float alpha) {
+        groundQuad(poses, buffer, halfX, halfZ, alpha, 0xFFFFFF);
+    }
+
+    /** As above, tinted {@code rgb}. */
+    static void groundQuad(PoseStack poses, VertexConsumer buffer, float halfX, float halfZ, float alpha, int rgb) {
         PoseStack.Pose pose = poses.last();
         Matrix4f matrix = pose.pose();
-        int color = ((int) (Mth.clamp(alpha, 0.0F, 1.0F) * 255) << 24) | 0xFFFFFF;
+        int color = ((int) (Mth.clamp(alpha, 0.0F, 1.0F) * 255) << 24) | rgb;
         float[][] corners = {{-halfX, -halfZ, 0, 0}, {-halfX, halfZ, 0, 1}, {halfX, halfZ, 1, 1}, {halfX, -halfZ, 1, 0}};
         for (float[] corner : corners) {
             buffer.addVertex(matrix, corner[0], 0.0F, corner[1]).setColor(color).setUv(corner[2], corner[3])

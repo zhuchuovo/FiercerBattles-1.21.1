@@ -7,14 +7,18 @@ import com.fiercerbattles.sound.ModSounds;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.block.RenderShape;
@@ -46,6 +50,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @EventBusSubscriber(modid = FiercerBattles.MOD_ID)
 public final class LocomotionServer {
+    /** Damage types a dodge roll's invulnerability does not stop (data/fiercerbattles/tags/damage_type). */
+    public static final TagKey<DamageType> IGNORES_DODGE_ROLL = TagKey.create(Registries.DAMAGE_TYPE,
+            ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, "ignores_dodge_roll"));
+
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> ROLL_READY = new ConcurrentHashMap<>();
@@ -251,13 +259,17 @@ public final class LocomotionServer {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void leftClickBlock(PlayerInteractEvent.LeftClickBlock event) { interaction(event); }
 
-    /** Dodge frames: the committed part of a roll ignores every hit except falls and invulnerability-bypassing damage. */
+    /**
+     * Dodge frames: the committed part of a roll ignores every hit except falls, invulnerability-bypassing damage and
+     * the damage types in fiercerbattles:ignores_dodge_roll (attacks that cannot be rolled through).
+     */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void incomingDamage(LivingIncomingDamageEvent event) {
         State state = state(event.getEntity());
         if (state == null || !state.invulnerable()) return;
         DamageSource source = event.getSource();
-        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) || source.is(DamageTypeTags.IS_FALL)) return;
+        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) || source.is(DamageTypeTags.IS_FALL)
+                || source.is(IGNORES_DODGE_ROLL)) return;
         event.setCanceled(true);
     }
 

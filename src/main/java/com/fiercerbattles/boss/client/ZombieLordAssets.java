@@ -32,8 +32,11 @@ public final class ZombieLordAssets implements ResourceManagerReloadListener {
     /** Floats per exported face: normal xyz, then four corners of x, y, z, u, v. */
     public static final int FACE_STRIDE = 23;
 
-    /** One rigid Blender object; it follows the clip channel of the same name. */
-    public record MeshObject(String name, float[] faces) {}
+    /**
+     * One rigid Blender object. It follows the clip channel {@code channel} (its own name unless model.json says
+     * otherwise) and is drawn in boss phase {@code phase} only, or always when that is 0.
+     */
+    public record MeshObject(String name, String channel, int phase, float[] faces) {}
 
     private static volatile List<MeshObject> mesh = List.of();
     private static volatile Map<String, AnimationClip> clips = Map.of();
@@ -77,14 +80,17 @@ public final class ZombieLordAssets implements ResourceManagerReloadListener {
         if (root.get("format").getAsInt() != 1) throw new IOException("Unsupported Zombie Lord model format");
         List<MeshObject> objects = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("objects").entrySet()) {
-            JsonArray faces = entry.getValue().getAsJsonObject().getAsJsonArray("faces");
+            JsonObject object = entry.getValue().getAsJsonObject();
+            JsonArray faces = object.getAsJsonArray("faces");
             float[] data = new float[faces.size() * FACE_STRIDE];
             for (int i = 0; i < faces.size(); i++) {
                 JsonArray face = faces.get(i).getAsJsonArray();
                 if (face.size() != FACE_STRIDE) throw new IOException("Malformed face in " + entry.getKey());
                 for (int j = 0; j < FACE_STRIDE; j++) data[i * FACE_STRIDE + j] = face.get(j).getAsFloat();
             }
-            objects.add(new MeshObject(entry.getKey(), data));
+            String channel = object.has("channel") ? object.get("channel").getAsString() : entry.getKey();
+            int phase = object.has("phase") ? object.get("phase").getAsInt() : 0;
+            objects.add(new MeshObject(entry.getKey(), channel, phase, data));
         }
         return List.copyOf(objects);
     }

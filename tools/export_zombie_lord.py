@@ -33,8 +33,13 @@ PIXELS_PER_UNIT = 4.0
 RIG = "fiercerbattles:zombie_lord_v1"
 ROOT = "Bone_A"
 CLIPS = ("attack1", "attack2", "attack3", "combo", "quake", "summon", "leap_slam",
-         "leap_slam_inplace", "walk", "charge", "stun", "death", "idle", "grab", "throw")
+         "leap_slam_inplace", "walk", "charge", "stun", "death", "idle", "grab", "throw",
+         "ring_slash", "ghost_blade", "transition")
 LOOPS = {"walk", "idle"}
+# Pieces drawn in one phase only. The phase-2 breastplate is hidden in every clip source and moves exactly like the
+# phase-1 one (same parent and pivot), so it is exported with the model only and follows that channel in game.
+PHASES = {"ZL_breastplate": 1, "ZL_breastplate_p2": 2}
+SHARED_CHANNELS = {"ZL_breastplate_p2": "ZL_breastplate"}
 REPOSITORY = Path(__file__).resolve().parents[1]
 ASSETS = REPOSITORY / "src/main/resources/assets/fiercerbattles/zombie_lord"
 
@@ -49,14 +54,15 @@ def frame_set(frame):
     bpy.context.view_layer.update()
 
 
-def rendered_meshes():
-    """Mesh objects that belong to the boss and are visible in this file, sorted by name."""
+def rendered_meshes(with_shared=False):
+    """Mesh objects that belong to the boss and are visible in this file, sorted by name; with_shared adds the
+    hidden pieces that borrow another object's channel (SHARED_CHANNELS)."""
     root = bpy.data.objects.get(ROOT)
     if root is None:
         raise RuntimeError("Missing rig root " + ROOT)
     result = []
     for obj in bpy.data.objects:
-        if obj.type != "MESH" or obj.hide_render:
+        if obj.type != "MESH" or obj.hide_render and not (with_shared and obj.name in SHARED_CHANNELS):
             continue
         parent = obj
         while parent is not None and parent != root:
@@ -83,7 +89,7 @@ def export_model(arguments, source, source_hash):
     frame_set(bpy.context.scene.frame_start)
     graph = bpy.context.evaluated_depsgraph_get()
     objects = {}
-    for obj in rendered_meshes():
+    for obj in rendered_meshes(with_shared=True):
         evaluated = obj.evaluated_get(graph)
         _, _, scale = decompose(evaluated.matrix_world)
         mesh = obj.data
@@ -111,6 +117,10 @@ def export_model(arguments, source, source_hash):
                 face += rounded(local, 5) + rounded(uv, 7)
             faces.append(face)
         objects[obj.name] = {"scale": rounded(scale, 6), "faces": faces}
+        if obj.name in PHASES:
+            objects[obj.name]["phase"] = PHASES[obj.name]
+        if obj.name in SHARED_CHANNELS:
+            objects[obj.name]["channel"] = SHARED_CHANNELS[obj.name]
     images = sorted(image.filepath for image in bpy.data.images if image.filepath)
     document = {"format": 1, "rig": RIG, "texture_size": [128, 128], "objects": objects,
                 "source_file": source.name, "source_sha256": source_hash, "texture_sources": images,
@@ -140,7 +150,7 @@ def export_clip(arguments, source, source_hash):
     frame_set(begin_frame)
     origin, undo_yaw = root_frame()
     objects = rendered_meshes()
-    missing = sorted(set(model) - {obj.name for obj in objects})
+    missing = sorted({name for name, entry in model.items() if "channel" not in entry} - {obj.name for obj in objects})
     extra = sorted({obj.name for obj in objects} - set(model))
     if missing or extra:
         raise RuntimeError("Clip objects differ from model.json: missing=" + str(missing) + " extra=" + str(extra))

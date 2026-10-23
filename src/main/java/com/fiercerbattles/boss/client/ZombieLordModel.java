@@ -20,6 +20,8 @@ public final class ZombieLordModel extends EntityModel<ZombieLord> {
     private Map<String, AnimationClip.Transform> pose = Map.of();
     /** Past the first moments of the death clip the red death tint is dropped. */
     private boolean clearOverlay;
+    /** Which breastplate to draw: the transition breaks it open for phase 2. */
+    private int phase = 1;
 
     public ZombieLordModel() {
         super(RenderType::entityCutoutNoCull);
@@ -30,6 +32,7 @@ public final class ZombieLordModel extends EntityModel<ZombieLord> {
         // LivingEntityRenderer passes tickCount + partialTick as ageInTicks.
         pose = ZombieLordPoser.pose(lord, ageInTicks - lord.tickCount);
         clearOverlay = lord.isDeadOrDying() && lord.deathTime > 8;
+        phase = lord.getPhase();
     }
 
     @Override
@@ -38,7 +41,8 @@ public final class ZombieLordModel extends EntityModel<ZombieLord> {
         Vector3f position = new Vector3f();
         Vector3f normal = new Vector3f();
         for (ZombieLordAssets.MeshObject object : ZombieLordAssets.mesh()) {
-            AnimationClip.Transform transform = pose.get(object.name());
+            if (object.phase() != 0 && object.phase() != phase) continue;
+            AnimationClip.Transform transform = pose.get(object.channel());
             if (transform == null) continue;
             poses.pushPose();
             poses.translate(transform.x() / 16.0F, transform.y() / 16.0F, transform.z() / 16.0F);

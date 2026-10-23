@@ -47,10 +47,17 @@ public final class BossEntities {
     public static final DeferredItem<DeferredSpawnEggItem> LORD_SKELETON_SPAWN_EGG = ITEMS.register("zombie_lord_skeleton_spawn_egg",
             () -> new DeferredSpawnEggItem(LORD_SKELETON, 0xC1C1C1, 0x7A7F86, new Item.Properties()));
 
-    /** Boss blows: a sword cleave or ground slam. Not a vanilla melee type, so a parry cannot stun the boss. */
+    // None is a vanilla melee type, so a parry cannot stun the boss.
+    /** attack1 and attack2: in fiercerbattles:ignores_dodge_roll, so a dodge roll does not escape them. */
     public static final ResourceKey<DamageType> LORD_SLASH = damageType("zombie_lord_slash");
-    /** Ground blows (attack3 slam, leap landing): listed in minecraft:bypasses_shield. */
+    /** attack3's slam: in minecraft:bypasses_shield and fiercerbattles:ignores_dodge_roll. */
+    public static final ResourceKey<DamageType> LORD_CHOP = damageType("zombie_lord_chop");
+    /** Other ground blows (leap landings, the charge's slam): listed in minecraft:bypasses_shield. */
     public static final ResourceKey<DamageType> LORD_SMASH = damageType("zombie_lord_smash");
+    /** The charge's trample and the ring slash's spin. */
+    public static final ResourceKey<DamageType> LORD_STRIKE = damageType("zombie_lord_strike");
+    /** The ghost blade's burning cuts. */
+    public static final ResourceKey<DamageType> LORD_GHOST_BLADE = damageType("zombie_lord_ghost_blade");
     /** Blast of a skull landing. */
     public static final ResourceKey<DamageType> LORD_SKULL_BLAST = damageType("zombie_lord_skull");
     /** Grab and throw: slammed into the ground, then into a wall. Listed in minecraft:bypasses_shield. */

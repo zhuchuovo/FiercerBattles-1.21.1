@@ -5,12 +5,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -20,6 +22,7 @@ import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.EntityType;
@@ -34,6 +37,8 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -41,6 +46,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -87,11 +93,11 @@ public class ZombieLord extends Monster {
     static final float SLAM_DAMAGE_NEAR = 10.0F;
     static final float SLAM_DAMAGE_FAR = 2.0F;
 
-    // Leap slam: replaces attack3 when the target stands beyond the slam's 5 blocks but within 12, and closes the
-    // gap when the target has stayed outside melee range for 3 s while the boss was not attacking.
-    /** Same measure as the slam (to the near side of the target), so one of the two always reaches it. */
-    static final double LEAP_MIN_DISTANCE = SLAM_RADIUS;
-    static final double LEAP_MAX_DISTANCE = 12.0;
+    // Leap slam: only onto a target 10-18 blocks away (measured to its near side), in place of attack3 or after the
+    // target has stayed outside melee range for 3 s while the boss was not attacking. The ring slash ends in a leap at
+    // any range.
+    static final double LEAP_MIN_DISTANCE = 10.0;
+    static final double LEAP_MAX_DISTANCE = 18.0;
     // Clip frames; the wind-up before take-off plays 50% slower in game (11 frames over 17 ticks).
     static final int LEAP_TAKEOFF_FRAME = 11;
     static final int LEAP_LAND_FRAME = 23;
@@ -106,8 +112,10 @@ public class ZombieLord extends Monster {
     static final float LEAP_DAMAGE_FAR = 2.0F;
     static final int CHASE_LEAP_TICKS = 3 * 20;
 
-    // Shoulder charge after two full rounds of the combo (attack1-2-3, or 1-2 and the leap that replaced 3).
-    static final int CHARGE_AFTER_ROUNDS = 2;
+    // Shoulder charge after three full rounds of the combo, four in phase 2 (attack1-2-3, or 1-2 and the leap that
+    // replaced 3).
+    static final int CHARGE_AFTER_ROUNDS = 3;
+    static final int CHARGE_AFTER_ROUNDS_PHASE2 = 4;
     /** zombie_lord_charge: wind-up 0-18, one dash cycle 18-30 (looped while dashing), slam and recovery 30-57. */
     public static final int CHARGE_WINDUP_FRAMES = 18;
     public static final int CHARGE_CYCLE_FRAMES = 12;
@@ -140,13 +148,12 @@ public class ZombieLord extends Monster {
     static final int STUN_DAZE_FROM = 6;
     static final int STUN_DAZE_TO = 68;
 
-    // Grab and throw: a target still beside the boss after attack3's slam, before the boss stands up again, may be
-    // grabbed (50%), slammed into the ground and thrown.
-    /** attack3 frames during which the boss is still bent over the slam (it starts rising at 28). */
-    static final int GRAB_WINDOW_FROM = 21;
-    static final int GRAB_WINDOW_TO = 28;
+    // Grab and throw: when a leap slam has landed, an enemy right beside the boss is grabbed, slammed into the ground
+    // and thrown.
+    /** Leap ticks after the landing while the boss is still bent over the blow (it starts rising at clip frame 31). */
+    static final int GRAB_WINDOW_FROM = LEAP_LAND_TICK + 1;
+    static final int GRAB_WINDOW_TO = LEAP_LAND_TICK + 8;
     static final double GRAB_TRIGGER_RANGE = 3.0;
-    static final float GRAB_CHANCE = 0.5F;
     /** zombie_lord_grab: turns toward the target until frame 6, the free hand is fully out at 9; a miss plays to 30. */
     static final int GRAB_AIM_LOCK_FRAME = 6;
     static final int GRAB_REACH_FRAME = 9;
@@ -168,6 +175,69 @@ public class ZombieLord extends Monster {
     /** A wall met within this many ticks of the release, before landing, hurts the victim. */
     static final int THROW_FLIGHT_TICKS = 40;
 
+    // Phase 2 from half health: the transition (zombie_lord_transition, 9 s, invulnerable, watched by the players
+    // nearby through a cinematic camera, BossClient), after which the breastplate is broken open and the ghost blade
+    // and the ring slash join in.
+    static final float PHASE2_HEALTH = 0.5F;
+    public static final int TRANSITION_LENGTH = 180;
+    public static final int TRANSITION_BURST_FRAME = 100;
+    public static final int TRANSITION_ROAR_FRAME = 112;
+    /** A heartbeat that quickens while the power gathers, up to the burst. */
+    static final int[] TRANSITION_HEARTBEATS = {36, 54, 68, 78, 85, 90, 94, 97};
+    /** Players this close watch the transition and cannot be hurt meanwhile. */
+    public static final double TRANSITION_AUDIENCE_RANGE = 48.0;
+
+    // Ring slash (phase 2): against a target 6-9 blocks away, sprint 7 blocks at it with the sword raised, spin a full
+    // circle over the last 2 and leap at it.
+    static final double RING_MIN_DISTANCE = 6.0;
+    static final double RING_MAX_DISTANCE = 9.0;
+    /** zombie_lord_ring_slash: wind-up 0-8, one run cycle 8-20 (looped while running), spin pose from 20, 32 long. */
+    public static final int RING_WINDUP_FRAMES = 8;
+    public static final int RING_CYCLE_FRAMES = 12;
+    static final int RING_SPIN_FRAME = 20;
+    /** 7 blocks per second. */
+    public static final double RING_SPEED = 0.35;
+    /** Ground speed of the run cycle at render scale (44.8 px per 12 tick cycle at scale 1). */
+    public static final double RING_CLIP_SPEED = 44.8 / 12.0 / 16.0 * RENDER_SCALE;
+    static final double RING_DISTANCE = 7.0;
+    /** The spin starts with this much of the run left. */
+    static final double RING_SPIN_DISTANCE = 2.0;
+    static final int RING_SPIN_TICKS = 8;
+    static final double RING_SPIN_RADIUS = 3.5;
+    static final float RING_DAMAGE = 8.0F;
+    static final int RING_COOLDOWN_TICKS = 5 * 20;
+
+    // Ghost blade (phase 2): once as phase 2 begins, then after every third combo round (zombie_lord_ghost_blade).
+    static final int GHOST_AFTER_ROUNDS = 3;
+    static final int GB_ROAR_FRAME = 4;
+    /** The blade catches fire from the guard to the point over these frames and burns until GB_FIRE_END. */
+    public static final int GB_IGNITE_FROM = 28;
+    public static final int GB_IGNITE_TO = 42;
+    public static final int GB_FIRE_END = 132;
+    /** Leaping slashes {take-off, slash, landing}: the cut hits on the 3 ticks after the slash frame. */
+    static final int[][] GB_JUMPS = {{48, 52, 58}, {61, 65, 71}, {74, 78, 84}};
+    static final int GB_SLASH_TICKS = 3;
+    static final double GB_JUMP_HEIGHT = 2.5;
+    static final double GB_JUMP_MAX = 9.0;
+    /** The boss lands this far short of the (predicted) target, so the cut reaches it. */
+    static final double GB_LAND_SHORT = 1.6;
+    /** Prediction looks this many ticks ahead (the flight plus the cut), at most GB_PREDICT_MAX blocks. */
+    static final int GB_PREDICT_TICKS = 12;
+    static final double GB_PREDICT_MAX = 6.0;
+    static final double GB_SLASH_RANGE = 3.5;
+    static final float GB_SLASH_HALF_ANGLE = 70.0F;
+    static final float GB_SLASH_DAMAGE = 9.0F;
+    static final float GB_BURN_SECONDS = 1.0F;
+    /** Charged leap: take-off, apex, landing; higher and slower than the leap slam. Its landing point is marked. */
+    public static final int GB_LEAP_TAKEOFF = 96;
+    static final int GB_LEAP_APEX = 108;
+    public static final int GB_LEAP_LAND = 124;
+    static final double GB_LEAP_HEIGHT = 7.0;
+    public static final double GB_LEAP_RADIUS = 6.0;
+    static final float GB_LEAP_DAMAGE_NEAR = 15.0F;
+    static final float GB_LEAP_DAMAGE_FAR = 3.0F;
+    static final int GB_LENGTH = 146;
+
     // Death: the 60 frame death clip, then a short hold before the body disappears.
     public static final int DEATH_CLIP_FRAMES = 60;
     static final int DEATH_TICKS = DEATH_CLIP_FRAMES + 10;
@@ -185,11 +255,8 @@ public class ZombieLord extends Monster {
     public static final int SKULL_RISE_TICKS = TREMOR_TICKS;
     static final int SKULL_FIRE_INTERVAL = 3 * 20;
     static final int SUMMON_TIMEOUT_TICKS = 20 * 20;
-    /** One summon for every 40% of maximum health lost (at 60% and 20% left). */
-    static final float SUMMON_HEALTH_STEP = 0.4F;
-    /** A target farther than this also triggers a summon, at most once per cooldown. */
-    static final double SUMMON_DISTANCE = 12.0;
-    static final int QUAKE_COOLDOWN_TICKS = 20 * 20;
+    /** The summon is cast once as health falls to each of these shares of the maximum. */
+    static final float[] QUAKE_HEALTH = {0.7F, 0.2F};
     /** Share of incoming damage the boss takes for the whole quake (80% reduction). */
     static final float QUAKE_DAMAGE_TAKEN = 0.2F;
 
@@ -199,6 +266,9 @@ public class ZombieLord extends Monster {
     private static final EntityDataAccessor<Integer> DATA_ACTION = SynchedEntityData.defineId(ZombieLord.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Long> DATA_ACTION_START = SynchedEntityData.defineId(ZombieLord.class, EntityDataSerializers.LONG);
     private static final EntityDataAccessor<Integer> DATA_BLEND = SynchedEntityData.defineId(ZombieLord.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_PHASE = SynchedEntityData.defineId(ZombieLord.class, EntityDataSerializers.INT);
+    /** Landing point of the ghost blade's charged leap, marked on the ground while the boss is in the air. */
+    private static final EntityDataAccessor<Vector3f> DATA_MARK = SynchedEntityData.defineId(ZombieLord.class, EntityDataSerializers.VECTOR3);
 
     private final ServerBossEvent bossEvent = (ServerBossEvent) new ServerBossEvent(getDisplayName(),
             BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10).setDarkenScreen(true);
@@ -209,23 +279,33 @@ public class ZombieLord extends Monster {
     private final Set<Integer> hitThisSegment = new HashSet<>();
     private Vec3 leapFrom = Vec3.ZERO;
     private Vec3 leapTo = Vec3.ZERO;
-    private int quakeCooldown;
     /** Consecutive chase ticks with the target outside melee range. */
     private int outOfRangeTicks;
-    /** Full combo rounds in a row; the second one is followed by the charge. */
+    /** Full combo rounds since the last charge; the third (fourth in phase 2) is followed by the charge. */
     private int comboRounds;
+    /** Full combo rounds since the last ghost blade (phase 2). */
+    private int ghostRounds;
+    /** Phase 2 opens with a ghost blade as soon as there is a target. */
+    private boolean ghostPending;
     private boolean leapEndsRound;
-    /** Health-loss summons already used; each 40% lost earns one. */
-    private int healthSummonsUsed;
+    /** Quake summons already cast, one per QUAKE_HEALTH threshold. */
+    private int quakesUsed;
+    private int ringCooldown;
+    private Vec3 ringPoint = Vec3.ZERO;
+    private double ringRun;
+    private double ringTravel;
+    private float spinFromYaw;
+    /** Where the target is heading, blocks per tick (smoothed), for the ghost blade's prediction. */
+    private Vec3 targetVelocity = Vec3.ZERO;
     private int repathTicks;
     @Nullable private Vec3 lastTargetPos;
     private final List<LordSkull> skulls = new ArrayList<>();
     private final List<LordSkeleton> minions = new ArrayList<>();
     private int skullsFired;
     private int allFiredTick = -1;
-    /** The 50% grab roll is made once per attack3, the first time a target stands beside the slam. */
-    private boolean grabRolled;
     @Nullable private LivingEntity grabTarget;
+    /** The grab followed a leap that ended a combo round, so the throw ends it instead. */
+    private boolean grabEndsRound;
     /** Set while the boss itself lets go of its victim, so the dismount is not blocked (BossEvents). */
     private boolean releasing;
     @Nullable private LivingEntity thrown;
@@ -263,6 +343,8 @@ public class ZombieLord extends Monster {
         builder.define(DATA_ACTION, ZombieLordAction.IDLE.ordinal());
         builder.define(DATA_ACTION_START, 0L);
         builder.define(DATA_BLEND, 0);
+        builder.define(DATA_PHASE, 1);
+        builder.define(DATA_MARK, new Vector3f());
     }
 
     @Override
@@ -277,6 +359,14 @@ public class ZombieLord extends Monster {
     public ZombieLordAction getAction() { return ZombieLordAction.byId(entityData.get(DATA_ACTION)); }
     public long getActionStart() { return entityData.get(DATA_ACTION_START); }
     public int getActionBlend() { return entityData.get(DATA_BLEND); }
+    /** 1, or 2 once the transition has broken the breastplate open. */
+    public int getPhase() { return entityData.get(DATA_PHASE); }
+    public Vec3 getLeapMark() { return new Vec3(entityData.get(DATA_MARK)); }
+
+    private void setPhase(int phase) {
+        entityData.set(DATA_PHASE, phase);
+        bossEvent.setColor(phase >= 2 ? BossEvent.BossBarColor.PURPLE : BossEvent.BossBarColor.RED);
+    }
 
     /** Clip time of the current action on the shared world clock; negative while a delayed clip blends in. */
     public double actionTime(float partialTick) {
@@ -309,10 +399,16 @@ public class ZombieLord extends Monster {
         super.customServerAiStep();
         driveSpeed = 0;
         bossEvent.setProgress(getHealth() / getMaxHealth());
-        if (quakeCooldown > 0) quakeCooldown--;
+        if (ringCooldown > 0) ringCooldown--;
         LivingEntity target = getTarget();
         if (target != null && (!target.isAlive() || target.isSpectator())) target = null;
-        if (target != null) lastTargetPos = target.position();
+        if (target != null) {
+            Vec3 now = target.position();
+            if (lastTargetPos != null && now.distanceToSqr(lastTargetPos) < 4.0) {
+                targetVelocity = targetVelocity.lerp(now.subtract(lastTargetPos), 0.5);
+            }
+            lastTargetPos = now;
+        }
         int t = actionTick();
         tickThrown();
         if (isVehicle() && getAction() != ZombieLordAction.THROW) letGo();
@@ -327,6 +423,10 @@ public class ZombieLord extends Monster {
             case STUN -> tickStun(t);
             case GRAB -> tickGrab(target, t);
             case THROW -> tickThrow(target, t);
+            case RING_RUN -> tickRingRun(target, t);
+            case RING_SPIN -> tickRingSpin(target, t);
+            case GHOST_BLADE -> tickGhostBlade(target, t);
+            case TRANSITION -> tickTransition(t);
             case QUAKE -> tickQuake(target, t);
             case QUAKE_END -> {
                 applyYaw(lockedYaw);
@@ -343,15 +443,26 @@ public class ZombieLord extends Monster {
             setLocomotion(ZombieLordAction.IDLE);
             return;
         }
-        // Summons only start between actions, never in the middle of the combo.
-        if (healthSummonsUsed < healthSummonsEarned()) {
-            healthSummonsUsed++;
+        // Phase change and summons only start between actions, never in the middle of the combo.
+        if (getPhase() == 1 && getHealth() <= getMaxHealth() * PHASE2_HEALTH) {
+            startTransition();
+            return;
+        }
+        // Phase 2 opens with the ghost blade, before any summon that fell due meanwhile.
+        if (ghostPending) {
+            ghostPending = false;
+            startGhostBlade(target);
+            return;
+        }
+        if (quakesUsed < QUAKE_HEALTH.length && getHealth() <= getMaxHealth() * QUAKE_HEALTH[quakesUsed]) {
+            quakesUsed++;
             startQuake("health " + Math.round(getHealth()) + "/" + Math.round(getMaxHealth()));
             return;
         }
         double distance = horizontalDistance(target.position());
-        if (distance > SUMMON_DISTANCE && quakeCooldown <= 0 && hasLineOfSight(target)) {
-            startQuake("target " + String.format("%.1f", distance) + " blocks away");
+        if (getPhase() >= 2 && ringCooldown <= 0 && distance >= RING_MIN_DISTANCE && distance <= RING_MAX_DISTANCE
+                && Math.abs(target.getY() - getY()) < 3.0 && hasLineOfSight(target)) {
+            startRingSlash(target);
             return;
         }
         boolean inReach = distance <= MELEE_TRIGGER_RANGE && Math.abs(target.getY() - getY()) < 2.5;
@@ -362,7 +473,7 @@ public class ZombieLord extends Monster {
         // Out of reach for 3 s straight (above or below counts too): leap onto the target.
         if (inReach) {
             outOfRangeTicks = 0;
-        } else if (++outOfRangeTicks > CHASE_LEAP_TICKS && hasLineOfSight(target)) {
+        } else if (++outOfRangeTicks > CHASE_LEAP_TICKS && leapRange(target) && hasLineOfSight(target)) {
             comboRounds = 0;
             startLeap(target, false);
             return;
@@ -374,11 +485,6 @@ public class ZombieLord extends Monster {
         boolean moving = !getNavigation().isDone();
         setLocomotion(moving ? ZombieLordAction.WALK : ZombieLordAction.IDLE);
         if (!moving) applyYaw(Mth.approachDegrees(getYRot(), yawToward(target.position()), 12.0F));
-    }
-
-    private int healthSummonsEarned() {
-        float lost = 1.0F - getHealth() / getMaxHealth();
-        return (int) Math.floor(lost / SUMMON_HEALTH_STEP + 1.0E-4F);
     }
 
     private void startAttack1(LivingEntity target) {
@@ -420,7 +526,6 @@ public class ZombieLord extends Monster {
             if (target != null && leapRange(target)) {
                 startLeap(target, true);
             } else {
-                grabRolled = false;
                 setAction(ZombieLordAction.ATTACK3, ACTION_BLEND_TICKS, 0);
             }
         }
@@ -434,19 +539,9 @@ public class ZombieLord extends Monster {
         }
         stepForward(target, t);
         if (t == ATTACK3_SLAM_FRAME) {
-            radialBlow(position(), SLAM_RADIUS, SLAM_DAMAGE_NEAR, SLAM_DAMAGE_FAR);
+            // Cannot be rolled through (zombie_lord_chop is in fiercerbattles:ignores_dodge_roll).
+            radialBlow(BossEntities.LORD_CHOP, position(), SLAM_RADIUS, SLAM_DAMAGE_NEAR, SLAM_DAMAGE_FAR);
             dustBurst(position(), SLAM_RADIUS);
-        }
-        // Still bent over the slam: a target right beside the boss may be grabbed (one roll per slam).
-        if (t >= GRAB_WINDOW_FROM && t <= GRAB_WINDOW_TO && !grabRolled && target != null && grabbable(target)
-                && horizontalDistance(target.position()) <= GRAB_TRIGGER_RANGE) {
-            grabRolled = true;
-            boolean grab = random.nextFloat() < GRAB_CHANCE;
-            LOGGER.debug("Zombie Lord {} grab roll at attack3 frame {} on {}: {}", getId(), t, target, grab);
-            if (grab) {
-                startGrab(target);
-                return;
-            }
         }
         if (t >= ATTACK3_LENGTH) endRound(target);
     }
@@ -457,10 +552,27 @@ public class ZombieLord extends Monster {
                 && entity.getBbWidth() <= GRAB_MAX_WIDTH && entity.getBbHeight() <= GRAB_MAX_HEIGHT;
     }
 
-    private void startGrab(LivingEntity target) {
+    /** The target if it stands right beside the boss and can be lifted, else the nearest enemy that does. */
+    @Nullable
+    private LivingEntity grabCandidate(@Nullable LivingEntity target) {
+        if (target != null && grabbable(target) && besideForGrab(target)) return target;
+        LivingEntity best = null;
+        for (LivingEntity enemy : victims(getBoundingBox().inflate(GRAB_TRIGGER_RANGE + 1.0, 2.0, GRAB_TRIGGER_RANGE + 1.0))) {
+            if (!grabbable(enemy) || !besideForGrab(enemy)) continue;
+            if (best == null || distanceToSqr(enemy) < distanceToSqr(best)) best = enemy;
+        }
+        return best;
+    }
+
+    private boolean besideForGrab(LivingEntity entity) {
+        return horizontalDistance(entity.position()) <= GRAB_TRIGGER_RANGE && Math.abs(entity.getY() - getY()) < 2.0;
+    }
+
+    private void startGrab(LivingEntity target, boolean endsRound) {
         getNavigation().stop();
         outOfRangeTicks = 0;
         grabTarget = target;
+        grabEndsRound = endsRound;
         setAction(ZombieLordAction.GRAB, 3, 0);
         playSound(SoundEvents.ZOMBIE_AMBIENT, 2.0F, 0.5F);
     }
@@ -483,7 +595,7 @@ public class ZombieLord extends Monster {
         }
         if (t >= GRAB_LENGTH) {
             grabTarget = null;
-            endRound(target);
+            endGrab(target);
         }
     }
 
@@ -550,7 +662,12 @@ public class ZombieLord extends Monster {
             thrownTicks = 0;
             playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.5F, 0.5F);
         }
-        if (t >= THROW_LENGTH) endRound(target);
+        if (t >= THROW_LENGTH) endGrab(target);
+    }
+
+    private void endGrab(@Nullable LivingEntity target) {
+        if (grabEndsRound) endRound(target);
+        else endAction();
     }
 
     /** Drop whatever the boss is holding, where it is held. */
@@ -606,9 +723,18 @@ public class ZombieLord extends Monster {
         return position().add(-forward.z * local.x + forward.x * local.z, local.y, forward.x * local.x + forward.z * local.z);
     }
 
-    /** The third segment (slam or its leap) finished one full round of the combo. */
+    /**
+     * The third segment (slam or its leap, and a throw after that leap) finished one full round of the combo. In
+     * phase 2 every third round is followed by the ghost blade; the charge comes after every third round (fourth in
+     * phase 2), or the round after the ghost blade if both fall due together.
+     */
     private void endRound(@Nullable LivingEntity target) {
-        if (++comboRounds >= CHARGE_AFTER_ROUNDS) {
+        comboRounds++;
+        if (getPhase() >= 2) ghostRounds++;
+        if (getPhase() >= 2 && ghostRounds >= GHOST_AFTER_ROUNDS) {
+            ghostRounds = 0;
+            startGhostBlade(target);
+        } else if (comboRounds >= (getPhase() >= 2 ? CHARGE_AFTER_ROUNDS_PHASE2 : CHARGE_AFTER_ROUNDS)) {
             comboRounds = 0;
             startCharge(target);
         } else {
@@ -655,8 +781,17 @@ public class ZombieLord extends Monster {
         if (t == LEAP_LAND_TICK) {
             setNoGravity(false);
             resetFallDistance();
-            radialBlow(position(), LEAP_RADIUS, LEAP_DAMAGE_NEAR, LEAP_DAMAGE_FAR);
+            radialBlow(BossEntities.LORD_SMASH, position(), LEAP_RADIUS, LEAP_DAMAGE_NEAR, LEAP_DAMAGE_FAR);
             dustBurst(position(), LEAP_RADIUS);
+        }
+        // Still bent over the landing: an enemy right beside the boss is grabbed and thrown.
+        if (t >= GRAB_WINDOW_FROM && t <= GRAB_WINDOW_TO) {
+            LivingEntity victim = grabCandidate(target);
+            if (victim != null) {
+                LOGGER.debug("Zombie Lord {} grabs at {} after the leap (leap tick {})", getId(), victim, t);
+                startGrab(victim, leapEndsRound);
+                return;
+            }
         }
         if (t >= LEAP_LENGTH) {
             if (leapEndsRound) endRound(target);
@@ -694,7 +829,7 @@ public class ZombieLord extends Monster {
         Vec3 before = position();
         move(MoverType.SELF, dir.scale(CHARGE_SPEED));
         double progress = position().subtract(before).dot(dir);
-        DamageSource source = damageSources().source(BossEntities.LORD_SLASH, this);
+        DamageSource source = damageSources().source(BossEntities.LORD_STRIKE, this);
         for (LivingEntity victim : victims(getBoundingBox().inflate(0.6, 0.2, 0.6))) {
             if (!hitThisSegment.add(victim.getId())) continue;
             boolean hurt = victim.hurt(source, CHARGE_DAMAGE);
@@ -721,7 +856,7 @@ public class ZombieLord extends Monster {
     private void tickChargeEnd(int t) {
         applyYaw(lockedYaw);
         if (t == CHARGE_WINDUP_FRAMES + CHARGE_CYCLE_FRAMES + CHARGE_SLAM_TICKS) {
-            radialBlow(position(), CHARGE_SLAM_RADIUS, CHARGE_SLAM_DAMAGE_NEAR, CHARGE_SLAM_DAMAGE_FAR);
+            radialBlow(BossEntities.LORD_SMASH, position(), CHARGE_SLAM_RADIUS, CHARGE_SLAM_DAMAGE_NEAR, CHARGE_SLAM_DAMAGE_FAR);
             dustBurst(position(), CHARGE_SLAM_RADIUS);
         }
         if (t >= CHARGE_WINDUP_FRAMES + CHARGE_CYCLE_FRAMES + CHARGE_RECOVER_FRAMES) endAction();
@@ -794,7 +929,6 @@ public class ZombieLord extends Monster {
         boolean minionsAlive = minions.stream().anyMatch(LordSkeleton::isAlive);
         if (!skullsPending && !minionsAlive || t - allFiredTick >= SUMMON_TIMEOUT_TICKS) {
             // Resume: play the rest of the quake clip from the freeze frame, then chase again.
-            quakeCooldown = QUAKE_COOLDOWN_TICKS;
             setAction(ZombieLordAction.QUAKE_END, 0, -QUAKE_FREEZE_FRAME);
         }
     }
@@ -816,6 +950,319 @@ public class ZombieLord extends Monster {
         setAction(ZombieLordAction.IDLE, ACTION_BLEND_TICKS, 0);
     }
 
+    // ---------------------------------------------------------------- phase 2: transition, ring slash, ghost blade
+
+    private void startTransition() {
+        LOGGER.debug("Zombie Lord {} enters phase 2 at {}/{}", getId(), Math.round(getHealth()), Math.round(getMaxHealth()));
+        getNavigation().stop();
+        outOfRangeTicks = 0;
+        comboRounds = 0;
+        lockedYaw = getYRot();
+        letGo();
+        setAction(ZombieLordAction.TRANSITION, ACTION_BLEND_TICKS, 0);
+        playSound(SoundEvents.ZOMBIE_VILLAGER_CONVERTED, 2.0F, 0.5F);
+    }
+
+    /**
+     * Kneel on the planted sword, convulse while dark power gathers, rise; the breastplate bursts (phase 2 from that
+     * frame) and the boss roars with the sword raised. Invulnerable throughout (hurt); the players nearby watch it
+     * through the cinematic camera (BossClient) and are not hurt meanwhile (BossEvents).
+     */
+    private void tickTransition(int t) {
+        applyYaw(lockedYaw);
+        if (!(level() instanceof ServerLevel level)) return;
+        Vec3 chest = position().add(forward(lockedYaw).scale(0.3)).add(0, 2.0, 0);
+        if (t == 16) {
+            playSound(SoundEvents.ANVIL_LAND, 1.5F, 0.5F);
+            Vec3 tip = groundBelow(level, position().add(forward(lockedYaw).scale(1.4)));
+            level.sendParticles(blockDust(level, tip), tip.x, tip.y + 0.1, tip.z, 20, 0.4, 0.05, 0.4, 0.1);
+        }
+        if (t >= 28 && t < TRANSITION_BURST_FRAME) {
+            // Dark power drawn in from the ground around the kneeling lord, to a heartbeat that quickens.
+            for (int i = 0; i < 2; i++) {
+                double angle = random.nextDouble() * Mth.TWO_PI, r = 1.5 + random.nextDouble() * 3.0;
+                Vec3 at = position().add(Math.cos(angle) * r, 0.2, Math.sin(angle) * r);
+                Vec3 pull = chest.subtract(at).scale(0.07);
+                level.sendParticles(i == 0 ? ParticleTypes.SOUL : ParticleTypes.LARGE_SMOKE, at.x, at.y, at.z, 0, pull.x, pull.y, pull.z, 1.0);
+            }
+            for (int beat : TRANSITION_HEARTBEATS) {
+                if (t == beat) playSound(SoundEvents.WARDEN_HEARTBEAT, 3.0F, 0.6F);
+            }
+        }
+        if (t == TRANSITION_BURST_FRAME) {
+            setPhase(2);
+            playSound(SoundEvents.GENERIC_EXPLODE.value(), 3.0F, 0.6F);
+            playSound(SoundEvents.ANVIL_DESTROY, 2.0F, 0.5F);
+            level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, new ItemStack(Items.NETHERITE_SCRAP)),
+                    chest.x, chest.y, chest.z, 40, 0.3, 0.3, 0.3, 0.35);
+            level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, chest.x, chest.y, chest.z, 40, 0.2, 0.2, 0.2, 0.25);
+            level.sendParticles(ParticleTypes.EXPLOSION, chest.x, chest.y, chest.z, 3, 0.4, 0.4, 0.4, 0.0);
+            flameRing(level, position(), 3.0, ParticleTypes.SOUL_FIRE_FLAME);
+            for (LivingEntity near : victims(getBoundingBox().inflate(6.0, 2.0, 6.0))) {
+                Vec3 away = near.position().subtract(position()).multiply(1, 0, 1);
+                if (away.lengthSqr() < 1.0E-4) continue;
+                away = away.normalize();
+                near.knockback(1.2, -away.x, -away.z);
+                near.hurtMarked = true;
+            }
+        }
+        if (t == TRANSITION_ROAR_FRAME) {
+            playSound(SoundEvents.RAVAGER_ROAR, 4.0F, 0.5F);
+            playSound(SoundEvents.ENDER_DRAGON_GROWL, 2.0F, 0.6F);
+        }
+        for (int i = 0; i < 3; i++) {
+            if (t == TRANSITION_ROAR_FRAME + 6 * i) flameRing(level, position(), 2.5 + 2.0 * i, ParticleTypes.FLAME);
+        }
+        if (t > TRANSITION_ROAR_FRAME && t < TRANSITION_ROAR_FRAME + TREMOR_TICKS) tremor(level, t - TRANSITION_ROAR_FRAME);
+        if (t >= TRANSITION_LENGTH) {
+            // Phase 2 opens with the ghost blade.
+            ghostPending = true;
+            endAction();
+        }
+    }
+
+    private void flameRing(ServerLevel level, Vec3 centre, double radius, ParticleOptions particle) {
+        int points = (int) (radius * 10);
+        for (int i = 0; i < points; i++) {
+            double angle = Mth.TWO_PI * i / points;
+            Vec3 at = groundBelow(level, centre.add(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius));
+            level.sendParticles(particle, at.x, at.y + 0.1, at.z, 1, 0.05, 0.05, 0.05, 0.02);
+        }
+    }
+
+    private void startRingSlash(LivingEntity target) {
+        getNavigation().stop();
+        outOfRangeTicks = 0;
+        ringPoint = target.position();
+        // Up to 7 blocks at the point the target stood on, stopping a block short of it.
+        ringRun = Mth.clamp(horizontalDistance(ringPoint) - 1.0, RING_SPIN_DISTANCE, RING_DISTANCE);
+        ringTravel = 0.0;
+        lockedYaw = yawToward(ringPoint);
+        spinFromYaw = lockedYaw;
+        applyYaw(lockedYaw);
+        setAction(ZombieLordAction.RING_RUN, ACTION_BLEND_TICKS, 0);
+        playSound(SoundEvents.RAVAGER_ROAR, 2.0F, 0.9F);
+    }
+
+    /** Sword raised, sprint at where the target stood; the spin starts with RING_SPIN_DISTANCE of the run left. */
+    private void tickRingRun(@Nullable LivingEntity target, int t) {
+        applyYaw(lockedYaw);
+        if (t < RING_WINDUP_FRAMES) return;
+        double progress = ringStep();
+        if (level() instanceof ServerLevel level) {
+            Vec3 ground = groundBelow(level, position());
+            level.sendParticles(blockDust(level, ground), ground.x, ground.y + 0.1, ground.z, 4, 0.3, 0.05, 0.3, 0.1);
+            if (t % 4 == 0) playSound(SoundEvents.IRON_GOLEM_STEP, 1.5F, 0.7F);
+        }
+        boolean blocked = t > RING_WINDUP_FRAMES && horizontalCollision && progress < RING_SPEED * 0.5;
+        if (blocked || ringTravel >= ringRun - RING_SPIN_DISTANCE) {
+            if (blocked) ringRun = ringTravel;
+            setAction(ZombieLordAction.RING_SPIN, 2, -RING_SPIN_FRAME);
+            playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 2.0F, 0.5F);
+        }
+    }
+
+    /** One tick of the run along its locked line, never past ringRun; returns the ground covered along the line. */
+    private double ringStep() {
+        double step = Math.min(RING_SPEED, ringRun - ringTravel);
+        if (step <= 1.0E-3) return 0.0;
+        Vec3 dir = forward(spinFromYaw);
+        Vec3 before = position();
+        move(MoverType.SELF, dir.scale(step));
+        double progress = position().subtract(before).dot(dir);
+        ringTravel += Math.max(0.0, progress);
+        return progress;
+    }
+
+    /** A full turn over RING_SPIN_TICKS with the blade held out while still closing in; then a leap onto the target. */
+    private void tickRingSpin(@Nullable LivingEntity target, int t) {
+        // Started mid-tick from the run, so the first spin tick is s = 1.
+        int s = t - RING_SPIN_FRAME;
+        ringStep();
+        if (s >= 1 && s <= RING_SPIN_TICKS) {
+            applyYaw(Mth.wrapDegrees(spinFromYaw + 360.0F * s / RING_SPIN_TICKS));
+            spinHits();
+        } else {
+            applyYaw(spinFromYaw);
+        }
+        if (s > RING_SPIN_TICKS) {
+            ringCooldown = RING_COOLDOWN_TICKS;
+            lockedYaw = spinFromYaw;
+            if (target != null) startLeap(target, false);
+            else endAction();
+        }
+    }
+
+    private void spinHits() {
+        DamageSource source = damageSources().source(BossEntities.LORD_STRIKE, this);
+        for (LivingEntity victim : victims(getBoundingBox().inflate(RING_SPIN_RADIUS + 1.0, 2.0, RING_SPIN_RADIUS + 1.0))) {
+            Vec3 offset = victim.position().subtract(position());
+            if (offset.horizontalDistance() - victim.getBbWidth() / 2 > RING_SPIN_RADIUS || Math.abs(offset.y) > 2.5) continue;
+            if (!hitThisSegment.add(victim.getId())) continue;
+            boolean hurt = victim.hurt(source, RING_DAMAGE);
+            Vec3 away = offset.multiply(1, 0, 1);
+            if (away.lengthSqr() > 1.0E-4) {
+                away = away.normalize();
+                victim.knockback(0.8, -away.x, -away.z);
+                victim.hurtMarked = true;
+            }
+            LOGGER.debug("Zombie Lord {} spin hit {}: {} damage, landed={}", getId(), victim, RING_DAMAGE, hurt);
+        }
+        if (level() instanceof ServerLevel level) {
+            // The blade points to the boss's right.
+            Vec3 right = forward(getYRot() + 90.0F);
+            for (double r = 1.2; r <= 3.0; r += 0.9) {
+                Vec3 at = position().add(right.scale(r)).add(0, 1.2, 0);
+                level.sendParticles(ParticleTypes.SWEEP_ATTACK, at.x, at.y, at.z, 1, 0.0, 0.0, 0.0, 0.0);
+            }
+        }
+    }
+
+    private void startGhostBlade(@Nullable LivingEntity target) {
+        getNavigation().stop();
+        outOfRangeTicks = 0;
+        lockedYaw = target != null && horizontalDistance(target.position()) > 1.0 ? yawToward(target.position()) : getYRot();
+        applyYaw(lockedYaw);
+        setAction(ZombieLordAction.GHOST_BLADE, ACTION_BLEND_TICKS, 0);
+    }
+
+    /**
+     * Roar, raise the blade while it catches fire, three leaping slashes at where the target is going to be (left to
+     * right, right to left, left to right; each burns), then a charged leap onto its marked landing point.
+     */
+    private void tickGhostBlade(@Nullable LivingEntity target, int t) {
+        if (t < GB_JUMPS[0][0] && target != null && horizontalDistance(target.position()) > 1.0) {
+            lockedYaw = Mth.approachDegrees(lockedYaw, yawToward(target.position()), 10.0F);
+        }
+        applyYaw(lockedYaw);
+        if (!(level() instanceof ServerLevel level)) return;
+        if (t == GB_ROAR_FRAME) {
+            playSound(SoundEvents.RAVAGER_ROAR, 3.0F, 0.5F);
+            playSound(SoundEvents.WITHER_AMBIENT, 1.5F, 0.6F);
+        }
+        if (t == GB_IGNITE_FROM) playSound(SoundEvents.BLAZE_SHOOT, 2.0F, 0.6F);
+        if (t > GB_IGNITE_FROM && t < GB_FIRE_END && t % 6 == 0) playSound(SoundEvents.FIRE_AMBIENT, 1.5F, 0.8F);
+        for (int i = 0; i < GB_JUMPS.length; i++) {
+            int[] jump = GB_JUMPS[i];
+            if (t == jump[0]) ghostJump(target, i);
+            if (t > jump[0] && t <= jump[2]) flyArc(jump[0], jump[2], t, GB_JUMP_HEIGHT);
+            int slice = t - jump[1] - 1;
+            if (slice >= 0 && slice < GB_SLASH_TICKS) {
+                if (slice == 0) {
+                    hitThisSegment.clear();
+                    playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 2.0F, 0.6F);
+                    playSound(SoundEvents.FIRECHARGE_USE, 1.2F, 0.8F);
+                }
+                // The second cut runs right to left, the others left to right.
+                arcSweep(slice, GB_SLASH_TICKS, i == 1, GB_SLASH_RANGE, GB_SLASH_HALF_ANGLE, 4.0,
+                        BossEntities.LORD_GHOST_BLADE, GB_SLASH_DAMAGE, true);
+                fireArc(level, slice, i == 1);
+            }
+            if (t == jump[2]) {
+                setNoGravity(false);
+                resetFallDistance();
+                Vec3 ground = groundBelow(level, position());
+                level.sendParticles(blockDust(level, ground), ground.x, ground.y + 0.1, ground.z, 15, 0.5, 0.05, 0.5, 0.12);
+                playSound(SoundEvents.IRON_GOLEM_STEP, 2.0F, 0.6F);
+            }
+        }
+        if (t == GB_LEAP_TAKEOFF) {
+            // The landing point is locked at take-off and marked on the ground (client) until the boss comes down.
+            leapFrom = position();
+            Vec3 aim = target != null ? target.position() : lastTargetPos != null ? lastTargetPos : position();
+            leapTo = new Vec3(aim.x, aim.y, aim.z);
+            if (horizontalDistance(leapTo) > 0.5) lockedYaw = yawToward(leapTo);
+            applyYaw(lockedYaw);
+            entityData.set(DATA_MARK, leapTo.toVector3f());
+            setNoGravity(true);
+            playSound(SoundEvents.RAVAGER_STEP, 2.5F, 0.5F);
+            playSound(SoundEvents.BLAZE_SHOOT, 2.0F, 0.5F);
+        }
+        if (t > GB_LEAP_TAKEOFF && t <= GB_LEAP_LAND) flyChargedLeap(t);
+        if (t == GB_LEAP_LAND) {
+            setNoGravity(false);
+            resetFallDistance();
+            hitThisSegment.clear();
+            radialBlow(BossEntities.LORD_SMASH, position(), GB_LEAP_RADIUS, GB_LEAP_DAMAGE_NEAR, GB_LEAP_DAMAGE_FAR);
+            dustBurst(position(), GB_LEAP_RADIUS);
+            flameRing(level, position(), GB_LEAP_RADIUS * 0.5, ParticleTypes.FLAME);
+            flameRing(level, position(), GB_LEAP_RADIUS, ParticleTypes.FLAME);
+        }
+        if (t >= GB_LENGTH) endAction();
+    }
+
+    /** Take off toward the (predicted) target, landing GB_LAND_SHORT before it so the cut reaches it. */
+    private void ghostJump(@Nullable LivingEntity target, int index) {
+        leapFrom = position();
+        Vec3 aim = target != null ? predictedTarget(target, index) : position().add(forward(lockedYaw).scale(GB_LAND_SHORT));
+        Vec3 offset = new Vec3(aim.x - getX(), 0, aim.z - getZ());
+        double distance = offset.length();
+        if (distance > 0.5) lockedYaw = yawToward(aim);
+        applyYaw(lockedYaw);
+        Vec3 dir = distance > 1.0E-3 ? offset.scale(1.0 / distance) : forward(lockedYaw);
+        double travel = Mth.clamp(distance - GB_LAND_SHORT, 0.0, GB_JUMP_MAX);
+        leapTo = new Vec3(getX() + dir.x * travel, aim.y, getZ() + dir.z * travel);
+        setNoGravity(true);
+        playSound(SoundEvents.RAVAGER_STEP, 1.5F, 0.9F);
+    }
+
+    /**
+     * Where the target will be when the cut lands, from its recent movement: the first and third cut follow a target
+     * backing away from the boss, the second one stepping toward it; sideways movement is always followed.
+     */
+    private Vec3 predictedTarget(LivingEntity target, int index) {
+        Vec3 pos = target.position();
+        Vec3 away = new Vec3(pos.x - getX(), 0, pos.z - getZ());
+        if (away.lengthSqr() < 1.0E-4) return pos;
+        away = away.normalize();
+        Vec3 lead = new Vec3(targetVelocity.x, 0, targetVelocity.z).scale(GB_PREDICT_TICKS);
+        if (lead.length() > GB_PREDICT_MAX) lead = lead.normalize().scale(GB_PREDICT_MAX);
+        double radial = lead.dot(away);
+        Vec3 sideways = lead.subtract(away.scale(radial));
+        boolean follow = index == 1 ? radial < 0 : radial > 0;
+        Vec3 predicted = pos.add(sideways).add(follow ? away.scale(radial) : Vec3.ZERO);
+        LOGGER.debug("Zombie Lord {} ghost blade cut {}: target at {}, moving {} per tick, aiming at {}",
+                getId(), index + 1, pos, targetVelocity, predicted);
+        return predicted;
+    }
+
+    /** Ballistic hop from leapFrom to leapTo between two clip frames. */
+    private void flyArc(int from, int to, int t, double apex) {
+        double s = (t - from) / (double) (to - from);
+        Vec3 wanted = leapFrom.lerp(leapTo, s).add(0, apex * 4 * s * (1 - s), 0);
+        setDeltaMovement(Vec3.ZERO);
+        move(MoverType.SELF, wanted.subtract(position()));
+    }
+
+    /** Up fast to GB_LEAP_HEIGHT, then a slow descent onto the marked point. */
+    private void flyChargedLeap(int t) {
+        double u = (t - GB_LEAP_TAKEOFF) / (double) (GB_LEAP_LAND - GB_LEAP_TAKEOFF);
+        double apexAt = (GB_LEAP_APEX - GB_LEAP_TAKEOFF) / (double) (GB_LEAP_LAND - GB_LEAP_TAKEOFF);
+        double across = u * u * (3 - 2 * u);
+        double height = u <= apexAt ? Math.sin(u / apexAt * Math.PI / 2) : Math.cos((u - apexAt) / (1 - apexAt) * Math.PI / 2);
+        Vec3 wanted = leapFrom.lerp(leapTo, across).add(0, GB_LEAP_HEIGHT * height, 0);
+        setDeltaMovement(Vec3.ZERO);
+        move(MoverType.SELF, wanted.subtract(position()));
+    }
+
+    /** Flames along this tick's slice of a burning cut, at blade height. */
+    private void fireArc(ServerLevel level, int slice, boolean rightToLeft) {
+        float width = 2 * GB_SLASH_HALF_ANGLE / GB_SLASH_TICKS;
+        float from = GB_SLASH_HALF_ANGLE - width * slice;
+        float to = from - width;
+        if (!rightToLeft) {
+            from = -from;
+            to = -to;
+        }
+        for (int i = 0; i <= 4; i++) {
+            Vec3 dir = forward(lockedYaw + Mth.lerp(i / 4.0F, from, to));
+            for (double r = 1.4; r <= 3.2; r += 0.9) {
+                Vec3 at = position().add(dir.scale(r)).add(0, 1.3, 0);
+                level.sendParticles(ParticleTypes.FLAME, at.x, at.y, at.z, 2, 0.08, 0.08, 0.08, 0.02);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- hits
 
     private void stepForward(@Nullable LivingEntity target, int t) {
@@ -830,13 +1277,22 @@ public class ZombieLord extends Monster {
     }
 
     /**
-     * One hit tick of a horizontal sweep. The 120 degree front arc is cut into one slice per hit tick,
-     * swept from the boss's right to its left (attack1) or left to right (attack2).
+     * One hit tick of a combo sweep (zombie_lord_slash: cannot be rolled through). The 120 degree front arc is cut
+     * into one slice per hit tick, swept from the boss's right to its left (attack1) or left to right (attack2).
      */
     private void sweep(int t, boolean rightToLeft) {
-        int slices = SWEEP_LAST_FRAME - SWEEP_FIRST_FRAME + 1;
-        float width = 2 * SWEEP_HALF_ANGLE / slices;
-        float from = SWEEP_HALF_ANGLE - width * (t - SWEEP_FIRST_FRAME);
+        arcSweep(t - SWEEP_FIRST_FRAME, SWEEP_LAST_FRAME - SWEEP_FIRST_FRAME + 1, rightToLeft, SWEEP_RANGE, SWEEP_HALF_ANGLE,
+                3.0, BossEntities.LORD_SLASH, SWEEP_DAMAGE, false);
+    }
+
+    /**
+     * Slice {@code slice} of {@code slices} of a horizontal cut across the front arc (+-halfAngle), from the boss's
+     * right to its left or the other way; each target is hit once per action segment.
+     */
+    private void arcSweep(int slice, int slices, boolean rightToLeft, double range, float halfAngle, double reachY,
+                          ResourceKey<DamageType> type, float damage, boolean burns) {
+        float width = 2 * halfAngle / slices;
+        float from = halfAngle - width * slice;
         float to = from - width;
         if (!rightToLeft) {
             from = -from;
@@ -844,23 +1300,26 @@ public class ZombieLord extends Monster {
         }
         float low = Math.min(from, to) - SWEEP_SLICE_MARGIN;
         float high = Math.max(from, to) + SWEEP_SLICE_MARGIN;
-        DamageSource source = damageSources().source(BossEntities.LORD_SLASH, this);
-        for (LivingEntity victim : victims(getBoundingBox().inflate(SWEEP_RANGE + 1.0, 1.5, SWEEP_RANGE + 1.0))) {
+        DamageSource source = damageSources().source(type, this);
+        for (LivingEntity victim : victims(getBoundingBox().inflate(range + 1.0, reachY, range + 1.0))) {
             Vec3 offset = victim.position().subtract(position());
             double distance = offset.horizontalDistance();
-            if (distance - victim.getBbWidth() / 2 > SWEEP_RANGE || Math.abs(offset.y) > 3.0) continue;
+            if (distance - victim.getBbWidth() / 2 > range || Math.abs(offset.y) > reachY) continue;
             float bearing = distance < 1.0 ? 0.0F : relativeBearing(offset);
             if (bearing < low || bearing > high || !hitThisSegment.add(victim.getId())) continue;
-            boolean hurt = victim.hurt(source, SWEEP_DAMAGE);
-            LOGGER.debug("Zombie Lord {} {} frame {} hit {} at {} deg, {} blocks: {} damage, landed={}",
-                    getId(), getAction(), t, victim, Math.round(bearing), String.format("%.2f", distance), SWEEP_DAMAGE, hurt);
+            boolean hurt = victim.hurt(source, damage);
+            if (hurt && burns) victim.igniteForSeconds(GB_BURN_SECONDS);
+            LOGGER.debug("Zombie Lord {} {} slice {} hit {} at {} deg, {} blocks: {} damage, landed={}",
+                    getId(), getAction(), slice, victim, Math.round(bearing), String.format("%.2f", distance), damage, hurt);
         }
     }
 
-    /** Ground blow centred on {@code centre}; damage falls linearly from {@code near} to {@code far} at the rim. */
-    /** Ground blow (slam or leap landing): it ignores shields (zombie_lord_smash is in bypasses_shield). */
-    private void radialBlow(Vec3 centre, double radius, float near, float far) {
-        DamageSource source = damageSources().source(BossEntities.LORD_SMASH, this);
+    /**
+     * Ground blow centred on {@code centre}; damage falls linearly from {@code near} to {@code far} at the rim. The
+     * boss's ground blows (zombie_lord_smash, zombie_lord_chop) are in bypasses_shield.
+     */
+    private void radialBlow(ResourceKey<DamageType> type, Vec3 centre, double radius, float near, float far) {
+        DamageSource source = damageSources().source(type, this);
         for (LivingEntity victim : victims(new AABB(centre, centre).inflate(radius + 1.0, 0, radius + 1.0).expandTowards(0, 3.0, 0).move(0, -1.0, 0))) {
             double distance = Math.max(0.0, victim.position().subtract(centre).horizontalDistance() - victim.getBbWidth() / 2);
             if (distance > radius || !hitThisSegment.add(victim.getId())) continue;
@@ -1051,8 +1510,12 @@ public class ZombieLord extends Monster {
 
     @Override
     public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps) {
-        // The leap is fast and its landing is keyed to the clip; follow the server without the 3 tick smoothing.
-        super.lerpTo(x, y, z, yRot, xRot, getAction() == ZombieLordAction.LEAP_SLAM ? 1 : steps);
+        // Leaps, the spin and the ghost blade's jumps are fast and keyed to their clips; follow the server without the
+        // 3 tick smoothing.
+        ZombieLordAction action = getAction();
+        boolean exact = action == ZombieLordAction.LEAP_SLAM || action == ZombieLordAction.RING_SPIN
+                || action == ZombieLordAction.GHOST_BLADE;
+        super.lerpTo(x, y, z, yRot, xRot, exact ? 1 : steps);
     }
 
     @Override
@@ -1103,7 +1566,9 @@ public class ZombieLord extends Monster {
 
     @Override
     public void die(DamageSource source) {
+        // A boss killed in mid-air (leaps, the ghost blade's jumps) falls to the ground for its death clip.
         letGo();
+        setNoGravity(false);
         super.die(source);
     }
 
@@ -1128,8 +1593,10 @@ public class ZombieLord extends Monster {
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        // The sword planted for the summon braces the boss for the whole quake. /kill and the void still go through.
+        // Invulnerable through the phase transition; the sword planted for the summon braces the boss for the whole
+        // quake. /kill and the void still go through.
         ZombieLordAction action = getAction();
+        if (action == ZombieLordAction.TRANSITION && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) return false;
         if ((action == ZombieLordAction.QUAKE || action == ZombieLordAction.QUAKE_END)
                 && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             amount *= QUAKE_DAMAGE_TAKEN;
@@ -1152,6 +1619,10 @@ public class ZombieLord extends Monster {
         ZombieLordAction action = getAction();
         AABB box = super.getBoundingBoxForCulling().inflate(1.5, 0.5, 1.5);
         if (!poseState.trail.isEmpty()) box = box.inflate(CHARGE_SPEED * CHARGE_DASH_TICKS, 0, CHARGE_SPEED * CHARGE_DASH_TICKS);
+        // The charged leap's landing mark is drawn by this renderer.
+        if (action == ZombieLordAction.GHOST_BLADE && actionTime(0.0F) >= GB_LEAP_TAKEOFF) {
+            box = box.minmax(new AABB(getLeapMark(), getLeapMark()).inflate(GB_LEAP_RADIUS + 1.0));
+        }
         return action == ZombieLordAction.QUAKE || action == ZombieLordAction.QUAKE_END ? box.inflate(4.0, 0, 4.0) : box;
     }
 
@@ -1178,15 +1649,17 @@ public class ZombieLord extends Monster {
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
-        tag.putInt("QuakeCooldown", quakeCooldown);
-        tag.putInt("HealthSummonsUsed", healthSummonsUsed);
+        tag.putInt("Phase", getPhase());
+        tag.putInt("QuakesUsed", quakesUsed);
+        tag.putBoolean("GhostPending", ghostPending);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
-        quakeCooldown = tag.getInt("QuakeCooldown");
-        healthSummonsUsed = tag.getInt("HealthSummonsUsed");
+        setPhase(Math.max(1, tag.getInt("Phase")));
+        quakesUsed = tag.getInt("QuakesUsed");
+        ghostPending = tag.getBoolean("GhostPending");
         if (hasCustomName()) bossEvent.setName(getDisplayName());
     }
 

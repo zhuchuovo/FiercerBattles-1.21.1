@@ -57,11 +57,11 @@ final class ZombieLordPoser {
             case CYCLE -> (float) (Math.max(0.0, elapsed) % clip.duration());
             case HOLD_AT_FREEZE -> (float) Mth.clamp(elapsed, 0.0, ZombieLord.QUAKE_FREEZE_FRAME);
             case LEAP -> (float) Mth.clamp(ZombieLord.leapClipTime(elapsed), 0.0, clip.duration());
-            case CHARGE -> {
-                if (elapsed < ZombieLord.CHARGE_WINDUP_FRAMES) yield (float) Math.max(0.0, elapsed);
-                // The dash cycle repeats at the speed the boss actually covers ground.
-                double cycles = (elapsed - ZombieLord.CHARGE_WINDUP_FRAMES) * ZombieLord.CHARGE_SPEED / ZombieLord.CHARGE_CLIP_SPEED;
-                yield (float) (ZombieLord.CHARGE_WINDUP_FRAMES + cycles % ZombieLord.CHARGE_CYCLE_FRAMES);
+            case DASH -> {
+                if (elapsed < action.windup) yield (float) Math.max(0.0, elapsed);
+                // The cycle repeats at the speed the boss actually covers ground.
+                double frames = (elapsed - action.windup) * action.cycleRate;
+                yield (float) (action.windup + frames % action.cycle);
             }
             case ONCE -> (float) Mth.clamp(elapsed, 0.0, clip.duration());
         };
