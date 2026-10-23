@@ -57,7 +57,6 @@ final class ZombieLordPoser {
             case CYCLE -> (float) (Math.max(0.0, elapsed) % clip.duration());
             case HOLD_AT_FREEZE -> (float) Mth.clamp(elapsed, 0.0, ZombieLord.QUAKE_FREEZE_FRAME);
             case LEAP -> (float) Mth.clamp(ZombieLord.leapClipTime(elapsed), 0.0, clip.duration());
-            case GHOST -> (float) Mth.clamp(ZombieLord.ghostClipTime(elapsed), 0.0, clip.duration());
             case DASH -> {
                 if (elapsed < action.windup) yield (float) Math.max(0.0, elapsed);
                 // The cycle repeats at the speed the boss actually covers ground.

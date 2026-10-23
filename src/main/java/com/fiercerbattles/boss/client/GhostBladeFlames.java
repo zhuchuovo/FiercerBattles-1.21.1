@@ -40,7 +40,7 @@ public final class GhostBladeFlames {
         if (clip == null) return;
         for (ZombieLord lord : level.getEntitiesOfClass(ZombieLord.class, new AABB(minecraft.player.blockPosition()).inflate(RANGE))) {
             if (lord.isDeadOrDying() || lord.getAction() != ZombieLordAction.GHOST_BLADE) continue;
-            double time = ZombieLord.ghostClipTime(lord.actionTime(0.0F));
+            double time = lord.actionTime(0.0F);
             if (time < ZombieLord.GB_IGNITE_FROM || time > ZombieLord.GB_FIRE_END) continue;
             float lit = (float) Mth.clamp((time - ZombieLord.GB_IGNITE_FROM) / (ZombieLord.GB_IGNITE_TO - ZombieLord.GB_IGNITE_FROM), 0.0, 1.0);
             burn(level, lord, clip.sample("ZL_greatsword", (float) time), lit);

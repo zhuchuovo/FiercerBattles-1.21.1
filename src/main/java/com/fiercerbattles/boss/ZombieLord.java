@@ -95,10 +95,11 @@ public class ZombieLord extends Monster {
     static final float SLAM_DAMAGE_NEAR = 10.0F;
     static final float SLAM_DAMAGE_FAR = 2.0F;
 
-    // Leap slam: only onto a target 10-18 blocks away (measured to its near side), in place of attack3 or after the
-    // target has stayed outside melee range for 3 s while the boss was not attacking. The ring slash ends in a leap at
-    // any range.
-    static final double LEAP_MIN_DISTANCE = 10.0;
+    // Leap slam onto a target up to 18 blocks away (measured to its near side): in place of attack3 when the target is
+    // 5 blocks or more away, or while chasing as soon as it is 6 blocks or more away (half a second out of reach, so a
+    // target only just stepping out is not leapt at). The ring slash ends in a leap at any range.
+    static final double LEAP_MIN_DISTANCE = 6.0;
+    static final double ATTACK3_LEAP_MIN_DISTANCE = 5.0;
     static final double LEAP_MAX_DISTANCE = 18.0;
     // Clip frames; the wind-up before take-off plays 50% slower in game (11 frames over 17 ticks).
     static final int LEAP_TAKEOFF_FRAME = 11;
@@ -112,7 +113,7 @@ public class ZombieLord extends Monster {
     static final double LEAP_RADIUS = 5.0;
     static final float LEAP_DAMAGE_NEAR = 7.0F;
     static final float LEAP_DAMAGE_FAR = 2.0F;
-    static final int CHASE_LEAP_TICKS = 3 * 20;
+    static final int CHASE_LEAP_TICKS = 10;
 
     // Shoulder charge after three full rounds of the combo, four in phase 2 (attack1-2-3, or 1-2 and the leap that
     // replaced 3).
@@ -218,42 +219,34 @@ public class ZombieLord extends Monster {
     /** The blade catches fire from the guard to the point over these frames and burns until GB_FIRE_END. */
     public static final int GB_IGNITE_FROM = 28;
     public static final int GB_IGNITE_TO = 42;
-    public static final int GB_FIRE_END = 132;
-    /** Leaping slashes {take-off, slash, landing}: the cut hits on the 3 ticks after the slash frame. */
-    static final int[][] GB_JUMPS = {{48, 52, 58}, {61, 65, 71}, {74, 78, 84}};
+    public static final int GB_FIRE_END = 172;
     /**
-     * The leaping slashes (clip frames 44-84) play at half speed in game, so the crouch before each jump and the
-     * flight to the cut leave time to dodge. Constants named *_FRAME / GB_JUMPS are clip frames; ghostTick converts.
+     * Leaping slashes {take-off, cut, landing}: each sprung from a deep crouch (the legs straighten over the 3 frames
+     * before take-off), 16 ticks in the air, and cut on the way down; the cut hits over the GB_SLASH_TICKS from the cut
+     * frame to the landing.
      */
-    static final int GB_SLOW_FROM = 44;
-    static final int GB_SLOW_TO = 84;
-    static final int GB_SLOW = 2;
-    /** Hit ticks of each cut: the clip's three cut frames at half speed. */
-    static final int GB_SLASH_TICKS = 3 * GB_SLOW;
+    static final int[][] GB_JUMPS = {{52, 64, 68}, {80, 92, 96}, {108, 120, 124}};
+    static final int GB_SLASH_TICKS = 5;
     static final double GB_JUMP_HEIGHT = 3.0;
-    static final double GB_JUMP_MAX = 9.0;
-    /** The boss lands this far short of the (predicted) target, so the cut reaches it. */
-    static final double GB_LAND_SHORT = 1.6;
+    static final double GB_JUMP_MAX = 14.0;
+    /** The boss lands this far short of the (predicted) target: right in front of it. */
+    static final double GB_LAND_SHORT = 1.3;
     /** Prediction looks this many ticks ahead (take-off to the middle of the cut), at most GB_PREDICT_MAX blocks. */
-    static final int GB_PREDICT_TICKS = 12;
+    static final int GB_PREDICT_TICKS = 14;
     static final double GB_PREDICT_MAX = 6.0;
     static final double GB_SLASH_RANGE = 3.5;
     static final float GB_SLASH_HALF_ANGLE = 70.0F;
     static final float GB_SLASH_DAMAGE = 9.0F;
     static final float GB_BURN_SECONDS = 1.0F;
     /** Charged leap: take-off, apex, landing; higher and slower than the leap slam. Its landing point is marked. */
-    public static final int GB_LEAP_TAKEOFF = 96;
-    static final int GB_LEAP_APEX = 108;
-    public static final int GB_LEAP_LAND = 124;
+    public static final int GB_LEAP_TAKEOFF = 136;
+    static final int GB_LEAP_APEX = 148;
+    public static final int GB_LEAP_LAND = 164;
     static final double GB_LEAP_HEIGHT = 7.0;
     public static final double GB_LEAP_RADIUS = 6.0;
     static final float GB_LEAP_DAMAGE_NEAR = 15.0F;
     static final float GB_LEAP_DAMAGE_FAR = 3.0F;
-    static final int GB_LENGTH = 146;
-    public static final int GB_LEAP_TAKEOFF_TICK = ghostTick(GB_LEAP_TAKEOFF);
-    static final int GB_LEAP_APEX_TICK = ghostTick(GB_LEAP_APEX);
-    public static final int GB_LEAP_LAND_TICK = ghostTick(GB_LEAP_LAND);
-    static final int GB_LENGTH_TICKS = ghostTick(GB_LENGTH);
+    static final int GB_LENGTH = 186;
 
     // Death: the 60 frame death clip, then a short hold before the body disappears.
     public static final int DEATH_CLIP_FRAMES = 60;
@@ -480,10 +473,10 @@ public class ZombieLord extends Monster {
             startAttack1(target);
             return;
         }
-        // Out of reach for 3 s straight (above or below counts too): leap onto the target.
+        // Out of reach (above or below counts too) and 6-18 blocks away: leap onto the target.
         if (inReach) {
             outOfRangeTicks = 0;
-        } else if (++outOfRangeTicks > CHASE_LEAP_TICKS && leapRange(target) && hasLineOfSight(target)) {
+        } else if (++outOfRangeTicks > CHASE_LEAP_TICKS && leapRange(target, LEAP_MIN_DISTANCE) && hasLineOfSight(target)) {
             comboRounds = 0;
             startLeap(target, false);
             return;
@@ -533,7 +526,7 @@ public class ZombieLord extends Monster {
         if (t >= SWEEP_FIRST_FRAME && t <= SWEEP_LAST_FRAME) sweep(t, false);
         if (t >= ATTACK2_LENGTH) {
             // The third segment only starts once attack2 has fully played.
-            if (target != null && leapRange(target)) {
+            if (target != null && leapRange(target, ATTACK3_LEAP_MIN_DISTANCE)) {
                 startLeap(target, true);
             } else {
                 setAction(ZombieLordAction.ATTACK3, ACTION_BLEND_TICKS, 0);
@@ -543,7 +536,7 @@ public class ZombieLord extends Monster {
 
     private void tickAttack3(@Nullable LivingEntity target, int t) {
         applyYaw(lockedYaw);
-        if (t < ATTACK3_LEAP_CUTOFF_FRAME && target != null && leapRange(target)) {
+        if (t < ATTACK3_LEAP_CUTOFF_FRAME && target != null && leapRange(target, ATTACK3_LEAP_MIN_DISTANCE)) {
             startLeap(target, true);
             return;
         }
@@ -759,9 +752,9 @@ public class ZombieLord extends Monster {
         }
     }
 
-    private boolean leapRange(LivingEntity target) {
+    private boolean leapRange(LivingEntity target, double minDistance) {
         double distance = horizontalDistance(target.position());
-        return distance - target.getBbWidth() / 2 > LEAP_MIN_DISTANCE && distance < LEAP_MAX_DISTANCE;
+        return distance - target.getBbWidth() / 2 >= minDistance && distance < LEAP_MAX_DISTANCE;
     }
 
     private void startLeap(LivingEntity target, boolean endsRound) {
@@ -1149,29 +1142,15 @@ public class ZombieLord extends Monster {
         setAction(ZombieLordAction.GHOST_BLADE, ACTION_BLEND_TICKS, 0);
     }
 
-    /** Game tick at which ghost blade clip frame {@code frame} plays (the leaping slashes run at half speed). */
-    public static int ghostTick(int frame) {
-        if (frame <= GB_SLOW_FROM) return frame;
-        if (frame <= GB_SLOW_TO) return GB_SLOW_FROM + (frame - GB_SLOW_FROM) * GB_SLOW;
-        return frame + (GB_SLOW_TO - GB_SLOW_FROM) * (GB_SLOW - 1);
-    }
-
-    /** Ghost blade clip time at {@code elapsed} ticks: the inverse of ghostTick. */
-    public static double ghostClipTime(double elapsed) {
-        double slowEnd = ghostTick(GB_SLOW_TO);
-        if (elapsed <= GB_SLOW_FROM) return elapsed;
-        if (elapsed <= slowEnd) return GB_SLOW_FROM + (elapsed - GB_SLOW_FROM) / GB_SLOW;
-        return elapsed - (slowEnd - GB_SLOW_TO);
-    }
-
     /**
-     * Roar, raise the blade while it catches fire, three leaping slashes at where the target is going to be (left to
-     * right, right to left, left to right; each burns; at half the clip's speed), then a charged leap onto its marked
-     * landing point. {@code t} is in game ticks; clip frames go through ghostTick.
+     * Roar, raise the blade while it catches fire, three leaping slashes onto where the target is going to be (left
+     * to right, right to left, left to right; each cut on the way down and burning), then a charged leap onto its
+     * marked landing point.
      */
     private void tickGhostBlade(@Nullable LivingEntity target, int t) {
-        if (t < ghostTick(GB_JUMPS[0][0]) && target != null && horizontalDistance(target.position()) > 1.0) {
-            lockedYaw = Mth.approachDegrees(lockedYaw, yawToward(target.position()), 10.0F);
+        // On the ground between the jumps the boss turns to keep the target in front; take-off locks the facing.
+        if (t < GB_LEAP_TAKEOFF && !ghostAirborne(t) && target != null && horizontalDistance(target.position()) > 1.0) {
+            lockedYaw = Mth.approachDegrees(lockedYaw, yawToward(target.position()), 12.0F);
         }
         applyYaw(lockedYaw);
         if (!(level() instanceof ServerLevel level)) return;
@@ -1180,12 +1159,12 @@ public class ZombieLord extends Monster {
             playSound(SoundEvents.WITHER_AMBIENT, 1.5F, 0.6F);
         }
         if (t == GB_IGNITE_FROM) playSound(SoundEvents.BLAZE_SHOOT, 2.0F, 0.6F);
-        if (t > GB_IGNITE_FROM && t < ghostTick(GB_FIRE_END) && t % 6 == 0) playSound(SoundEvents.FIRE_AMBIENT, 1.5F, 0.8F);
+        if (t > GB_IGNITE_FROM && t < GB_FIRE_END && t % 6 == 0) playSound(SoundEvents.FIRE_AMBIENT, 1.5F, 0.8F);
         for (int i = 0; i < GB_JUMPS.length; i++) {
-            int takeOff = ghostTick(GB_JUMPS[i][0]), slash = ghostTick(GB_JUMPS[i][1]), landing = ghostTick(GB_JUMPS[i][2]);
+            int takeOff = GB_JUMPS[i][0], cut = GB_JUMPS[i][1], landing = GB_JUMPS[i][2];
             if (t == takeOff) ghostJump(target, i);
             if (t > takeOff && t <= landing) flyArc(takeOff, landing, t, GB_JUMP_HEIGHT);
-            int slice = t - slash - 1;
+            int slice = t - cut;
             if (slice >= 0 && slice < GB_SLASH_TICKS) {
                 if (slice == 0) {
                     hitThisSegment.clear();
@@ -1203,9 +1182,13 @@ public class ZombieLord extends Monster {
                 Vec3 ground = groundBelow(level, position());
                 level.sendParticles(blockDust(level, ground), ground.x, ground.y + 0.1, ground.z, 15, 0.5, 0.05, 0.5, 0.12);
                 playSound(SoundEvents.IRON_GOLEM_STEP, 2.0F, 0.6F);
+                if (target != null) {
+                    LOGGER.debug("Zombie Lord {} ghost blade jump {} landed {} blocks from {}", getId(), i + 1,
+                            String.format("%.2f", horizontalDistance(target.position())), target);
+                }
             }
         }
-        if (t == GB_LEAP_TAKEOFF_TICK) {
+        if (t == GB_LEAP_TAKEOFF) {
             // The landing point is locked at take-off and marked on the ground (client) until the boss comes down.
             leapFrom = position();
             Vec3 aim = target != null ? target.position() : lastTargetPos != null ? lastTargetPos : position();
@@ -1217,8 +1200,8 @@ public class ZombieLord extends Monster {
             playSound(SoundEvents.RAVAGER_STEP, 2.5F, 0.5F);
             playSound(SoundEvents.BLAZE_SHOOT, 2.0F, 0.5F);
         }
-        if (t > GB_LEAP_TAKEOFF_TICK && t <= GB_LEAP_LAND_TICK) flyChargedLeap(t);
-        if (t == GB_LEAP_LAND_TICK) {
+        if (t > GB_LEAP_TAKEOFF && t <= GB_LEAP_LAND) flyChargedLeap(t);
+        if (t == GB_LEAP_LAND) {
             setNoGravity(false);
             resetFallDistance();
             hitThisSegment.clear();
@@ -1227,10 +1210,18 @@ public class ZombieLord extends Monster {
             flameRing(level, position(), GB_LEAP_RADIUS * 0.5, ParticleTypes.FLAME);
             flameRing(level, position(), GB_LEAP_RADIUS, ParticleTypes.FLAME);
         }
-        if (t >= GB_LENGTH_TICKS) endAction();
+        if (t >= GB_LENGTH) endAction();
     }
 
-    /** Take off toward the (predicted) target, landing GB_LAND_SHORT before it so the cut reaches it. */
+    /** Between a leaping slash's take-off and its landing. */
+    private static boolean ghostAirborne(int t) {
+        for (int[] jump : GB_JUMPS) {
+            if (t > jump[0] && t <= jump[2]) return true;
+        }
+        return false;
+    }
+
+    /** Take off toward the (predicted) target, landing GB_LAND_SHORT before it: right in front of it. */
     private void ghostJump(@Nullable LivingEntity target, int index) {
         leapFrom = position();
         Vec3 aim = target != null ? predictedTarget(target, index) : position().add(forward(lockedYaw).scale(GB_LAND_SHORT));
@@ -1275,8 +1266,8 @@ public class ZombieLord extends Monster {
 
     /** Up fast to GB_LEAP_HEIGHT, then a slow descent onto the marked point. */
     private void flyChargedLeap(int t) {
-        double u = (t - GB_LEAP_TAKEOFF_TICK) / (double) (GB_LEAP_LAND_TICK - GB_LEAP_TAKEOFF_TICK);
-        double apexAt = (GB_LEAP_APEX_TICK - GB_LEAP_TAKEOFF_TICK) / (double) (GB_LEAP_LAND_TICK - GB_LEAP_TAKEOFF_TICK);
+        double u = (t - GB_LEAP_TAKEOFF) / (double) (GB_LEAP_LAND - GB_LEAP_TAKEOFF);
+        double apexAt = (GB_LEAP_APEX - GB_LEAP_TAKEOFF) / (double) (GB_LEAP_LAND - GB_LEAP_TAKEOFF);
         double across = u * u * (3 - 2 * u);
         double height = u <= apexAt ? Math.sin(u / apexAt * Math.PI / 2) : Math.cos((u - apexAt) / (1 - apexAt) * Math.PI / 2);
         Vec3 wanted = leapFrom.lerp(leapTo, across).add(0, GB_LEAP_HEIGHT * height, 0);
@@ -1673,7 +1664,7 @@ public class ZombieLord extends Monster {
         AABB box = super.getBoundingBoxForCulling().inflate(1.5, 0.5, 1.5);
         if (!poseState.trail.isEmpty()) box = box.inflate(CHARGE_SPEED * CHARGE_DASH_TICKS, 0, CHARGE_SPEED * CHARGE_DASH_TICKS);
         // The charged leap's landing mark is drawn by this renderer.
-        if (action == ZombieLordAction.GHOST_BLADE && actionTime(0.0F) >= GB_LEAP_TAKEOFF_TICK) {
+        if (action == ZombieLordAction.GHOST_BLADE && actionTime(0.0F) >= GB_LEAP_TAKEOFF) {
             box = box.minmax(new AABB(getLeapMark(), getLeapMark()).inflate(GB_LEAP_RADIUS + 1.0));
         }
         return action == ZombieLordAction.QUAKE || action == ZombieLordAction.QUAKE_END ? box.inflate(4.0, 0, 4.0) : box;

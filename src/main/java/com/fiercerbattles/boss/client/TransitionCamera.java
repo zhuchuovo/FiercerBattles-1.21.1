@@ -104,7 +104,9 @@ public final class TransitionCamera {
         hideGuiBefore = minecraft.options.hideGui;
         cameraTypeBefore = minecraft.options.getCameraType();
         marker.moveTo(eyeStart.x, eyeStart.y - marker.getEyeHeight(), eyeStart.z, yawStart, pitchStart);
+        marker.yHeadRot = yawStart;
         marker.setOldPosAndRot();
+        marker.yHeadRotO = yawStart;
         minecraft.options.hideGui = true;
         minecraft.options.setCameraType(CameraType.FIRST_PERSON);
         minecraft.setCameraEntity(marker);
@@ -146,9 +148,13 @@ public final class TransitionCamera {
             pitch = shotPitch;
         }
         marker.setOldPosAndRot();
+        marker.yHeadRotO = marker.yHeadRot;
         marker.setPos(position.subtract(0.0, marker.getEyeHeight(), 0.0));
+        // A living camera entity looks along its head yaw (LivingEntity.getViewYRot), so that is the one that turns.
         // Unwrapped, so the frames between ticks never interpolate the long way round.
-        marker.setYRot(marker.getYRot() + Mth.wrapDegrees(yaw - marker.getYRot()));
+        float viewYaw = marker.yHeadRot + Mth.wrapDegrees(yaw - marker.yHeadRot);
+        marker.yHeadRot = viewYaw;
+        marker.setYRot(viewYaw);
         marker.setXRot(pitch);
     }
 
