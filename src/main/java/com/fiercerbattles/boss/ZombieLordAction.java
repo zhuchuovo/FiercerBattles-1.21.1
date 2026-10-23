@@ -34,8 +34,8 @@ public enum ZombieLordAction {
             ZombieLord.RING_SPEED / ZombieLord.RING_CLIP_SPEED),
     /** The ring slash clip from its spin pose (the server turns the boss through the spin), started mid-clip. */
     RING_SPIN("ring_slash", Playback.ONCE),
-    /** Roar, burning blade, three leaping slashes and a charged leap; the server flies the boss. */
-    GHOST_BLADE("ghost_blade", Playback.ONCE),
+    /** Roar, burning blade, three leaping slashes (at half speed, ZombieLord.ghostClipTime) and a charged leap; the server flies the boss. */
+    GHOST_BLADE("ghost_blade", Playback.GHOST),
     /** Phase transition: kneel, the breastplate bursts, roar. */
     TRANSITION("transition", Playback.ONCE),
     /** Never sent by the server: the client plays it from the entity's death time. */
@@ -45,7 +45,7 @@ public enum ZombieLordAction {
      * LOOP follows the distance walked, CYCLE the world clock. DASH plays a wind-up, then loops one cycle of the clip
      * at the rate the boss covers ground (cycle frames per tick).
      */
-    public enum Playback { ONCE, LOOP, CYCLE, HOLD_AT_FREEZE, LEAP, DASH }
+    public enum Playback { ONCE, LOOP, CYCLE, HOLD_AT_FREEZE, LEAP, GHOST, DASH }
 
     private static final ZombieLordAction[] VALUES = values();
     public final String clip;

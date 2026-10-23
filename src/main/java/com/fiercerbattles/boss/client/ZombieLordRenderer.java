@@ -68,8 +68,8 @@ public final class ZombieLordRenderer extends MobRenderer<ZombieLord, ZombieLord
     private static void renderLeapMark(ZombieLord lord, float partialTick, PoseStack poses, MultiBufferSource buffers) {
         if (lord.isDeadOrDying() || lord.getAction() != ZombieLordAction.GHOST_BLADE) return;
         float time = (float) lord.actionTime(partialTick);
-        if (time < ZombieLord.GB_LEAP_TAKEOFF || time >= ZombieLord.GB_LEAP_LAND) return;
-        float progress = (time - ZombieLord.GB_LEAP_TAKEOFF) / (ZombieLord.GB_LEAP_LAND - ZombieLord.GB_LEAP_TAKEOFF);
+        if (time < ZombieLord.GB_LEAP_TAKEOFF_TICK || time >= ZombieLord.GB_LEAP_LAND_TICK) return;
+        float progress = (time - ZombieLord.GB_LEAP_TAKEOFF_TICK) / (ZombieLord.GB_LEAP_LAND_TICK - ZombieLord.GB_LEAP_TAKEOFF_TICK);
         float alpha = Mth.clamp(progress * 4.0F, 0.0F, 1.0F) * (0.65F + 0.3F * Mth.sin(time * (0.4F + progress * 0.8F)));
         Vec3 mark = lord.getLeapMark();
         poses.pushPose();
