@@ -44,5 +44,7 @@
   "death.attack.zombie_lord_skull": "%1$s was struck by a skull of %2$s",
   "death.attack.zombie_lord_skull.player": "%1$s was struck by a skull of %2$s",
   "death.attack.zombie_lord_smash": "%1$s was crushed by %2$s",
-  "death.attack.zombie_lord_smash.player": "%1$s was crushed by %2$s"
+  "death.attack.zombie_lord_smash.player": "%1$s was crushed by %2$s",
+  "death.attack.zombie_lord_grab": "%1$s was grabbed and thrown by %2$s",
+  "death.attack.zombie_lord_grab.player": "%1$s was grabbed and thrown by %2$s"
 }

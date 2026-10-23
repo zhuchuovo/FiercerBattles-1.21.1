@@ -20,6 +20,7 @@ import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -139,6 +140,34 @@ public class ZombieLord extends Monster {
     static final int STUN_DAZE_FROM = 6;
     static final int STUN_DAZE_TO = 68;
 
+    // Grab and throw: a target still beside the boss after attack3's slam, before the boss stands up again, may be
+    // grabbed (50%), slammed into the ground and thrown.
+    /** attack3 frames during which the boss is still bent over the slam (it starts rising at 28). */
+    static final int GRAB_WINDOW_FROM = 21;
+    static final int GRAB_WINDOW_TO = 28;
+    static final double GRAB_TRIGGER_RANGE = 3.0;
+    static final float GRAB_CHANCE = 0.5F;
+    /** zombie_lord_grab: turns toward the target until frame 6, the free hand is fully out at 9; a miss plays to 30. */
+    static final int GRAB_AIM_LOCK_FRAME = 6;
+    static final int GRAB_REACH_FRAME = 9;
+    static final int GRAB_LENGTH = 30;
+    /** Caught: within this distance (plus half the victim's width) of the line from the boss out past its hand. */
+    static final double GRAB_RADIUS = 0.8;
+    /** Victims bigger than this cannot be lifted. */
+    static final float GRAB_MAX_WIDTH = 1.0F;
+    static final float GRAB_MAX_HEIGHT = 2.2F;
+    /** zombie_lord_throw, started from the grab's reach pose: slammed into the ground at 11, released at 27. */
+    static final int THROW_SLAM_FRAME = 11;
+    static final int THROW_RELEASE_FRAME = 27;
+    static final int THROW_LENGTH = 48;
+    static final float THROW_SLAM_DAMAGE = 4.0F;
+    static final float THROW_WALL_DAMAGE = 4.0F;
+    /** Launch velocity in blocks per tick, applied the tick after the release. */
+    static final double THROW_SPEED = 1.0;
+    static final double THROW_LIFT = 0.45;
+    /** A wall met within this many ticks of the release, before landing, hurts the victim. */
+    static final int THROW_FLIGHT_TICKS = 40;
+
     // Death: the 60 frame death clip, then a short hold before the body disappears.
     public static final int DEATH_CLIP_FRAMES = 60;
     static final int DEATH_TICKS = DEATH_CLIP_FRAMES + 10;
@@ -194,6 +223,14 @@ public class ZombieLord extends Monster {
     private final List<LordSkeleton> minions = new ArrayList<>();
     private int skullsFired;
     private int allFiredTick = -1;
+    /** The 50% grab roll is made once per attack3, the first time a target stands beside the slam. */
+    private boolean grabRolled;
+    @Nullable private LivingEntity grabTarget;
+    /** Set while the boss itself lets go of its victim, so the dismount is not blocked (BossEvents). */
+    private boolean releasing;
+    @Nullable private LivingEntity thrown;
+    private Vec3 throwDir = Vec3.ZERO;
+    private int thrownTicks;
     /** Horizontal drive set by the move control for this tick: unit direction and blocks per tick. */
     private double driveX, driveZ, driveSpeed;
 
@@ -277,6 +314,8 @@ public class ZombieLord extends Monster {
         if (target != null && (!target.isAlive() || target.isSpectator())) target = null;
         if (target != null) lastTargetPos = target.position();
         int t = actionTick();
+        tickThrown();
+        if (isVehicle() && getAction() != ZombieLordAction.THROW) letGo();
         switch (getAction()) {
             case IDLE, WALK -> tickChase(target);
             case ATTACK1 -> tickAttack1(target, t);
@@ -286,6 +325,8 @@ public class ZombieLord extends Monster {
             case CHARGE -> tickCharge(target, t);
             case CHARGE_END -> tickChargeEnd(t);
             case STUN -> tickStun(t);
+            case GRAB -> tickGrab(target, t);
+            case THROW -> tickThrow(target, t);
             case QUAKE -> tickQuake(target, t);
             case QUAKE_END -> {
                 applyYaw(lockedYaw);
@@ -376,8 +417,12 @@ public class ZombieLord extends Monster {
         if (t >= SWEEP_FIRST_FRAME && t <= SWEEP_LAST_FRAME) sweep(t, false);
         if (t >= ATTACK2_LENGTH) {
             // The third segment only starts once attack2 has fully played.
-            if (target != null && leapRange(target)) startLeap(target, true);
-            else setAction(ZombieLordAction.ATTACK3, ACTION_BLEND_TICKS, 0);
+            if (target != null && leapRange(target)) {
+                startLeap(target, true);
+            } else {
+                grabRolled = false;
+                setAction(ZombieLordAction.ATTACK3, ACTION_BLEND_TICKS, 0);
+            }
         }
     }
 
@@ -392,7 +437,173 @@ public class ZombieLord extends Monster {
             radialBlow(position(), SLAM_RADIUS, SLAM_DAMAGE_NEAR, SLAM_DAMAGE_FAR);
             dustBurst(position(), SLAM_RADIUS);
         }
+        // Still bent over the slam: a target right beside the boss may be grabbed (one roll per slam).
+        if (t >= GRAB_WINDOW_FROM && t <= GRAB_WINDOW_TO && !grabRolled && target != null && grabbable(target)
+                && horizontalDistance(target.position()) <= GRAB_TRIGGER_RANGE) {
+            grabRolled = true;
+            boolean grab = random.nextFloat() < GRAB_CHANCE;
+            LOGGER.debug("Zombie Lord {} grab roll at attack3 frame {} on {}: {}", getId(), t, target, grab);
+            if (grab) {
+                startGrab(target);
+                return;
+            }
+        }
         if (t >= ATTACK3_LENGTH) endRound(target);
+    }
+
+    /** Small enough to lift, and not already riding or carrying something. */
+    private static boolean grabbable(LivingEntity entity) {
+        return isEnemy(entity) && !entity.isPassenger() && !entity.isVehicle()
+                && entity.getBbWidth() <= GRAB_MAX_WIDTH && entity.getBbHeight() <= GRAB_MAX_HEIGHT;
+    }
+
+    private void startGrab(LivingEntity target) {
+        getNavigation().stop();
+        outOfRangeTicks = 0;
+        grabTarget = target;
+        setAction(ZombieLordAction.GRAB, 3, 0);
+        playSound(SoundEvents.ZOMBIE_AMBIENT, 2.0F, 0.5F);
+    }
+
+    /** Wrench the sword out, turn on the target and lunge with the free hand; whoever is in reach at frame 9 is caught. */
+    private void tickGrab(@Nullable LivingEntity target, int t) {
+        LivingEntity aim = grabTarget;
+        if (t < GRAB_AIM_LOCK_FRAME && aim != null && aim.isAlive() && horizontalDistance(aim.position()) > 0.5) {
+            lockedYaw = Mth.approachDegrees(getYRot(), yawToward(aim.position()), 30.0F);
+        }
+        applyYaw(lockedYaw);
+        if (t == GRAB_REACH_FRAME) {
+            LivingEntity caught = caughtAtReach(aim);
+            LOGGER.debug("Zombie Lord {} grab at {}: caught {}", getId(), position(), caught);
+            if (caught != null) {
+                startThrow(caught);
+                return;
+            }
+            playSound(SoundEvents.PLAYER_ATTACK_NODAMAGE, 1.5F, 0.6F);
+        }
+        if (t >= GRAB_LENGTH) {
+            grabTarget = null;
+            endRound(target);
+        }
+    }
+
+    /** The intended target if it is in reach, else anyone else in reach; null on a miss. */
+    @Nullable
+    private LivingEntity caughtAtReach(@Nullable LivingEntity aim) {
+        Vec3 hand = ZombieLordGrip.hand(0).add(0, 0, 0.4);
+        Vec3 from = position();
+        Vec3 to = toWorld(hand);
+        LivingEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (LivingEntity victim : victims(new AABB(from, to).inflate(GRAB_RADIUS + 1.0, 2.0, GRAB_RADIUS + 1.0))) {
+            if (!grabbable(victim) || victim.getY() < getY() - 1.0 || victim.getY() > getY() + 1.5) continue;
+            double distance = horizontalSegmentDistance(victim.position(), from, to) - victim.getBbWidth() / 2;
+            if (distance > GRAB_RADIUS) continue;
+            if (victim == aim) return victim;
+            if (distance < bestDistance) {
+                best = victim;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private static double horizontalSegmentDistance(Vec3 point, Vec3 a, Vec3 b) {
+        double dx = b.x - a.x, dz = b.z - a.z;
+        double length = dx * dx + dz * dz;
+        double s = length < 1.0E-6 ? 0.0 : Mth.clamp(((point.x - a.x) * dx + (point.z - a.z) * dz) / length, 0.0, 1.0);
+        return Math.sqrt(Mth.square(point.x - (a.x + s * dx)) + Mth.square(point.z - (a.z + s * dz)));
+    }
+
+    private void startThrow(LivingEntity victim) {
+        // The victim rides the boss while it is held: both sides then place it on the left fist every tick.
+        if (!victim.startRiding(this, true)) {
+            LOGGER.debug("Zombie Lord {} could not lift {}", getId(), victim);
+            return;
+        }
+        grabTarget = null;
+        setAction(ZombieLordAction.THROW, 1, 0);
+        positionRider(victim);
+        playSound(SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1.5F, 0.5F);
+    }
+
+    /** Haul the victim overhead, slam it into the ground, haul it up again and hurl it; then back to the stance. */
+    private void tickThrow(@Nullable LivingEntity target, int t) {
+        applyYaw(lockedYaw);
+        LivingEntity victim = getFirstPassenger() instanceof LivingEntity held ? held : null;
+        if (victim != null) positionRider(victim);
+        if (t == THROW_SLAM_FRAME && victim != null && level() instanceof ServerLevel level) {
+            Vec3 at = toWorld(ZombieLordGrip.hand(t));
+            Vec3 ground = groundBelow(level, at);
+            victim.invulnerableTime = 0;
+            boolean hurt = victim.hurt(damageSources().source(BossEntities.LORD_GRAB, this), THROW_SLAM_DAMAGE);
+            LOGGER.debug("Zombie Lord {} slammed {} into the ground: {} damage, landed={}", getId(), victim, THROW_SLAM_DAMAGE, hurt);
+            playSound(SoundEvents.GENERIC_EXPLODE.value(), 1.2F, 0.8F);
+            playSound(SoundEvents.ANVIL_LAND, 1.0F, 0.6F);
+            level.sendParticles(blockDust(level, ground), ground.x, ground.y + 0.1, ground.z, 30, 0.6, 0.1, 0.6, 0.15);
+            level.sendParticles(ParticleTypes.EXPLOSION, ground.x, ground.y + 0.3, ground.z, 1, 0.0, 0.0, 0.0, 0.0);
+        }
+        if (t == THROW_RELEASE_FRAME && victim != null) {
+            letGo();
+            thrown = victim;
+            throwDir = forward(lockedYaw);
+            thrownTicks = 0;
+            playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.5F, 0.5F);
+        }
+        if (t >= THROW_LENGTH) endRound(target);
+    }
+
+    /** Drop whatever the boss is holding, where it is held. */
+    private void letGo() {
+        releasing = true;
+        try {
+            ejectPassengers();
+        } finally {
+            releasing = false;
+        }
+    }
+
+    boolean isReleasing() { return releasing; }
+
+    /** Launch the released victim the tick after the release (after the dismount reached the client), then watch for a wall. */
+    private void tickThrown() {
+        LivingEntity victim = thrown;
+        if (victim == null) return;
+        thrownTicks++;
+        if (!victim.isAlive() || victim.isPassenger() || thrownTicks > THROW_FLIGHT_TICKS) {
+            thrown = null;
+            return;
+        }
+        if (thrownTicks == 1) {
+            victim.setDeltaMovement(throwDir.x * THROW_SPEED, THROW_LIFT, throwDir.z * THROW_SPEED);
+            victim.hasImpulse = true;
+            victim.hurtMarked = true;
+            return;
+        }
+        if (thrownTicks > 3 && victim.onGround()) {
+            thrown = null;
+            return;
+        }
+        AABB ahead = victim.getBoundingBox().inflate(0, -0.1, 0).move(throwDir.x * 0.3, 0, throwDir.z * 0.3);
+        if (level().noCollision(victim, ahead)) return;
+        thrown = null;
+        victim.invulnerableTime = 0;
+        boolean hurt = victim.hurt(damageSources().source(BossEntities.LORD_GRAB, this), THROW_WALL_DAMAGE);
+        LOGGER.debug("Zombie Lord {} threw {} into a wall after {} ticks: {} damage, landed={}", getId(), victim, thrownTicks, THROW_WALL_DAMAGE, hurt);
+        victim.level().playSound(null, victim.getX(), victim.getY(), victim.getZ(), SoundEvents.PLAYER_BIG_FALL, getSoundSource(), 1.5F, 0.8F);
+        if (level() instanceof ServerLevel level) {
+            Vec3 front = victim.position().add(throwDir.scale(victim.getBbWidth() / 2 + 0.2)).add(0, victim.getBbHeight() / 2, 0);
+            BlockState wall = level.getBlockState(BlockPos.containing(front));
+            if (!wall.isAir()) {
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, wall), front.x, front.y, front.z, 20, 0.2, 0.4, 0.2, 0.15);
+            }
+        }
+    }
+
+    /** A point given in the boss's frame (right, up, forward; blocks) in the world. */
+    private Vec3 toWorld(Vec3 local) {
+        Vec3 forward = forward(getYRot());
+        return position().add(-forward.z * local.x + forward.x * local.z, local.y, forward.x * local.x + forward.z * local.z);
     }
 
     /** The third segment (slam or its leap) finished one full round of the combo. */
@@ -847,6 +1058,53 @@ public class ZombieLord extends Monster {
     @Override
     public void push(double x, double y, double z) {
         // Shoving players or mobs never displaces the boss.
+    }
+
+    // ---------------------------------------------------------------- the held victim (a passenger)
+
+    /** Where a held victim's feet go: hanging from the left fist (ZombieLordGrip), facing the boss. */
+    public Vec3 heldPosition(Entity passenger, float partialTick) {
+        double time = getAction() == ZombieLordAction.THROW ? Mth.clamp(actionTime(partialTick), 0.0, THROW_RELEASE_FRAME) : 0.0;
+        Vec3 fist = toWorld(ZombieLordGrip.hand(time).add(0, 0, ZombieLordGrip.CHEST_DEPTH));
+        return fist.subtract(0, passenger.getBbHeight() * ZombieLordGrip.GRIP_HEIGHT, 0);
+    }
+
+    @Override
+    protected void positionRider(Entity passenger, Entity.MoveFunction move) {
+        if (!hasPassenger(passenger)) return;
+        Vec3 at = heldPosition(passenger, 0.0F);
+        move.accept(passenger, at.x, at.y, at.z);
+    }
+
+    @Override
+    public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
+        // Let go where it hangs, unless that is inside a block.
+        Vec3 held = heldPosition(passenger, 0.0F);
+        AABB box = passenger.getDimensions(passenger.getPose()).makeBoundingBox(held);
+        return level().noCollision(passenger, box) ? held : super.getDismountLocationForPassenger(passenger);
+    }
+
+    @Override
+    public boolean shouldRiderSit() {
+        return false;
+    }
+
+    @Override
+    protected boolean canAddPassenger(Entity passenger) {
+        // Only the grab puts anything on the boss (it mounts with force).
+        return false;
+    }
+
+    @Nullable
+    @Override
+    public LivingEntity getControllingPassenger() {
+        return null;
+    }
+
+    @Override
+    public void die(DamageSource source) {
+        letGo();
+        super.die(source);
     }
 
     /** The death clip plays out (the renderer's tip-over is off) before the body disappears in smoke. */

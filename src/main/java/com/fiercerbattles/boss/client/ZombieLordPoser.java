@@ -54,7 +54,7 @@ final class ZombieLordPoser {
                 // The cycle follows the distance actually walked, so planted feet do not slide.
                 yield (float) ((lord.walkDistance(partialTick) / ZombieLord.WALK_CLIP_SPEED) % clip.duration());
             }
-            case HOLD_START -> 0.0F;
+            case CYCLE -> (float) (Math.max(0.0, elapsed) % clip.duration());
             case HOLD_AT_FREEZE -> (float) Mth.clamp(elapsed, 0.0, ZombieLord.QUAKE_FREEZE_FRAME);
             case LEAP -> (float) Mth.clamp(ZombieLord.leapClipTime(elapsed), 0.0, clip.duration());
             case CHARGE -> {

@@ -6,8 +6,8 @@ package com.fiercerbattles.boss;
  * Clips come from 敌军动作/动作/zombie_lord_<clip>.blend at 20 FPS, so a Blender frame is a game tick.
  */
 public enum ZombieLordAction {
-    /** Combat stance: the first frame of attack1, which is also where the walk cycle grips the sword. */
-    IDLE("attack1", Playback.HOLD_START),
+    /** Breathing in the combat stance, looped on the world clock. */
+    IDLE("idle", Playback.CYCLE),
     WALK("walk", Playback.LOOP),
     ATTACK1("attack1", Playback.ONCE),
     ATTACK2("attack2", Playback.ONCE),
@@ -24,10 +24,15 @@ public enum ZombieLordAction {
     CHARGE_END("charge", Playback.ONCE),
     /** Dazed after charging into a wall; the clip is the whole stun. */
     STUN("stun", Playback.ONCE),
+    /** Lunge with the free hand after attack3's slam; a catch switches to THROW at the reach frame. */
+    GRAB("grab", Playback.ONCE),
+    /** The caught victim is slammed down and hurled; it hangs from the left fist until the release frame. */
+    THROW("throw", Playback.ONCE),
     /** Never sent by the server: the client plays it from the entity's death time. */
     DEATH("death", Playback.ONCE);
 
-    public enum Playback { ONCE, LOOP, HOLD_START, HOLD_AT_FREEZE, LEAP, CHARGE }
+    /** LOOP follows the distance walked, CYCLE the world clock. */
+    public enum Playback { ONCE, LOOP, CYCLE, HOLD_AT_FREEZE, LEAP, CHARGE }
 
     private static final ZombieLordAction[] VALUES = values();
     public final String clip;

@@ -44,5 +44,7 @@
   "death.attack.zombie_lord_skull": "%1$s 被 %2$s 的骷髅头击中了",
   "death.attack.zombie_lord_skull.player": "%1$s 被 %2$s 的骷髅头击中了",
   "death.attack.zombie_lord_smash": "%1$s 被 %2$s 砸碎了",
-  "death.attack.zombie_lord_smash.player": "%1$s 被 %2$s 砸碎了"
+  "death.attack.zombie_lord_smash.player": "%1$s 被 %2$s 砸碎了",
+  "death.attack.zombie_lord_grab": "%1$s 被 %2$s 抓起来摔了出去",
+  "death.attack.zombie_lord_grab.player": "%1$s 被 %2$s 抓起来摔了出去"
 }

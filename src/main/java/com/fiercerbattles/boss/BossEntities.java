@@ -53,6 +53,8 @@ public final class BossEntities {
     public static final ResourceKey<DamageType> LORD_SMASH = damageType("zombie_lord_smash");
     /** Blast of a skull landing. */
     public static final ResourceKey<DamageType> LORD_SKULL_BLAST = damageType("zombie_lord_skull");
+    /** Grab and throw: slammed into the ground, then into a wall. Listed in minecraft:bypasses_shield. */
+    public static final ResourceKey<DamageType> LORD_GRAB = damageType("zombie_lord_grab");
 
     /** Built-in humanoid mobs that the execution allowlist always includes, whatever the config lists. */
     public static final Set<String> BUILTIN_HUMANOIDS = Set.of(FiercerBattles.MOD_ID + ":zombie_lord_skeleton");
