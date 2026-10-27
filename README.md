@@ -681,7 +681,7 @@ data/my_pack/fiercerbattles_animations/finish/victim.json
 弹反成功时：
 
 - 播放弹开音效 `fiercerbattles:parry`（附近所有玩家都能听到，包括弹反者本人）。当前音效由提供的 `Voicy_ Parry #1.mp3` 转为单声道 48 kHz OGG Vorbis，保留完整约 4.3 秒；想替换时覆盖 `assets/fiercerbattles/sounds/parry/parry_clang.ogg` 即可。
-- 攻击者受到固定 **10 点**反击伤害（伤害类型 `fiercerbattles:parry_counter`，无视护甲和受伤冷却，不产生击退，击杀记在弹反者名下）。
+- 攻击者受到固定 **4 点**反击伤害（伤害类型 `fiercerbattles:parry_counter`，无视护甲和受伤冷却，不产生击退，击杀记在弹反者名下）。
 - 攻击者进入眩晕：先被弹开（攻击手甩高、上身后仰、退半步），随后弯腰低头、双手下垂地摇晃，最后站直恢复。
 - 眩晕期间可以对它**处决（相当于黑魂的反击处决）**：处决血量门槛从 `execution.health_threshold`（默认 25%）提高到 **60%**，其他处决条件不变。处决开始时眩晕立即结束，被处决者从眩晕姿势直接过渡到处决动作。
 
@@ -692,7 +692,7 @@ data/my_pack/fiercerbattles_animations/finish/victim.json
 ```json
 {
   "parry": {
-    "counter_damage": 10.0,
+    "counter_damage": 4.0,
     "stagger_execution_health_threshold": 0.6
   }
 }
@@ -700,7 +700,7 @@ data/my_pack/fiercerbattles_animations/finish/victim.json
 
 | 参数 | 说明 |
 | --- | --- |
-| `counter_damage` | 弹反成功对攻击者造成的固定伤害，默认 `10`；`0` 为不造成伤害。|
+| `counter_damage` | 弹反成功对攻击者造成的固定伤害，默认 `4`；`0` 为不造成伤害。|
 | `stagger_execution_health_threshold` | 目标被弹反眩晕期间的处决血量比例（严格低于），默认 `0.6`，有效范围大于 0 且不超过 1。若低于普通处决门槛，则使用普通门槛。|
 
 弹反与处决互斥，已有 busy 状态不能互相覆盖（唯一例外是对被弹反眩晕的目标发起处决）；旧排队攻击按 epoch 作废。资源独立重载、压缩同步和 hash 校验，原处决资源与通用播放器保持不变。源码入口、资源路径、安全修改边界和只读导出验证命令见 [弹反模块速查](docs/parry_module.md)。

@@ -96,7 +96,8 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     // the first again. After a parry the next round opens with the thrust.
     static final double SAW_TRIGGER_RANGE = 4.5;
     static final double SAW_RANGE = 3.5;
-    static final float SAW_DAMAGE = 6.0F;
+    /** Every saw blow, the thrust's included. */
+    static final float SAW_DAMAGE = 7.0F;
     /** Every saw segment lunges this far forward, stopping LUNGE_MIN_GAP short of the target's hitbox. */
     static final double SAW_LUNGE = 2.0;
     static final double LUNGE_MIN_GAP = 0.5;
@@ -136,11 +137,11 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     private static final int SWEEPS_PER_ROUND = 3;
 
     // The impale (saw_impale / saw_cannon_impale, started at the thrust's hit frame): lifted overhead from 14, sawn
-    // 24-54, flung off the blade at 55 (IronSentinelPoints).
+    // 24-54, flung off the blade at 55 (IronSentinelPoints). With the thrust's 7 the third segment deals 12 in all.
     static final int IMPALE_RELEASE_FRAME = 55;
     static final int IMPALE_LENGTH = 84;
     static final int[] IMPALE_GRIND_FRAMES = {24, 34, 44, 54};
-    static final float IMPALE_GRIND_DAMAGE = 1.0F;
+    static final float IMPALE_GRIND_DAMAGE = 1.25F;
     static final float IMPALE_MAX_WIDTH = 1.0F;
     static final float IMPALE_MAX_HEIGHT = 2.2F;
     /** The saw runs through the victim's middle, this share of its height above its feet. */

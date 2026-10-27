@@ -2,7 +2,7 @@
 
 主手持原版或匠魂的剑、斧，站在地面上按独立弹反键（默认 **R**，控制设置可重绑）播放弹反动作，并在启动位置广播一次起手音效 `fiercerbattles:parry_use`。动作参考《黑暗之魂 3》：副手反手外挥弹开攻击，被弹反者弯腰眩晕、可被反击处决。武器检查复用 `execution/ExecutionWeapons.java` 的注册 ID 分类，与战技 G、处决 V 分开。弹反者全程（含复位）只在水平面上锁定启动位置，禁止移动、跳跃、冲刺、潜行及击退、惯性造成的水平位移；垂直方向完全不接管，重力、垂直速度与坠落距离照常，落地伤害也照常结算，结束后立即交还移动。仍可转向，镜头模式不变。骑乘或未站在地面时不能启动。客户端从发出请求起立即锁定水平位置，拒绝或超时后解除等待锁定。
 
-服务器在原动画第 **5–10 tick，包含两端** 接受弹反。窗口内符合条件的近战伤害被取消，攻击者进入 `STAGGER`，随后受到 `parry.counter_damage`（默认 10）点 `fiercerbattles:parry_counter` 固定伤害（无视护甲与受伤冷却、无击退），并在弹反者位置广播 `fiercerbattles:parry` 音效。`STAGGER` 期间目标可被处决，血量门槛取 `max(execution.health_threshold, parry.stagger_execution_health_threshold)`（默认 60%）。同一窗口可处理多个攻击者。当前近战来源要求直接伤害实体就是攻击者，类型为 `PLAYER_ATTACK`、`MOB_ATTACK`、`MOB_ATTACK_NO_AGGRO` 或 `STING`；环境伤害、投射物及处决伤害不触发成功弹反。窗口外没有弹反保护。
+服务器在原动画第 **5–10 tick，包含两端** 接受弹反。窗口内符合条件的近战伤害被取消，攻击者进入 `STAGGER`，随后受到 `parry.counter_damage`（默认 4）点 `fiercerbattles:parry_counter` 固定伤害（无视护甲与受伤冷却、无击退），并在弹反者位置广播 `fiercerbattles:parry` 音效。`STAGGER` 期间目标可被处决，血量门槛取 `max(execution.health_threshold, parry.stagger_execution_health_threshold)`（默认 60%）。同一窗口可处理多个攻击者。当前近战来源要求直接伤害实体就是攻击者，类型为 `PLAYER_ATTACK`、`MOB_ATTACK`、`MOB_ATTACK_NO_AGGRO` 或 `STING`；环境伤害、投射物及处决伤害不触发成功弹反。窗口外没有弹反保护。
 
 例外是 Boss 自己的招式（`parry/BossParryTarget`，目前是钢铁卫戍）：直接伤害实体是 Boss、伤害类型在 `fiercerbattles:boss_parryable` 里的一击，同样在窗口内被取消、播放弹反音效和反击伤害，但不进入人形 `STAGGER`（Boss 的模型不是六部位人形），而是调用 `BossParryTarget.parried`，由 Boss 播放自己的眩晕动作；能否处决由 Boss 自己决定（见 [钢铁卫戍速查](iron_sentinel_module.md)）。
 

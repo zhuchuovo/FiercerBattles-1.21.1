@@ -53,7 +53,7 @@ public final class FiercerBattlesConfig {
 
     /** Successful parry: counter damage to the attacker and a riposte window while it is stunned. */
     public static class Parry {
-        public double counter_damage = 10.0;
+        public double counter_damage = 4.0;
         /** Execution health ratio while the target is stunned by a parry (normally execution.health_threshold). */
         public double stagger_execution_health_threshold = 0.6;
 
