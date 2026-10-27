@@ -24,5 +24,27 @@
     "sounds": [
       "fiercerbattles:locomotion/roll"
     ]
+  },
+  "iron_sentinel_saw_hit": {
+    "subtitle": "subtitles.fiercerbattles.iron_sentinel_saw_hit",
+    "sounds": [
+      "fiercerbattles:boss/iron_sentinel_saw_hit"
+    ]
+  },
+  "music.iron_sentinel_battle": {
+    "sounds": [
+      {
+        "name": "fiercerbattles:music/iron_sentinel_battle",
+        "stream": true
+      }
+    ]
+  },
+  "music.iron_sentinel_finale": {
+    "sounds": [
+      {
+        "name": "fiercerbattles:music/iron_sentinel_finale",
+        "stream": true
+      }
+    ]
   }
 }

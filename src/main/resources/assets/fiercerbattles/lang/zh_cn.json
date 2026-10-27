@@ -32,6 +32,7 @@
   "subtitles.fiercerbattles.push_open": "处决推开",
   "subtitles.fiercerbattles.parry_use": "弹反起手",
   "subtitles.fiercerbattles.roll": "翻滚",
+  "subtitles.fiercerbattles.iron_sentinel_saw_hit": "电锯切入",
   "death.attack.parry_counter": "%1$s 被弹反反击致死",
   "death.attack.parry_counter.player": "%1$s 被 %2$s 弹反反击致死",
   "entity.fiercerbattles.zombie_lord": "僵尸领主",

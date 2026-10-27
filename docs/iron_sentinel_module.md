@@ -19,6 +19,8 @@ Java 路径相对 `src/main/java/com/fiercerbattles/`。
 | 客户端：资源加载（网格读取与僵尸领主共用）、按倍速采样与过渡、网格渲染与发光层、炮弹与落点提示圈；被刺中时第三人称视角（`BossClient.Held`） | `boss/client/IronSentinel*.java`、`boss/client/SentinelShellRenderer.java` |
 | Boss 专属弹反：`fiercerbattles:boss_parryable` 里的伤害类型能被弹反窗口挡住，Boss 播自己的眩晕 | `parry/BossParryTarget.java`、`parry/ParryServer.incomingDamage` |
 | 自带处决的目标：自己决定动作和时机、自己播放被处决的一半、自己承受收尾伤害 | `execution/ExecutionTarget.java`、`FiercerBattlesExecutionServer.start/finish` |
+| 战斗音乐（客户端）：交战中的钢铁卫戍在附近时淡入、离开或脱战后淡出、死亡时交叉淡入终曲，期间压住原版音乐 | `boss/client/IronSentinelMusic.java`；`IronSentinel.isEngaged()`（同步的 `DATA_ENGAGED`） |
+| 音效与音乐文件 | `sounds/boss/iron_sentinel_saw_hit.ogg`、`sounds/music/iron_sentinel_battle.ogg`、`iron_sentinel_finale.ogg`（`sounds.json` 里的 `iron_sentinel_saw_hit`、`music.iron_sentinel_battle`、`music.iron_sentinel_finale`，音乐为串流），由 `python tools/sentinel_audio.py --music <The Iron Golem Awakens.mp3> --saw <电锯音效.mp3>` 生成 |
 | 迫击炮标记贴图 | `textures/entity/iron_sentinel/mortar_ring`、`mortar_fill`、`mortar_reticle`（白色，渲染时着色），由 `python tools/sentinel_mortar_textures.py` 生成 |
 | 导出工具 | `tools/export_iron_sentinel.py`；重导 `saw_impale`、`saw_cannon_impale`、`skill_cannon`、`saw_cannon`、`cannon_sky`、`saw_cannon_sky` 后运行 `python tools/iron_sentinel_points.py` 更新 `IronSentinelPoints` |
 | 资源 | `assets/fiercerbattles/iron_sentinel/model.json`、`iron_sentinel/clips/*.json`、`textures/entity/iron_sentinel/*.png`；玩家这一半的处决：`data/fiercerbattles/fiercerbattles_actions/iron_sentinel_execution.json` 和 `fiercerbattles_animations/iron_sentinel_execution/executioner.json`；`data/fiercerbattles/damage_type/iron_sentinel_*.json`；`data/fiercerbattles/tags/damage_type/boss_parryable.json` |
@@ -61,6 +63,8 @@ python tools/iron_sentinel_points.py
 | 火炮 | 两种触发，都在两次动作之间：二阶段每打完 3 轮；或目标在 7 格以外持续 6 秒（120 tick，两个阶段都有）。一阶段播 `skill_cannon`，二阶段播 `saw_cannon`，拆成召唤、发射、收回：**召唤** 第 0–48 帧（右拳裂开变炮、扎稳，期间每 tick 最多转 10° 对准目标）；**发射** 第 48 帧起循环播放第 48–62 帧，每 15 tick（0.75 秒）一炮，共 4 炮，从炮口（`IronSentinelPoints.FIRE_MUZZLE`）朝目标身体中部直线发射，1.2 格/tick，碰到方块或敌人爆开：2 格内 4 点；然后 `cannon_sky` / `saw_cannon_sky`（32 帧）抬炮朝天，第 8/13/18 帧（每 0.25 秒）各射一发，只是动画；**收回** 从第 84 帧播到 118 帧 |
 | 火炮期间靠近 | 只在二阶段、每次火炮一次：发射（包括朝天）期间目标进入 4 格内，立刻改出 `saw_cannon_thrust`（右手炮保持伸出的突刺，帧号和判定同第三段突刺），刺中就 `saw_cannon_impale`（同刺中举起），然后收回火炮 |
 | 迫击炮 | 收回火炮后，每 1.5 秒（30 tick）在目标当时的脚下标记一次落点，共 3 次：地面出现 3 格半径的落点标记（`SentinelShellRenderer`：外圈标出爆炸范围，从大一圈收拢到位；中间的红色圆面从中心匀速长大，碰到外圈时正好落地；中心准星反向旋转；外圈由橙变红、越近脉动越快），25 tick 后炮弹从天而降（最后 10 tick 能看到它落下，外圈白色闪烁）：3 格内按距离 6→3 点（`iron_sentinel_mortar`，无视盾牌）。Boss 这期间照常追击和攻击 |
+| 电锯命中音效 | 横扫和突刺真正打中（`hurt` 成功）时，在被打中者身上播放 `iron_sentinel_saw_hit`（约 3.2 秒的电锯切入声，单声道、随距离衰减，音高 ±5% 随机）；刺中举起由突刺命中那一下带出这声。被弹反、被翻滚躲开、拳头都不播 |
+| 战斗音乐 | 来源曲 `The Iron Golem Awakens`（3:58）切成两段：**战斗** 0:00–3:23 循环播放（文件从第 6 秒开始，结尾 6 秒和开头 6 秒做等功率交叉淡化，所以每一遍无缝接回前奏）；**终曲** 3:23 到结尾。客户端：有目标的钢铁卫戍在 40 格内时战斗曲 2 秒淡入；64 格内没有交战中的钢铁卫戍连续 5 秒就 3 秒淡出（期间回来会从当前位置淡回）；正在播的那只死亡时战斗曲 3 秒淡出、同时终曲 3 秒淡入，终曲播完为止。播放期间原版背景音乐静音（`SelectMusicEvent.overrideMusic(null)`）。**音量**：先用温和压缩（阈值 -26 dB、2.5:1）把高潮拉近安静段，再把整首定到 -21 LUFS（原曲 -13.5）：最响的短时响度从 -10.3 降到 -19.1 LUFS，起伏从约 10 dB 收到约 5 dB；游戏里再乘 0.8，归在「音乐」音量滑条下（滑条为 0 时不播） |
 | 死亡 | 不用原版侧倒，客户端按死亡时钟播放 `death`（二阶段 `saw_death`，60 帧）：致命一击把它打得后仰退一步，熔炉闪烁、弯腰，最后挣扎一下，第 30 帧起像被推倒的雕像一样整个向前倒下（根对象绕脚爪转动），第 44 帧脸朝下砸在地上并反弹一下，双臂摊开（电锯摊在一侧）。发光层一边闪一边熄灭，砸地时全暗；红色受伤染色只保留开头 8 tick。服务端第 30 帧倾倒声、第 44 帧砸地声和扬尘，第 70 tick 化作烟雾消失 |
 
 调试：`IronSentinel` / `SentinelShell` 的 DEBUG 日志记录每次动作切换（含世界时间和倍速）、每次命中、每一轮的顺序和快段、火炮的触发原因、每一炮、迫击炮落点、弹反、处决。

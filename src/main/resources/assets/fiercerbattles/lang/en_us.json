@@ -32,6 +32,7 @@
   "subtitles.fiercerbattles.push_open": "Execution push",
   "subtitles.fiercerbattles.parry_use": "Parry wind-up",
   "subtitles.fiercerbattles.roll": "Dodge roll",
+  "subtitles.fiercerbattles.iron_sentinel_saw_hit": "Chainsaw bites",
   "death.attack.parry_counter": "%1$s was riposted",
   "death.attack.parry_counter.player": "%1$s was riposted by %2$s",
   "entity.fiercerbattles.zombie_lord": "Zombie Lord",

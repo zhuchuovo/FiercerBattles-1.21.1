@@ -3,6 +3,7 @@ package com.fiercerbattles.boss;
 import com.fiercerbattles.FiercerBattles;
 import com.fiercerbattles.execution.ExecutionTarget;
 import com.fiercerbattles.parry.BossParryTarget;
+import com.fiercerbattles.sound.ModSounds;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -18,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
@@ -203,6 +205,8 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     private static final EntityDataAccessor<Float> DATA_SPEED = SynchedEntityData.defineId(IronSentinel.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> DATA_FAST_UNTIL = SynchedEntityData.defineId(IronSentinel.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> DATA_PHASE = SynchedEntityData.defineId(IronSentinel.class, EntityDataSerializers.INT);
+    /** Has a target; the client plays the boss music while it does (IronSentinelMusic). */
+    private static final EntityDataAccessor<Boolean> DATA_ENGAGED = SynchedEntityData.defineId(IronSentinel.class, EntityDataSerializers.BOOLEAN);
 
     private final ServerBossEvent bossEvent = (ServerBossEvent) new ServerBossEvent(getDisplayName(),
             BossEvent.BossBarColor.WHITE, BossEvent.BossBarOverlay.NOTCHED_10).setDarkenScreen(true);
@@ -272,6 +276,7 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
         builder.define(DATA_SPEED, 1.0F);
         builder.define(DATA_FAST_UNTIL, 0.0F);
         builder.define(DATA_PHASE, 1);
+        builder.define(DATA_ENGAGED, false);
     }
 
     @Override
@@ -289,6 +294,7 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     /** 1 with fists, 2 once the chainsaw is out. */
     public int getPhase() { return entityData.get(DATA_PHASE); }
     private boolean saw() { return getPhase() >= 2; }
+    public boolean isEngaged() { return entityData.get(DATA_ENGAGED); }
 
     private void setPhase(int phase) {
         entityData.set(DATA_PHASE, phase);
@@ -363,6 +369,7 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
         driveSpeed = 0;
         bossEvent.setProgress(getHealth() / getMaxHealth());
         LivingEntity target = target();
+        entityData.set(DATA_ENGAGED, target != null);
         if (target != null) {
             combatTicks++;
             lastTargetPos = target.position();
@@ -607,6 +614,7 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
             boolean hurt = victim.hurt(source, SAW_DAMAGE);
             LOGGER.debug("Iron Sentinel {} thrust hit {} at {} deg, {} blocks: {} damage, landed={}", getId(), victim,
                     Math.round(bearing), String.format("%.2f", distance), SAW_DAMAGE, hurt);
+            if (hurt) sawHitSound(victim);
             if (hurt && victim.isAlive() && impalable(victim) && (skewered == null || victim == target)) skewered = victim;
         }
         if (skewered == null) return false;
@@ -994,9 +1002,16 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
             boolean hurt = victim.hurt(source, damage);
             LOGGER.debug("Iron Sentinel {} {} hit {} at {} deg, {} blocks: {} damage, landed={}", getId(), getAction(),
                     victim, Math.round(bearing), String.format("%.2f", distance), damage, hurt);
+            if (hurt && type == BossEntities.SENTINEL_SAW) sawHitSound(victim);
             if (getAction().staggered()) return true;
         }
         return false;
+    }
+
+    /** A saw blow landed: the chainsaw biting in, heard from where it bites. */
+    private void sawHitSound(LivingEntity victim) {
+        level().playSound(null, victim.getX(), victim.getY(0.5), victim.getZ(), ModSounds.IRON_SENTINEL_SAW_HIT.get(),
+                SoundSource.HOSTILE, 1.0F, 0.95F + random.nextFloat() * 0.1F);
     }
 
     private List<LivingEntity> victims(AABB area) {
