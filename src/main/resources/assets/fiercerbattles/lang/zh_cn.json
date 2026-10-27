@@ -52,5 +52,22 @@
   "death.attack.zombie_lord_strike": "%1$s 被 %2$s 撞飞了",
   "death.attack.zombie_lord_strike.player": "%1$s 被 %2$s 撞飞了",
   "death.attack.zombie_lord_ghost_blade": "%1$s 被 %2$s 的鬼刃烧死了",
-  "death.attack.zombie_lord_ghost_blade.player": "%1$s 被 %2$s 的鬼刃烧死了"
+  "death.attack.zombie_lord_ghost_blade.player": "%1$s 被 %2$s 的鬼刃烧死了",
+  "entity.fiercerbattles.iron_sentinel": "钢铁卫戍",
+  "entity.fiercerbattles.iron_sentinel_shell": "卫戍炮弹",
+  "item.fiercerbattles.iron_sentinel_spawn_egg": "钢铁卫戍刷怪蛋",
+  "death.attack.iron_sentinel_punch": "%1$s 被 %2$s 一拳砸飞了",
+  "death.attack.iron_sentinel_punch.player": "%1$s 被 %2$s 一拳砸飞了",
+  "death.attack.iron_sentinel_saw": "%1$s 被 %2$s 的电锯锯开了",
+  "death.attack.iron_sentinel_saw.player": "%1$s 被 %2$s 的电锯锯开了",
+  "death.attack.iron_sentinel_thrust": "%1$s 被 %2$s 的电锯刺穿了",
+  "death.attack.iron_sentinel_thrust.player": "%1$s 被 %2$s 的电锯刺穿了",
+  "death.attack.iron_sentinel_impale": "%1$s 被 %2$s 串在电锯上锯碎了",
+  "death.attack.iron_sentinel_impale.player": "%1$s 被 %2$s 串在电锯上锯碎了",
+  "death.attack.iron_sentinel_shell": "%1$s 被 %2$s 的炮弹炸飞了",
+  "death.attack.iron_sentinel_shell.player": "%1$s 被 %2$s 的炮弹炸飞了",
+  "death.attack.iron_sentinel_mortar": "%1$s 被 %2$s 的炮弹从天而降砸中了",
+  "death.attack.iron_sentinel_mortar.player": "%1$s 被 %2$s 的炮弹从天而降砸中了",
+  "death.attack.iron_sentinel_execution": "%1$s 的熔炉被 %2$s 刺穿了",
+  "death.attack.iron_sentinel_execution.player": "%1$s 的熔炉被 %2$s 刺穿了"
 }

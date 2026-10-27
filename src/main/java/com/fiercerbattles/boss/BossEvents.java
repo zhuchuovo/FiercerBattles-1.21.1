@@ -39,7 +39,8 @@ public final class BossEvents {
     }
 
     /**
-     * A victim held by the Zombie Lord cannot sneak out of its fist; the boss lets go itself at the release frame.
+     * A victim held by the Zombie Lord (or skewered on the Iron Sentinel's saw) cannot sneak free; the boss lets go
+     * itself at the release frame.
      * Only the sneak dismount is blocked (the victim is alive and sneaking): death, teleports and disconnects still
      * free it. Server side only, so the client always follows the server's passenger list.
      */
@@ -47,8 +48,9 @@ public final class BossEvents {
     public static void dismount(EntityMountEvent event) {
         if (!event.isDismounting() || event.getLevel().isClientSide()) return;
         Entity rider = event.getEntityMounting();
-        if (event.getEntityBeingMounted() instanceof ZombieLord lord && !lord.isReleasing()
-                && rider.isAlive() && !rider.isRemoved() && rider.isShiftKeyDown()) {
+        boolean held = event.getEntityBeingMounted() instanceof ZombieLord lord && !lord.isReleasing()
+                || event.getEntityBeingMounted() instanceof IronSentinel sentinel && !sentinel.isReleasing();
+        if (held && rider.isAlive() && !rider.isRemoved() && rider.isShiftKeyDown()) {
             event.setCanceled(true);
         }
     }

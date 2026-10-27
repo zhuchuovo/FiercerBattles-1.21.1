@@ -52,5 +52,22 @@
   "death.attack.zombie_lord_strike": "%1$s was trampled by %2$s",
   "death.attack.zombie_lord_strike.player": "%1$s was trampled by %2$s",
   "death.attack.zombie_lord_ghost_blade": "%1$s was burned by the ghost blade of %2$s",
-  "death.attack.zombie_lord_ghost_blade.player": "%1$s was burned by the ghost blade of %2$s"
+  "death.attack.zombie_lord_ghost_blade.player": "%1$s was burned by the ghost blade of %2$s",
+  "entity.fiercerbattles.iron_sentinel": "Iron Sentinel",
+  "entity.fiercerbattles.iron_sentinel_shell": "Sentinel Shell",
+  "item.fiercerbattles.iron_sentinel_spawn_egg": "Iron Sentinel Spawn Egg",
+  "death.attack.iron_sentinel_punch": "%1$s was pummelled by %2$s",
+  "death.attack.iron_sentinel_punch.player": "%1$s was pummelled by %2$s",
+  "death.attack.iron_sentinel_saw": "%1$s was sawn apart by %2$s",
+  "death.attack.iron_sentinel_saw.player": "%1$s was sawn apart by %2$s",
+  "death.attack.iron_sentinel_thrust": "%1$s was run through by %2$s's chainsaw",
+  "death.attack.iron_sentinel_thrust.player": "%1$s was run through by %2$s's chainsaw",
+  "death.attack.iron_sentinel_impale": "%1$s was skewered and sawn by %2$s",
+  "death.attack.iron_sentinel_impale.player": "%1$s was skewered and sawn by %2$s",
+  "death.attack.iron_sentinel_shell": "%1$s was shelled by %2$s",
+  "death.attack.iron_sentinel_shell.player": "%1$s was shelled by %2$s",
+  "death.attack.iron_sentinel_mortar": "%1$s was hit by %2$s's falling shell",
+  "death.attack.iron_sentinel_mortar.player": "%1$s was hit by %2$s's falling shell",
+  "death.attack.iron_sentinel_execution": "%1$s had its furnace run through by %2$s",
+  "death.attack.iron_sentinel_execution.player": "%1$s had its furnace run through by %2$s"
 }

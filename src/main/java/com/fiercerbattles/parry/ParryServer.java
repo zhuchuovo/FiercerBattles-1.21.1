@@ -16,6 +16,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
@@ -68,6 +69,9 @@ public final class ParryServer {
     public static final ResourceKey<DamageType> PARRY_COUNTER = ResourceKey.create(Registries.DAMAGE_TYPE,
             ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, "parry_counter"));
     private static final ThreadLocal<Boolean> COUNTER_DAMAGE = ThreadLocal.withInitial(() -> false);
+    /** Blows of a {@link BossParryTarget} that a parry stops although they are not vanilla melee damage. */
+    public static final TagKey<DamageType> BOSS_PARRYABLE = TagKey.create(Registries.DAMAGE_TYPE,
+            ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, "boss_parryable"));
     /** Recent flinches per victim (server thread only); weak keys let unloaded mobs go. */
     private static final Map<LivingEntity, Poise> POISE = new WeakHashMap<>();
 
@@ -205,9 +209,19 @@ public final class ParryServer {
             event.setCanceled(true);
             return;
         }
-        if (attacker == defender || !canParry(defender) || !isMelee(source, attacker)) return;
+        boolean bossBlow = attacker instanceof BossParryTarget && source.getDirectEntity() == attacker
+                && source.is(BOSS_PARRYABLE);
+        if (attacker == defender || !canParry(defender) || !isMelee(source, attacker) && !bossBlow) return;
         State gesture = STATES.get(defender.getUUID());
         event.setCanceled(true);
+        if (bossBlow) {
+            // The boss staggers itself with its own model and clip; the sound and the counter are the parry's.
+            ((BossParryTarget) attacker).parried(defender);
+            defender.level().playSound(null, defender.getX(), defender.getEyeY(), defender.getZ(), ModSounds.PARRY.get(),
+                    SoundSource.PLAYERS, 1.0F, 0.95F + defender.getRandom().nextFloat() * 0.1F);
+            counter(defender, attacker);
+            return;
+        }
         // Stagger first: the counter then lands on a stunned attacker, which neither
         // flinches (hitstun) nor takes knockback.
         begin(attacker, ParryNetwork.Kind.STAGGER, gesture.clips);

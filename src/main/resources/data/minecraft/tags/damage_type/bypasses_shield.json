@@ -3,6 +3,9 @@
   "values": [
     "fiercerbattles:zombie_lord_smash",
     "fiercerbattles:zombie_lord_grab",
-    "fiercerbattles:zombie_lord_chop"
+    "fiercerbattles:zombie_lord_chop",
+    "fiercerbattles:iron_sentinel_thrust",
+    "fiercerbattles:iron_sentinel_impale",
+    "fiercerbattles:iron_sentinel_mortar"
   ]
 }

@@ -2,6 +2,7 @@ package com.fiercerbattles.boss.client;
 
 import com.fiercerbattles.FiercerBattles;
 import com.fiercerbattles.boss.BossEntities;
+import com.fiercerbattles.boss.IronSentinel;
 import com.fiercerbattles.boss.ZombieLord;
 import com.fiercerbattles.boss.ZombieLordAction;
 import com.fiercerbattles.boss.ZombieLordGrip;
@@ -11,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -43,11 +45,14 @@ public final class BossClient {
             event.registerEntityRenderer(BossEntities.ZOMBIE_LORD.get(), ZombieLordRenderer::new);
             event.registerEntityRenderer(BossEntities.LORD_SKULL.get(), LordSkullRenderer::new);
             event.registerEntityRenderer(BossEntities.LORD_SKELETON.get(), LordSkeletonRenderer::new);
+            event.registerEntityRenderer(BossEntities.IRON_SENTINEL.get(), IronSentinelRenderer::new);
+            event.registerEntityRenderer(BossEntities.SENTINEL_SHELL.get(), SentinelShellRenderer::new);
         }
 
         @SubscribeEvent
         public static void reloadListeners(RegisterClientReloadListenersEvent event) {
             event.registerReloadListener(new ZombieLordAssets());
+            event.registerReloadListener(new IronSentinelAssets());
         }
     }
 
@@ -91,9 +96,10 @@ public final class BossClient {
     }
 
     /**
-     * A grabbed victim rides the boss (see ZombieLord#heldPosition). The local player's camera goes to third person
-     * for the hold, facing the boss, and back to what it was (first person, normally) once it is thrown; and every
-     * held body swings about the boss's fist (ZombieLordGrip#tilt), flat on its back at the slam.
+     * A grabbed victim rides the boss (see ZombieLord#heldPosition; a victim skewered on the Iron Sentinel's saw rides
+     * it too, IronSentinel#heldPosition). The local player's camera goes to third person for the hold, facing the
+     * boss, and back to what it was (first person, normally) once it is thrown; and every body held by the Zombie
+     * Lord swings about its fist (ZombieLordGrip#tilt), flat on its back at the slam.
      */
     @EventBusSubscriber(modid = FiercerBattles.MOD_ID, value = Dist.CLIENT)
     public static final class Held {
@@ -106,7 +112,8 @@ public final class BossClient {
         public static void clientTick(ClientTickEvent.Post event) {
             Minecraft minecraft = Minecraft.getInstance();
             LocalPlayer player = minecraft.player;
-            ZombieLord lord = player != null && player.getVehicle() instanceof ZombieLord held ? held : null;
+            Entity lord = player != null && (player.getVehicle() instanceof ZombieLord
+                    || player.getVehicle() instanceof IronSentinel) ? player.getVehicle() : null;
             if (lord != null && cameraBefore == null) {
                 cameraBefore = minecraft.options.getCameraType();
                 minecraft.options.setCameraType(CameraType.THIRD_PERSON_BACK);

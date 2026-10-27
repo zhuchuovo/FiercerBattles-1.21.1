@@ -2,6 +2,7 @@
   "replace": false,
   "values": [
     "fiercerbattles:scar_strike",
-    "fiercerbattles:parry_counter"
+    "fiercerbattles:parry_counter",
+    "fiercerbattles:iron_sentinel_execution"
   ]
 }

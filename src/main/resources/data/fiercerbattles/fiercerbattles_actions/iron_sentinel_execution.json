@@ -1,0 +1,15 @@
+{
+  "rig": "fiercerbattles:humanoid_v1",
+  "duration_ticks": 30,
+  "executor_clip": "fiercerbattles:iron_sentinel_execution/executioner",
+  "geometry": {
+    "victim_right": -0.246399,
+    "victim_forward": 2.105118,
+    "victim_yaw_delta": 180.0,
+    "executor_end_right": 0.0,
+    "executor_end_forward": -0.5625,
+    "executor_end_yaw_delta": 0.0
+  },
+  "source_file": "iron_sentinel_saw_executed.blend",
+  "source_sha256": "9025cc2913cffc4efc47c78c592f2585d27d12b86315247321a1b5552e011be2"
+}

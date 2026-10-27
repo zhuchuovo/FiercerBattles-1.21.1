@@ -6,6 +6,8 @@
 
 涉及僵尸领主 Boss（`boss/` 包、骷髅头召唤、复苏骷髅、`tools/export_zombie_lord.py`）时，先读 [docs/zombie_lord_module.md](docs/zombie_lord_module.md)。
 
+涉及钢铁卫戍 Boss（`boss/IronSentinel*`、`SentinelShell`、电锯连招、火炮、Boss 弹反与专属处决、`tools/export_iron_sentinel.py`）时，先读 [docs/iron_sentinel_module.md](docs/iron_sentinel_module.md)。
+
 涉及内置的 Better Combat（`src/main/java/com/fiercerbattles/bettercombat/`、攻击动画库、武器属性数据）时，先读 [docs/bettercombat_module.md](docs/bettercombat_module.md)。
 
 初次定位无需遍历 `.gradle/`、`build/`、`run/` 或完整动画采样 JSON；调试时再按需读取。以 `src/main/` 源码为准，Git 回退不会重新生成已有 JAR。

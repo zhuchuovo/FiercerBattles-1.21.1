@@ -20,6 +20,8 @@ Blender 中 `player` 是处决者，对应 `executioner`；`player_B` 是被处�
 
 处决与近战弹反/被反弹互斥。`parry/ParryServer.isBusy(entity)` 的任一参与者不能开始处决，弹反也不能覆盖正在处决的实体；客户端请求同样阻止已有动作互相覆盖。弹反使用独立 R 键，完整规则见 [弹反模块速查](parry_module.md)。
 
+**自带处决的目标**（`execution/ExecutionTarget`，目前是钢铁卫戍）：目标自己给出双人动作 ID、决定此刻能否被处决（`executionAction` 返回 null 即拒绝），不检查人形白名单、血线和体型，只要求它站在地面上；会话建立后调用 `executionStarted(executor, startGameTime)`，目标用自己的模型从 `startGameTime` 播放它那一半；原动画结束时调用 `executionFinished`（在处决伤害作用域内）由目标自己结算收尾伤害，而不是直接击杀，会话照常按 `executor_end_*` 交接处决者位置。这类动作的定义里**没有** `victim_clip`：`PairedExecutionAction.victimClip()` 为 null，同步包里也不带 `victim_animation`，客户端不为被处决者建立姿势 actor（它照常按开场路径对齐位置和朝向，用自己的渲染器画）；会话不播放武器的挥砍/受伤音效，音效由目标自己播放。没有 victim clip 的动作只能用在 `ExecutionTarget` 上。详见 [钢铁卫戍速查](iron_sentinel_module.md)。
+
 共用模型渲染入口现还路由弹反：`execution/client/ExecutionRenderContext` 有处决 actor 时保持原流程，没有时委托 `parry/client/ParryRenderContext`；`ExecutionLivingEntityRendererMixin` 建立对应作用域，处决优先，单次姿势不叠加两套动作。弹反姿势在共享根中保留普通实体的尺寸与脚底锚点；眩晕转反击处决时，起点姿势携带实际缩放，接近段同时衔接位置、旋转和尺寸。其渲染 `isActive()` 因而可以表示任一动作源，服务端互斥及玩法判断仍应使用各模块的会话查询，不把它等同于处决中。`AnimationClip` / `AnimationPlayer` 及既有处决资源不变。
 
 血线提示由 `execution/client/ExecutionHighlight.java` 计算，服务器在登录时发送 `ExecutionNetwork.HighlightRules`（开关、普通/眩晕血线及白名单），客户端退出连接时清除，死亡重生和换维度保留。同一渲染作用域提供 partial tick，`ExecutionLivingEntityRendererMixin.getOverlayCoords` 为低于血线的成年白名单 Mob 选择泛白覆盖坐标；40 tick 正弦呼吸，强度 0～20%，处决中及不可见模型不提示，红色受伤/死亡覆盖与原有闪白优先。`ExecutionOverlayTextureMixin` 保留原版覆盖贴图前 16 列，扩展额外的 1/255 精度白色渐变列，避免原版 5% 步长造成呼吸跳变；沿用实体着色器、光照、透明度和模型渲染层。

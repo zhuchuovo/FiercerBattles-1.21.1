@@ -19,7 +19,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.Set;
 
-/** Zombie Lord boss, its skull projectiles and the skeletons they raise. */
+/** Zombie Lord boss, its skull projectiles and the skeletons they raise; the Iron Sentinel boss and its shells. */
 public final class BossEntities {
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(Registries.ENTITY_TYPE, FiercerBattles.MOD_ID);
@@ -42,12 +42,26 @@ public final class BossEntities {
                     .clientTrackingRange(8)
                     .build("zombie_lord_skeleton"));
 
+    /** Drawn at the kit's own size (IronSentinel.RENDER_SCALE 1.0), so the hitbox is a vanilla iron golem's. */
+    public static final DeferredHolder<EntityType<?>, EntityType<IronSentinel>> IRON_SENTINEL = ENTITY_TYPES.register("iron_sentinel",
+            () -> EntityType.Builder.of(IronSentinel::new, MobCategory.MONSTER)
+                    .sized(1.4F, 2.7F).eyeHeight(2.3F).fireImmune()
+                    .clientTrackingRange(10).updateInterval(1)
+                    .build("iron_sentinel"));
+    public static final DeferredHolder<EntityType<?>, EntityType<SentinelShell>> SENTINEL_SHELL = ENTITY_TYPES.register("iron_sentinel_shell",
+            () -> EntityType.Builder.<SentinelShell>of(SentinelShell::new, MobCategory.MISC)
+                    .sized(0.4F, 0.4F).fireImmune().noSummon()
+                    .clientTrackingRange(10).updateInterval(1)
+                    .build("iron_sentinel_shell"));
+
     public static final DeferredItem<DeferredSpawnEggItem> ZOMBIE_LORD_SPAWN_EGG = ITEMS.register("zombie_lord_spawn_egg",
             () -> new DeferredSpawnEggItem(ZOMBIE_LORD, 0x2B3A1E, 0xD9A521, new Item.Properties()));
     public static final DeferredItem<DeferredSpawnEggItem> LORD_SKELETON_SPAWN_EGG = ITEMS.register("zombie_lord_skeleton_spawn_egg",
             () -> new DeferredSpawnEggItem(LORD_SKELETON, 0xC1C1C1, 0x7A7F86, new Item.Properties()));
+    public static final DeferredItem<DeferredSpawnEggItem> IRON_SENTINEL_SPAWN_EGG = ITEMS.register("iron_sentinel_spawn_egg",
+            () -> new DeferredSpawnEggItem(IRON_SENTINEL, 0x3A3D42, 0xE8661C, new Item.Properties()));
 
-    // None is a vanilla melee type, so a parry cannot stun the boss.
+    // None of the Zombie Lord's is a vanilla melee type, so a parry cannot stun it.
     /** attack1 and attack2: in fiercerbattles:ignores_dodge_roll, so a dodge roll does not escape them. */
     public static final ResourceKey<DamageType> LORD_SLASH = damageType("zombie_lord_slash");
     /** attack3's slam: in minecraft:bypasses_shield and fiercerbattles:ignores_dodge_roll. */
@@ -62,6 +76,19 @@ public final class BossEntities {
     public static final ResourceKey<DamageType> LORD_SKULL_BLAST = damageType("zombie_lord_skull");
     /** Grab and throw: slammed into the ground, then into a wall. Listed in minecraft:bypasses_shield. */
     public static final ResourceKey<DamageType> LORD_GRAB = damageType("zombie_lord_grab");
+    /** Iron Sentinel punches and saw sweeps: in fiercerbattles:boss_parryable, so a parry stops them and staggers it. */
+    public static final ResourceKey<DamageType> SENTINEL_PUNCH = damageType("iron_sentinel_punch");
+    public static final ResourceKey<DamageType> SENTINEL_SAW = damageType("iron_sentinel_saw");
+    /** The saw thrust: not parryable, in minecraft:bypasses_shield; a dodge roll gets through it. */
+    public static final ResourceKey<DamageType> SENTINEL_THRUST = damageType("iron_sentinel_thrust");
+    /** Sawing a skewered victim. Listed in minecraft:bypasses_shield. */
+    public static final ResourceKey<DamageType> SENTINEL_IMPALE = damageType("iron_sentinel_impale");
+    /** A cannon shell bursting. */
+    public static final ResourceKey<DamageType> SENTINEL_SHELL_BLAST = damageType("iron_sentinel_shell");
+    /** A mortar shell landing on its marked circle. Listed in minecraft:bypasses_shield. */
+    public static final ResourceKey<DamageType> SENTINEL_MORTAR = damageType("iron_sentinel_mortar");
+    /** The riposte execution's finishing blow: true damage (bypasses armour, enchantments and effects). */
+    public static final ResourceKey<DamageType> SENTINEL_EXECUTION = damageType("iron_sentinel_execution");
 
     /** Built-in humanoid mobs that the execution allowlist always includes, whatever the config lists. */
     public static final Set<String> BUILTIN_HUMANOIDS = Set.of(FiercerBattles.MOD_ID + ":zombie_lord_skeleton");
@@ -82,12 +109,14 @@ public final class BossEntities {
     private static void attributes(EntityAttributeCreationEvent event) {
         event.put(ZOMBIE_LORD.get(), ZombieLord.createAttributes().build());
         event.put(LORD_SKELETON.get(), LordSkeleton.createAttributes().build());
+        event.put(IRON_SENTINEL.get(), IronSentinel.createAttributes().build());
     }
 
     private static void creativeTabs(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(ZOMBIE_LORD_SPAWN_EGG.get());
             event.accept(LORD_SKELETON_SPAWN_EGG.get());
+            event.accept(IRON_SENTINEL_SPAWN_EGG.get());
         }
     }
 }

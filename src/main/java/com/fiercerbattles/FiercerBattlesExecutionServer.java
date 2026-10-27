@@ -4,6 +4,7 @@ import com.fiercerbattles.config.FiercerBattlesConfig;
 import com.fiercerbattles.execution.ExecutionGeometry;
 import com.fiercerbattles.execution.ExecutionNetwork;
 import com.fiercerbattles.execution.ExecutionPlacement;
+import com.fiercerbattles.execution.ExecutionTarget;
 import com.fiercerbattles.execution.RiposteTarget;
 import com.fiercerbattles.execution.ExecutionTimeline;
 import com.fiercerbattles.execution.ExecutionSoundTimeline;
@@ -116,19 +117,31 @@ public final class FiercerBattlesExecutionServer {
         if (!config.enabled) return deny(executor, "disabled");
         String weaponAction = ExecutionWeapons.actionId(executor.getMainHandItem());
         if (weaponAction == null) return deny(executor, "weapon");
-        String actionId = ExecutionWeapons.AXE_ACTION.equals(weaponAction) ? config.axe_action_id : config.action_id;
+        Entity entity = level.getEntity(targetEntityId);
+        // A target with its own execution (a boss) names the action and decides when it can be executed.
+        ExecutionTarget custom = entity instanceof ExecutionTarget target ? target : null;
+        String actionId = custom != null ? custom.executionAction(executor)
+                : ExecutionWeapons.AXE_ACTION.equals(weaponAction) ? config.axe_action_id : config.action_id;
+        if (custom != null && actionId == null) {
+            LOGGER.info("Execution rejected: {} cannot be executed now", entity);
+            return deny(executor, "ineligible");
+        }
         PairedExecutionAction action = ExecutionActionRegistry.get(actionId);
         if (action == null) {
             LOGGER.warn("Execution action {} is not registered in the loaded datapacks", actionId);
             return deny(executor, "action_missing");
         }
-        Entity entity = level.getEntity(targetEntityId);
+        if (custom == null && action.victimClip() == null) {
+            LOGGER.warn("Execution action {} has no victim clip and only suits mobs with their own execution", actionId);
+            return deny(executor, "action_missing");
+        }
         if (!executor.isAlive() || executor.isSpectator() || executor.hasDisconnected()
                 || ParryServer.isBusy(executor) || LocomotionServer.isBusy(executor)
                 || !(entity instanceof Mob victim) || !victim.isAlive()
                 || victim.isInvulnerable() || isExecuting(victim)
                 || ParryServer.isBusy(victim) && !ParryServer.isStaggered(victim)
-                || !eligiblePose(executor) || !eligiblePose(victim) || victim.isBaby()) {
+                || !eligiblePose(executor) || (custom == null ? !eligiblePose(victim) : !grounded(victim))
+                || victim.isBaby()) {
             LOGGER.info("Execution rejected: ineligible target {}, player pose={}, grounded={}",
                     entity, executor.getPose(), executor.onGround());
             if (entity instanceof LivingEntity target) {
@@ -138,7 +151,7 @@ public final class FiercerBattlesExecutionServer {
             }
             return deny(executor, "ineligible");
         }
-        if (!config.allows(victim)) {
+        if (custom == null && !config.allows(victim)) {
             LOGGER.info("Execution rejected: {} is not listed in execution.humanoid_entities",
                     BuiltInRegistries.ENTITY_TYPE.getKey(victim.getType()));
             return deny(executor, "entity");
@@ -149,7 +162,7 @@ public final class FiercerBattlesExecutionServer {
         double threshold = riposte
                 ? Math.max(config.healthThreshold(), FiercerBattlesConfig.getParry().staggerExecutionHealthThreshold())
                 : config.healthThreshold();
-        boolean anyHealth = riposte && victim instanceof RiposteTarget target && target.riposteAtAnyHealth();
+        boolean anyHealth = custom != null || riposte && victim instanceof RiposteTarget target && target.riposteAtAnyHealth();
         if (!(maxHealth > 0) || !anyHealth && !(victim.getHealth() < maxHealth * threshold)) {
             LOGGER.info("Execution rejected: health={}/{}, threshold={}, riposte={}",
                     victim.getHealth(), maxHealth, threshold, riposte);
@@ -197,6 +210,7 @@ public final class FiercerBattlesExecutionServer {
         victim.stopUsingItem();
         lock(session, executor);
         lock(session, victim);
+        if (custom != null) custom.executionStarted(executor, session.startGameTime);
         // The shared approach moves from the original positions; no initial anchor teleport.
         for (ServerPlayer viewer : level.players()) syncAction(viewer, action, actionSync);
         PacketDistributor.sendToPlayersInDimension(level, session.payload());
@@ -349,13 +363,19 @@ public final class FiercerBattlesExecutionServer {
             return;
         }
         EXECUTION_DAMAGE.set(true);
+        // A target with its own execution takes its own finishing blow and usually lives through it.
+        boolean completed = session.victim instanceof ExecutionTarget;
         try {
-            DamageSource source = new DamageSource(session.level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
-                    .getHolderOrThrow(DamageTypes.GENERIC_KILL), session.executor);
-            session.victim.hurt(source, Float.MAX_VALUE);
+            if (session.victim instanceof ExecutionTarget target) {
+                target.executionFinished(session.executor);
+            } else {
+                DamageSource source = new DamageSource(session.level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
+                        .getHolderOrThrow(DamageTypes.GENERIC_KILL), session.executor);
+                session.victim.hurt(source, Float.MAX_VALUE);
+            }
         } finally {
             EXECUTION_DAMAGE.remove();
-            end(session, !session.victim.isAlive());
+            end(session, completed || !session.victim.isAlive());
         }
     }
 
@@ -555,9 +575,11 @@ public final class FiercerBattlesExecutionServer {
             this.executorNoGravity = executor.isNoGravity();
             this.victimNoGravity = victim.isNoGravity();
             this.victimNoAi = victim.isNoAi();
-            this.hurtSoundFrames = config.hurtSoundFrames(action.durationTicks(), axe);
-            this.swingSoundFrames = config.swingSoundFrames(action.durationTicks());
-            this.customSoundCues = ExecutionSoundTimeline.cues(axe, action.durationTicks());
+            // A target with its own execution plays its own sounds; the weapon cues belong to the built-in actions.
+            boolean custom = victim instanceof ExecutionTarget;
+            this.hurtSoundFrames = custom ? List.of() : config.hurtSoundFrames(action.durationTicks(), axe);
+            this.swingSoundFrames = custom ? List.of() : config.swingSoundFrames(action.durationTicks());
+            this.customSoundCues = custom ? List.of() : ExecutionSoundTimeline.cues(axe, action.durationTicks());
         }
 
         ExecutionNetwork.Start payload() {

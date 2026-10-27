@@ -163,9 +163,10 @@ public final class BMCConfig {
         blacklistNamespaces = Set.copyOf(namespaces);
     }
 
-    /** Built-in mobs that animate and time their own attacks (the Zombie Lord boss); never configurable. */
+    /** Built-in mobs that animate and time their own attacks (the bosses); never configurable. */
     private static final Set<ResourceLocation> SELF_ANIMATED = Set.of(
-            ResourceLocation.fromNamespaceAndPath("fiercerbattles", "zombie_lord"));
+            ResourceLocation.fromNamespaceAndPath("fiercerbattles", "zombie_lord"),
+            ResourceLocation.fromNamespaceAndPath("fiercerbattles", "iron_sentinel"));
 
     public static boolean isBlacklisted(EntityType<?> type) {
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);

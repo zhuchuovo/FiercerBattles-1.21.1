@@ -8,7 +8,7 @@ public final class ParryTimeline {
     /** STAGGER skips source frame 0 and begins at source frame 1 (the second frame). */
     public static final int STAGGER_START_FRAME_TICK = 1;
     public static final int WINDOW_START = 5;
-    public static final int WINDOW_END = 12;
+    public static final int WINDOW_END = 10;
     /** The hitstun flinch fades in over its first tick and back to the ordinary pose over its last two. */
     public static final int HITSTUN_IN_TICKS = 1;
     public static final int HITSTUN_OUT_TICKS = 2;

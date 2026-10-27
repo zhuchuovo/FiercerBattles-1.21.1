@@ -27,6 +27,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -330,7 +331,7 @@ public class ZombieLord extends Monster {
 
     public ZombieLord(EntityType<? extends ZombieLord> type, Level level) {
         super(type, level);
-        this.moveControl = new LordMoveControl(this);
+        this.moveControl = new LordMoveControl(this, this::drive);
         this.xpReward = 100;
         this.setPersistenceRequired();
     }
@@ -1727,13 +1728,21 @@ public class ZombieLord extends Monster {
     @Override
     protected float getSoundVolume() { return 2.0F; }
 
-    /** Pathing drive: turns toward the next node and moves at exactly the navigation speed (blocks per tick). */
-    static final class LordMoveControl extends MoveControl {
-        private final ZombieLord lord;
+    /** Receives a move control's horizontal drive for the tick: unit direction and blocks per tick. */
+    interface Drive {
+        void drive(double x, double z, double speed);
+    }
 
-        LordMoveControl(ZombieLord lord) {
-            super(lord);
-            this.lord = lord;
+    /**
+     * Pathing drive of the bosses (also the Iron Sentinel's): turns toward the next node and moves at exactly the
+     * navigation speed (blocks per tick), handed to the boss's travel() through {@code drive}.
+     */
+    static final class LordMoveControl extends MoveControl {
+        private final Drive drive;
+
+        LordMoveControl(Mob mob, Drive drive) {
+            super(mob);
+            this.drive = drive;
         }
 
         @Override
@@ -1747,7 +1756,7 @@ public class ZombieLord extends Monster {
                 if (horizontal < 1.0E-3) return;
                 float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
                 mob.setYRot(rotlerp(mob.getYRot(), yaw, 25.0F));
-                lord.drive(dx / horizontal, dz / horizontal, speedModifier);
+                drive.drive(dx / horizontal, dz / horizontal, speedModifier);
                 if (dy > mob.maxUpStep() && horizontal * horizontal < Math.max(1.0F, mob.getBbWidth())) {
                     mob.getJumpControl().jump();
                     operation = Operation.JUMPING;
@@ -1756,7 +1765,7 @@ public class ZombieLord extends Monster {
                 double dx = wantedX - mob.getX();
                 double dz = wantedZ - mob.getZ();
                 double horizontal = Math.sqrt(dx * dx + dz * dz);
-                if (horizontal > 1.0E-3) lord.drive(dx / horizontal, dz / horizontal, speedModifier);
+                if (horizontal > 1.0E-3) drive.drive(dx / horizontal, dz / horizontal, speedModifier);
                 if (mob.onGround()) operation = Operation.WAIT;
             }
         }

@@ -2,7 +2,9 @@
 
 主手持原版或匠魂的剑、斧，站在地面上按独立弹反键（默认 **R**，控制设置可重绑）播放弹反动作，并在启动位置广播一次起手音效 `fiercerbattles:parry_use`。动作参考《黑暗之魂 3》：副手反手外挥弹开攻击，被弹反者弯腰眩晕、可被反击处决。武器检查复用 `execution/ExecutionWeapons.java` 的注册 ID 分类，与战技 G、处决 V 分开。弹反者全程（含复位）只在水平面上锁定启动位置，禁止移动、跳跃、冲刺、潜行及击退、惯性造成的水平位移；垂直方向完全不接管，重力、垂直速度与坠落距离照常，落地伤害也照常结算，结束后立即交还移动。仍可转向，镜头模式不变。骑乘或未站在地面时不能启动。客户端从发出请求起立即锁定水平位置，拒绝或超时后解除等待锁定。
 
-服务器在原动画第 **5–12 tick，包含两端** 接受弹反。窗口内符合条件的近战伤害被取消，攻击者进入 `STAGGER`，随后受到 `parry.counter_damage`（默认 10）点 `fiercerbattles:parry_counter` 固定伤害（无视护甲与受伤冷却、无击退），并在弹反者位置广播 `fiercerbattles:parry` 音效。`STAGGER` 期间目标可被处决，血量门槛取 `max(execution.health_threshold, parry.stagger_execution_health_threshold)`（默认 60%）。同一窗口可处理多个攻击者。当前近战来源要求直接伤害实体就是攻击者，类型为 `PLAYER_ATTACK`、`MOB_ATTACK`、`MOB_ATTACK_NO_AGGRO` 或 `STING`；环境伤害、投射物及处决伤害不触发成功弹反。窗口外没有弹反保护。
+服务器在原动画第 **5–10 tick，包含两端** 接受弹反。窗口内符合条件的近战伤害被取消，攻击者进入 `STAGGER`，随后受到 `parry.counter_damage`（默认 10）点 `fiercerbattles:parry_counter` 固定伤害（无视护甲与受伤冷却、无击退），并在弹反者位置广播 `fiercerbattles:parry` 音效。`STAGGER` 期间目标可被处决，血量门槛取 `max(execution.health_threshold, parry.stagger_execution_health_threshold)`（默认 60%）。同一窗口可处理多个攻击者。当前近战来源要求直接伤害实体就是攻击者，类型为 `PLAYER_ATTACK`、`MOB_ATTACK`、`MOB_ATTACK_NO_AGGRO` 或 `STING`；环境伤害、投射物及处决伤害不触发成功弹反。窗口外没有弹反保护。
+
+例外是 Boss 自己的招式（`parry/BossParryTarget`，目前是钢铁卫戍）：直接伤害实体是 Boss、伤害类型在 `fiercerbattles:boss_parryable` 里的一击，同样在窗口内被取消、播放弹反音效和反击伤害，但不进入人形 `STAGGER`（Boss 的模型不是六部位人形），而是调用 `BossParryTarget.parried`，由 Boss 播放自己的眩晕动作；能否处决由 Boss 自己决定（见 [钢铁卫戍速查](iron_sentinel_module.md)）。
 
 ## 时间与姿势衔接
 
@@ -10,7 +12,7 @@
 
 | 状态 | 时间 | 行为 |
 | --- | --- | --- |
-| `PARRY` | 原动画 18 tick + 复位 5 tick，共 23 tick | 最初 3 tick 从普通姿势淡入，这 3 tick 已包含在原动画时钟中；第 5–12 tick 为有效窗口。整个 23 tick 只锁水平坐标并清零水平速度，垂直坐标、垂直速度、坠落距离和重力一律不接管；保留转向；复位结束交还移动和普通手部动作。 |
+| `PARRY` | 原动画 18 tick + 复位 5 tick，共 23 tick | 最初 3 tick 从普通姿势淡入，这 3 tick 已包含在原动画时钟中；第 5–10 tick 为有效窗口。整个 23 tick 只锁水平坐标并清零水平速度，垂直坐标、垂直速度、坠落距离和重力一律不接管；保留转向；复位结束交还移动和普通手部动作。 |
 | `STAGGER` | 历史倒放 5 tick + 原动画第 2–40 帧共 39 tick + 复位 5 tick，共 49 tick | 先倒放攻击者最近 5 tick 的实际模型姿势，再从原眩晕动画第二帧（源帧 1 / tick 1）播放到末帧；首帧跳过。前 3 tick 与倒放末端衔接，计入 39 tick。整个 49 tick 由服务器禁止动作、移位并接管 AI；处决可随时接管，`ParryServer.releaseStagger` 先恢复 AI/重力再建立处决会话。 |
 | `HITSTUN` | 固定 `HITSTUN_TICKS` 10 tick，原动画（5 tick）按 `playbackRate` 拉伸，无额外复位 | 玩家和人形生物受到有攻击来源的实际伤害时播放。片段第 0–1 tick（游戏第 0–2 tick）从普通姿势淡入，片段第 3–5 tick（游戏第 6–10 tick）在片段内淡回普通姿势，片段结束即交还控制。40 tick 内第 3 次硬直起 20 tick 内不再硬直（`ParryServer.Poise`，`HITSTUN_CHAIN_*`）。期间禁止动作和移动输入，但不锁位置、不取消击退。 |
 
@@ -30,7 +32,7 @@ PlayerAnimator 的局部 `BEND` 轴、角度与对应矩阵绑定在同一 tick�
 | 服务端启动、伤害裁定、状态恢复 | `parry/ParryServer.java`；`tryStart(ServerPlayer)`、`canParry(Entity)`、`isBusy(Entity)`、`isStaggered(Entity)`、`isMovementLocked(Entity)` | 在服务端主线程调用；有效窗口由服务器世界时间判定。`tryStart` 要求 `player.onGround()`，否则静默拒绝。成功弹反保留音效、反击伤害和眩晕，不显示成功文字。`PARRY`、`STAGGER` 全程锁水平位置并取消击退；只有 `STAGGER` 额外锁朝向、锁垂直位置并接管 AI/重力。反击伤害在 `ParryServer.counter`，先进入 `STAGGER` 再结算，`COUNTER_DAMAGE` 标记让它绕过本模块的 busy 拒绝。 |
 | 反击处决（眩晕中处决） | `FiercerBattlesExecutionServer.start`；客户端 `ParryClient.takeReleasedPose` → `FiercerBattlesExecutionClient.Playing.victimStartPose` → `ExecutionRenderContext.transform` | 只放行 `isStaggered` 的目标，其余 busy 仍拒绝；释放眩晕必须在 `Session` 记录 AI/重力之前。客户端在眩晕 Stop 时记录当刻姿势，5 tick 内开始的处决用它作为接近段起点。 |
 | 弹反音效、反击伤害类型 | `sound/ModSounds.PARRY`、`assets/fiercerbattles/sounds.json`、`sounds/parry/parry_clang.ogg`；`data/fiercerbattles/damage_type/parry_counter.json` 与 `data/minecraft/tags/damage_type/` | 成功弹反音效由提供的 `Voicy_ Parry #1.mp3` 转为单声道 48 kHz OGG Vorbis，保留完整约 4.3 秒；起手音效 `sounds/parry/parry_use.ogg` 由提供的 `使用弹反.mp3` 转为单声道 44.1 kHz OGG Vorbis（约 0.31 秒），注册为 `sound/ModSounds.PARRY_USE`，只在 `PARRY` 启动成功时广播一次。伤害类型列入 `bypasses_armor`、`bypasses_cooldown`、`no_knockback`。 |
-| 原动画时钟、窗口与过渡长度 | `parry/ParryTimeline.java` | `IN_TICKS=3`、`REVERSE_TICKS=5`、`RETURN_TICKS=5`；窗口包含 tick 5 和 12。过渡不能再次推迟原窗口。 |
+| 原动画时钟、窗口与过渡长度 | `parry/ParryTimeline.java` | `IN_TICKS=3`、`REVERSE_TICKS=5`、`RETURN_TICKS=5`；窗口包含 tick 5 和 10。过渡不能再次推迟原窗口。 |
 | 数据包重载、压缩同步、哈希校验 | `parry/ParryAnimations.java`；`parry/ParryNetwork.java` | 独立读取两份弹反 clip，校验 rig、时长、根参数和同步大小；先同步 bundle，再发送带世界时间、身份和 hash 的 Start。 |
 | 客户端播放、锁定与清理 | `parry/client/ParryClient.java` | 复用 `AnimationPlayer`；`Kind.PARRY/STAGGER` 决定阶段，不覆盖处决会话。 |
 | 实际姿势捕获、倒放与插值 | `parry/client/ParryPoseHistory.java`；`mixin/ParryPoseCaptureMixin.java` | 捕获普通渲染后的六部位矩阵和同 tick BEND；冻结时排除晚于命中时刻的快照。保留每轴缩放和完整矩阵回退，缺历史时明确记录 fallback。 |
@@ -81,7 +83,7 @@ blender --background --disable-autoexec "D:/code/mcmod/资源包/blender动画/�
 ## 安全修改边界
 
 1. 玩法、网络、历史和过渡放在 `parry/` 与对应 Mixin；继续复用通用 `AnimationClip` / `AnimationPlayer`，不改变核心时钟或旧处决采样。
-2. 原窗口按原动画时钟 5–12 判定，前三 tick 淡入已经计入原 18 tick；被反弹的倒放段单独占 5 tick，之后的 `stagger` 从源第二帧开始正放。
+2. 原窗口按原动画时钟 5–10 判定，前三 tick 淡入已经计入原 18 tick；被反弹的倒放段单独占 5 tick，之后的 `stagger` 从源第二帧开始正放。
 3. 倒放必须来自连续完整的实际 pose 历史；保留 fallback 日志、每轴缩放和同 tick BEND。可选网格后端缺失时保持安全空操作，不能用一张假首帧冒充倒放或宣称完成网格验证。
 4. 保留互斥、攻击 epoch、所有攻击入口和恢复标签；取消攻击后仍需让已有外部任务恢复临时属性。
 5. 动作 rig 只覆盖标准人形六通道；非人形攻击者的视觉表现需要专门 adapter，不能仅换 clip ID。近战来源扩展与投射物机制应分别设计，不宣称当前已经实现投射物反射。

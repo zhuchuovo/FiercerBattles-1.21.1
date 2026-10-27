@@ -278,7 +278,9 @@ public final class FiercerBattlesExecutionClient {
                         start.executorFromX(), start.executorFromY(), start.executorFromZ(), start.executorFromYaw(),
                         null);
             }
-            if (entity.getId() == start.victimId() && entity.getUUID().equals(start.victimUuid())) {
+            // Without a victim clip the victim draws its own half (a boss, ExecutionTarget); it is still aligned.
+            if (entity.getId() == start.victimId() && entity.getUUID().equals(start.victimUuid())
+                    && playing.action.victimClip() != null) {
                 return new Actor(new AnimationPlayer(playing.action.victimClip(), start.startGameTime()),
                         playing.action, start.victimYaw(), start.victimX(), start.victimY(), start.victimZ(),
                         start.durationTicks(), playing.ended, false, 0, 0,

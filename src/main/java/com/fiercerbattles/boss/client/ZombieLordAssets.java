@@ -67,7 +67,7 @@ public final class ZombieLordAssets implements ResourceManagerReloadListener {
         clips = Map.copyOf(loaded);
     }
 
-    private static JsonObject read(ResourceManager manager, String path) throws IOException {
+    static JsonObject read(ResourceManager manager, String path) throws IOException {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FiercerBattles.MOD_ID, path);
         Optional<Resource> resource = manager.getResource(id);
         if (resource.isEmpty()) throw new IOException("Missing resource " + id);
@@ -76,8 +76,9 @@ public final class ZombieLordAssets implements ResourceManagerReloadListener {
         }
     }
 
-    private static List<MeshObject> readMesh(JsonObject root) throws IOException {
-        if (root.get("format").getAsInt() != 1) throw new IOException("Unsupported Zombie Lord model format");
+    /** A boss model.json exported by tools/export_zombie_lord.py or export_iron_sentinel.py (the same layout). */
+    static List<MeshObject> readMesh(JsonObject root) throws IOException {
+        if (root.get("format").getAsInt() != 1) throw new IOException("Unsupported boss model format");
         List<MeshObject> objects = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("objects").entrySet()) {
             JsonObject object = entry.getValue().getAsJsonObject();

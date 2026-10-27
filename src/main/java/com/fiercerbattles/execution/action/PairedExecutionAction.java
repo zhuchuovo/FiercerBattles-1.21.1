@@ -21,7 +21,10 @@ import java.util.HexFormat;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-/** Server-validated action data and its two client-visible pose clips. */
+/**
+ * Server-validated action data and its two client-visible pose clips. An action without a victim clip
+ * ({@code victim_clip} left out) is played on a mob that animates its own half ({@code ExecutionTarget}).
+ */
 public record PairedExecutionAction(ResourceLocation id, ResourceLocation rig, int durationTicks,
                                     Geometry geometry, AnimationClip executorClip, AnimationClip victimClip,
                                     String contentHash) {
@@ -56,11 +59,11 @@ public record PairedExecutionAction(ResourceLocation id, ResourceLocation rig, i
                 number(geometryJson, "executor_end_forward"), finite(geometryJson, "executor_end_yaw_delta"));
         validateGeometry(geometry);
         ResourceLocation executorId = ResourceLocation.parse(GsonHelper.getAsString(definition, "executor_clip"));
-        ResourceLocation victimId = ResourceLocation.parse(GsonHelper.getAsString(definition, "victim_clip"));
         AnimationClip executorClip = loadClip(executorId, resources);
-        AnimationClip victimClip = loadClip(victimId, resources);
+        AnimationClip victimClip = definition.has("victim_clip")
+                ? loadClip(ResourceLocation.parse(GsonHelper.getAsString(definition, "victim_clip")), resources) : null;
         validateClip(executorClip, duration, id);
-        validateClip(victimClip, duration, id);
+        if (victimClip != null) validateClip(victimClip, duration, id);
         PairedExecutionAction action = new PairedExecutionAction(id, rig, duration, geometry, executorClip, victimClip, "");
         String canonical = JSON.write(action.envelope());
         if (canonical.getBytes(StandardCharsets.UTF_8).length > MAX_EXPANDED_BYTES) {
@@ -88,8 +91,10 @@ public record PairedExecutionAction(ResourceLocation id, ResourceLocation rig, i
             int duration = GsonHelper.getAsInt(envelope, "duration_ticks");
             Geometry geometry = readGeometry(GsonHelper.getAsJsonObject(envelope, "geometry"));
             AnimationClip executor = AnimationClip.decode(id + "/executor", GsonHelper.getAsJsonObject(envelope, "executor_animation"));
-            AnimationClip victim = AnimationClip.decode(id + "/victim", GsonHelper.getAsJsonObject(envelope, "victim_animation"));
-            validateClip(executor, duration, id); validateClip(victim, duration, id);
+            AnimationClip victim = envelope.has("victim_animation")
+                    ? AnimationClip.decode(id + "/victim", GsonHelper.getAsJsonObject(envelope, "victim_animation")) : null;
+            validateClip(executor, duration, id);
+            if (victim != null) validateClip(victim, duration, id);
             if (!rig.toString().equals(HumanoidRig.ID)) throw new IOException("Unsupported animation rig: " + rig);
             if (!hash(JSON.write(envelope)).equals(expectedHash)) throw new IOException("Animation sync is not canonical");
             return new PairedExecutionAction(id, rig, duration, geometry, executor, victim, expectedHash);
@@ -119,7 +124,7 @@ public record PairedExecutionAction(ResourceLocation id, ResourceLocation rig, i
         geometryJson.addProperty("executor_end_yaw_delta", geometry.executorEndYawDelta());
         envelope.add("geometry", geometryJson);
         envelope.add("executor_animation", executorClip.sourceJson());
-        envelope.add("victim_animation", victimClip.sourceJson());
+        if (victimClip != null) envelope.add("victim_animation", victimClip.sourceJson());
         return envelope;
     }
 
