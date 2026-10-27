@@ -19,20 +19,23 @@ final class IronSentinelPoser {
     private IronSentinelPoser() {}
 
     static Map<String, AnimationClip.Transform> pose(IronSentinel sentinel, float partialTick) {
-        IronSentinelAction action = sentinel.getAction();
+        boolean dying = sentinel.isDeadOrDying();
+        IronSentinelAction action = !dying ? sentinel.getAction()
+                : sentinel.getPhase() >= 2 ? IronSentinelAction.SAW_DEATH : IronSentinelAction.DEATH;
         AnimationClip clip = IronSentinelAssets.clip(action.clip);
         if (clip == null) return Map.of();
         IronSentinelPoseState state = sentinel.poseState;
         double now = sentinel.level().getGameTime() + (double) partialTick;
-        long start = sentinel.getActionStart();
+        // The death clip runs on the entity's own death clock.
+        long start = dying ? sentinel.level().getGameTime() - sentinel.deathTime : sentinel.getActionStart();
         if (state.action != action.ordinal() || state.actionStart != start) {
             state.blendFrom = state.lastPose.isEmpty() ? Map.of() : Map.copyOf(state.lastPose);
             state.blendStart = now;
-            state.blendTicks = state.action < 0 ? 0 : sentinel.getActionBlend();
+            state.blendTicks = state.action < 0 ? 0 : dying ? 3 : sentinel.getActionBlend();
             state.action = action.ordinal();
             state.actionStart = start;
         }
-        float time = clipTime(sentinel, action, clip, partialTick);
+        float time = dying ? (float) Mth.clamp(now - start, 0.0, clip.duration()) : clipTime(sentinel, action, clip, partialTick);
         float blend = state.blendTicks <= 0 ? 1.0F : (float) Mth.clamp((now - state.blendStart) / state.blendTicks, 0.0, 1.0);
         blend = blend * blend * (3.0F - 2.0F * blend);
         Map<String, AnimationClip.Transform> result = new HashMap<>();

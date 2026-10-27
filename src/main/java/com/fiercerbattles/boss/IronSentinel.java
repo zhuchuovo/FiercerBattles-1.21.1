@@ -23,6 +23,7 @@ import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
@@ -41,6 +42,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -89,8 +91,9 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     static final int PUNCH_LENGTH = 46;
     static final int PUNCH_COOLDOWN = 20;
 
-    // Phase 2: the saw combo. A round is the three segments; the second segment of the first round plays 50%
-    // faster, the first segment of the next round, and so on. After a parry the next round opens with the thrust.
+    // Phase 2: the saw combo. A round is left, right and left sweep, then the thrust. One sweep per round plays 50%
+    // faster, in turn: the first one in the first round, the second in the next, the third in the one after, then
+    // the first again. After a parry the next round opens with the thrust.
     static final double SAW_TRIGGER_RANGE = 4.5;
     static final double SAW_RANGE = 3.5;
     static final float SAW_DAMAGE = 6.0F;
@@ -121,15 +124,16 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     static final int THRUST_LUNGE_FROM = 5;
     static final int THRUST_LUNGE_TO = 10;
     static final float THRUST_HALF_ANGLE = 25.0F;
-    /** Opening a round after a parry, a thrust that misses chains into the first sweep from this frame. */
+    /** Opening a round after a parry, a thrust that misses chains into the sweeps from this frame. */
     static final int THRUST_CHAIN_FRAME = 22;
     static final int THRUST_LENGTH = 36;
     static final int SAW_COOLDOWN = 12;
     static final int CHAIN_BLEND_TICKS = 5;
     private static final IronSentinelAction[] COMBO = {IronSentinelAction.SWEEP_LR, IronSentinelAction.SWEEP_RL,
-            IronSentinelAction.THRUST};
+            IronSentinelAction.SWEEP_LR, IronSentinelAction.THRUST};
     private static final IronSentinelAction[] PUNISH = {IronSentinelAction.THRUST, IronSentinelAction.SWEEP_LR,
-            IronSentinelAction.SWEEP_RL};
+            IronSentinelAction.SWEEP_RL, IronSentinelAction.SWEEP_LR};
+    private static final int SWEEPS_PER_ROUND = 3;
 
     // The impale (saw_impale / saw_cannon_impale, started at the thrust's hit frame): lifted overhead from 14, sawn
     // 24-54, flung off the blade at 55 (IronSentinelPoints).
@@ -144,15 +148,24 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     /** The flung victim is watched this long for its landing. */
     static final int RELEASE_FLIGHT_TICKS = 40;
 
-    // Parried: iron_sentinel_stagger / saw_stagger. It can be executed (the paired action below, 30 true damage)
+    // Parried: iron_sentinel_stagger / saw_stagger. It can be executed (the paired action below, 20 true damage)
     // until it starts to get up.
     static final int STAGGER_LENGTH = 56;
     static final int STAGGER_EXECUTABLE_TO = 42;
     static final int EXECUTED_STAB_FRAME = 7;
     static final int EXECUTED_RIP_FRAME = 17;
     static final int EXECUTED_LENGTH = 76;
-    static final float EXECUTION_DAMAGE = 30.0F;
+    static final float EXECUTION_DAMAGE = 20.0F;
     public static final String EXECUTION_ACTION = FiercerBattles.MOD_ID + ":iron_sentinel_execution";
+
+    // Death: iron_sentinel_death / saw_death (60 frames): thrown back a step, the furnace sputters, it sags, then
+    // topples forward like a felled statue (30) and crashes face down (44); the body goes a short while later.
+    public static final int DEATH_CLIP_FRAMES = 60;
+    public static final int DEATH_IMPACT_FRAME = 44;
+    static final int DEATH_TOPPLE_FRAME = 30;
+    static final int DEATH_TICKS = DEATH_CLIP_FRAMES + 10;
+    /** The fallen body's middle lies this far in front of the entity (blocks). */
+    static final double DEATH_BODY_FORWARD = 1.7;
 
     // The cannon (skill_cannon / saw_cannon, the right fist): deploy 0-48, then one shot (frames 48-62) per 15 ticks,
     // four at the target, the sky volley (cannon_sky: shots at 8, 13, 18), and the retract (frames 84-118).
@@ -204,13 +217,14 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
     private int farTicks;
     private IronSentinelAction[] roundOrder = COMBO;
     private int comboStep;
-    /** Saw rounds begun: even rounds play the second segment fast, odd rounds the first. */
+    /** Saw rounds begun; round n plays its sweep n % SWEEPS_PER_ROUND fast. */
     private int sawRoundsStarted;
     private int roundsSinceCannon;
     private boolean cannonDue;
     /** Parried: the next saw round opens with the thrust. */
     private boolean punishPending;
-    @Nullable private IronSentinelAction fastSegment;
+    /** Which sweep of the current round (0, 1, 2) plays fast. */
+    private int fastSweep;
     private int shotsFired;
     private boolean cannonThrustUsed;
     private int mortarsLeft;
@@ -497,22 +511,28 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
         getNavigation().stop();
         roundOrder = punishPending ? PUNISH : COMBO;
         punishPending = false;
-        fastSegment = sawRoundsStarted % 2 == 0 ? IronSentinelAction.SWEEP_RL : IronSentinelAction.SWEEP_LR;
-        LOGGER.debug("Iron Sentinel {} saw round {}: {} {} {}, {} fast", getId(), sawRoundsStarted + 1, roundOrder[0],
-                roundOrder[1], roundOrder[2], fastSegment);
+        fastSweep = sawRoundsStarted % SWEEPS_PER_ROUND;
+        LOGGER.debug("Iron Sentinel {} saw round {}: {}, sweep {} fast", getId(), sawRoundsStarted + 1,
+                Arrays.toString(roundOrder), fastSweep + 1);
         sawRoundsStarted++;
         comboStep = 0;
         lockedYaw = yawToward(target.position());
         applyYaw(lockedYaw);
-        startSegment(roundOrder[0], ACTION_BLEND_TICKS, 0);
+        startSegment(ACTION_BLEND_TICKS, 0);
     }
 
-    private void startSegment(IronSentinelAction action, int blendTicks, int startOffset) {
+    /** Segment comboStep of the round: the thrust with its fast wind-up, a sweep fast if it is the round's fast one. */
+    private void startSegment(int blendTicks, int startOffset) {
+        IronSentinelAction action = roundOrder[comboStep];
         if (action == IronSentinelAction.THRUST) {
             setAction(action, blendTicks, startOffset, THRUST_SPEED, THRUST_FAST_UNTIL);
-        } else {
-            setAction(action, blendTicks, startOffset, action == fastSegment ? FAST_SPEED : 1.0F, Float.MAX_VALUE);
+            return;
         }
+        int sweep = 0;
+        for (int i = 0; i < comboStep; i++) {
+            if (roundOrder[i] != IronSentinelAction.THRUST) sweep++;
+        }
+        setAction(action, blendTicks, startOffset, sweep == fastSweep ? FAST_SPEED : 1.0F, Float.MAX_VALUE);
     }
 
     private void tickSaw(@Nullable LivingEntity target, int t) {
@@ -546,7 +566,7 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
         if (!last && now >= chainFrame) {
             chain(target);
             comboStep++;
-            startSegment(roundOrder[comboStep], CHAIN_BLEND_TICKS, CHAIN_BLEND_TICKS);
+            startSegment(CHAIN_BLEND_TICKS, CHAIN_BLEND_TICKS);
         } else if (last && now >= segmentLength(action)) {
             endRound();
         }
@@ -751,7 +771,7 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
         setAction(saw() ? IronSentinelAction.SAW_EXECUTED : IronSentinelAction.EXECUTED, Math.max(1, delay), delay);
     }
 
-    /** The player's half has played: 30 damage that no armour, enchantment or effect reduces. */
+    /** The player's half has played: 20 damage that no armour, enchantment or effect reduces. */
     @Override
     public void executionFinished(ServerPlayer executor) {
         DamageSource source = new DamageSource(level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
@@ -1109,6 +1129,25 @@ public class IronSentinel extends Monster implements BossParryTarget, ExecutionT
         letGo();
         setNoGravity(false);
         super.die(source);
+    }
+
+    /** The death clip plays out (the renderer's tip-over is off) before the body disappears in smoke. */
+    @Override
+    protected void tickDeath() {
+        deathTime++;
+        if (!(level() instanceof ServerLevel level)) return;
+        if (deathTime == DEATH_TOPPLE_FRAME) playSound(SoundEvents.IRON_GOLEM_DAMAGE, 1.5F, 0.4F);
+        if (deathTime == DEATH_IMPACT_FRAME) {
+            playSound(SoundEvents.GENERIC_EXPLODE.value(), 1.2F, 0.5F);
+            playSound(SoundEvents.ANVIL_LAND, 1.5F, 0.4F);
+            Vec3 body = ZombieLord.groundBelow(level, position().add(forward(getYRot()).scale(DEATH_BODY_FORWARD)));
+            level.sendParticles(ZombieLord.blockDust(level, body), body.x, body.y + 0.1, body.z, 40, 1.2, 0.1, 1.2, 0.15);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, body.x, body.y + 0.4, body.z, 12, 0.8, 0.2, 0.8, 0.02);
+        }
+        if (deathTime >= DEATH_TICKS && !isRemoved()) {
+            level.broadcastEntityEvent(this, EntityEvent.POOF);
+            remove(RemovalReason.KILLED);
+        }
     }
 
     @Override

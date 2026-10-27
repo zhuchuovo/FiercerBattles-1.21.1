@@ -43,7 +43,10 @@ public enum IronSentinelAction {
     SAW_CANNON_RETRACT("saw_cannon", Playback.ONCE),
     /** A target closing in while the cannon fires is met with the saw thrust, the cannon kept out. */
     CANNON_THRUST("saw_cannon_thrust", Playback.ONCE),
-    CANNON_IMPALE("saw_cannon_impale", Playback.ONCE);
+    CANNON_IMPALE("saw_cannon_impale", Playback.ONCE),
+    /** Never sent by the server: the client plays them from the entity's death time (saw_death in phase 2). */
+    DEATH("death", Playback.ONCE),
+    SAW_DEATH("saw_death", Playback.ONCE);
 
     /** LOOP follows the distance walked, CYCLE the world clock, FIRE repeats the cannon's shot frames. */
     public enum Playback { ONCE, LOOP, CYCLE, FIRE }

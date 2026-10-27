@@ -33,12 +33,16 @@ public final class IronSentinelRenderer extends MobRenderer<IronSentinel, IronSe
     @Override
     public ResourceLocation getTextureLocation(IronSentinel sentinel) { return TEXTURE; }
 
+    /** The death clip topples the body itself; no vanilla tip-over on top of it. */
+    @Override
+    protected float getFlipDegrees(IronSentinel sentinel) { return 0.0F; }
+
     @Override
     protected void scale(IronSentinel sentinel, PoseStack poses, float partialTick) {
         poses.scale(IronSentinel.RENDER_SCALE, IronSentinel.RENDER_SCALE, IronSentinel.RENDER_SCALE);
     }
 
-    /** The furnace and eyes burn out as it falls over. */
+    /** The furnace and eyes sputter and burn out as it falls, dark by the time it hits the ground. */
     private static final class GlowLayer extends RenderLayer<IronSentinel, IronSentinelModel> {
         GlowLayer(RenderLayerParent<IronSentinel, IronSentinelModel> parent) {
             super(parent);
@@ -47,7 +51,9 @@ public final class IronSentinelRenderer extends MobRenderer<IronSentinel, IronSe
         @Override
         public void render(PoseStack poses, MultiBufferSource buffers, int light, IronSentinel sentinel, float limbSwing,
                            float limbSwingAmount, float partialTick, float ageInTicks, float netHeadYaw, float headPitch) {
-            float glow = sentinel.isDeadOrDying() ? Mth.clamp(1.0F - (sentinel.deathTime + partialTick) / 20.0F, 0.0F, 1.0F) : 1.0F;
+            float time = sentinel.deathTime + partialTick;
+            float glow = !sentinel.isDeadOrDying() ? 1.0F : Mth.clamp(1.0F - time / IronSentinel.DEATH_IMPACT_FRAME, 0.0F, 1.0F)
+                    * (0.7F + 0.3F * Mth.sin(time * 1.9F));
             if (glow <= 0.0F) return;
             int channel = (int) (glow * 255);
             getParentModel().renderToBuffer(poses, buffers.getBuffer(GLOW_TYPE), LightTexture.FULL_BRIGHT,

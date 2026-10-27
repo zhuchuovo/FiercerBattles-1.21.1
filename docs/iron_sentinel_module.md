@@ -42,7 +42,7 @@ python tools/iron_sentinel_points.py
 
 最后一条 Blender 命令同时导出处决里玩家的那一半：源文件里另有一套 `P_` 前缀的玩家骨架（`处决/one.blend` 追加进来的），导成 `humanoid_v1` 六通道 clip 和双人动作定义（几何参数按两个根对象的相对位置算，「right」和 `export_execution.py` 一样是 Blender +x）。这个双人动作**没有** `victim_clip`：钢铁卫戍用自己的模型播放 `executed` / `saw_executed`。
 
-游戏用到的 clip：`idle`、`walk`、`attack_left`、`attack_right`、`saw_transform`、`saw_idle`、`saw_walk`、`saw_sweep_lr`、`saw_sweep_rl`、`saw_thrust`、`saw_impale`、`stagger`、`saw_stagger`、`executed`、`saw_executed`、`skill_cannon`、`saw_cannon`、`cannon_sky`、`saw_cannon_sky`、`saw_cannon_thrust`、`saw_cannon_impale`。后面 8 个是为游戏新做的，由套件的 `_scripts/author_iron_sentinel_fight.py` 生成（见套件 README）。
+游戏用到的 clip：`idle`、`walk`、`attack_left`、`attack_right`、`saw_transform`、`saw_idle`、`saw_walk`、`saw_sweep_lr`、`saw_sweep_rl`、`saw_thrust`、`saw_impale`、`stagger`、`saw_stagger`、`executed`、`saw_executed`、`skill_cannon`、`saw_cannon`、`cannon_sky`、`saw_cannon_sky`、`saw_cannon_thrust`、`saw_cannon_impale`、`death`、`saw_death`。后面 10 个是为游戏新做的，由套件的 `_scripts/author_iron_sentinel_fight.py` 生成（见套件 README）。
 
 ## 行为与帧号
 
@@ -52,15 +52,15 @@ python tools/iron_sentinel_points.py
 | 移动 | 只走路：一阶段 `walk`、二阶段 `saw_walk`，0.09 格/tick；待机 `idle` / `saw_idle`（按世界时钟循环） |
 | 一阶段：拳头 | 水平距离 ≤3 格（到目标碰撞箱）、高度差 <2.5、看得见时出手。`attack_left`：左臂从最左边横扫到最右边，第 16–20 帧扫过前方 ±80°、3 格，每段每个目标最多一次，伤害 3；第 7–17 帧随跨步前进 1 格（离目标碰撞箱不足 0.5 格时停步）；第 26 帧重新锁定目标，用 5 tick 过渡到 `attack_right`（右臂从右往左，同样的帧号）。打完冷却 20 tick |
 | 进入二阶段 | 和目标战斗累计超过 20 秒（有目标的 tick 数 > 400），或生命低于 80%，在两次动作之间：`saw_transform`（44 帧，13 拳头裂开、33 电锯伸出），结束时进入二阶段 |
-| 二阶段：电锯连招 | 水平距离 ≤4.5 格时开始一轮：第一段 `saw_sweep_lr`、第二段 `saw_sweep_rl`、第三段 `saw_thrust`，三段为一轮。每段向前突进 2 格（横扫在第 4–17 帧、突刺在第 5–10 帧，同样离目标 0.5 格停步）。横扫第 15–21 帧扫过前方 ±75°、3.5 格，伤害 6；第一、二段在第 25 帧重新锁定目标并用 5 tick 接下一段。**倍速**：第一轮的第二段 1.5 倍速，下一轮的第一段 1.5 倍速，依此交替（`fastSegment`）。一轮打完冷却 12 tick |
+| 二阶段：电锯连招 | 水平距离 ≤4.5 格时开始一轮：左横扫 `saw_sweep_lr`、右横扫 `saw_sweep_rl`、再一次左横扫 `saw_sweep_lr`，接突刺 `saw_thrust`，四段为一轮（`COMBO`）。每段向前突进 2 格（横扫在第 4–17 帧、突刺在第 5–10 帧，同样离目标 0.5 格停步）。横扫第 15–21 帧扫过前方 ±75°、3.5 格，伤害 6；横扫在第 25 帧重新锁定目标并用 5 tick 接下一段。**快砍轮换**：每轮有一次横扫 1.5 倍速，第一轮是第一次横扫，第二轮第二次，第三轮第三次，第四轮又回到第一次（`fastSweep = 轮数 % 3`；突刺的前摇本来就是 1.5 倍速，不参与轮换）。一轮打完冷却 12 tick |
 | 第三段突刺 | 不能弹反（`iron_sentinel_thrust` 不在 `boss_parryable` 里），无视盾牌；前摇到第 12 帧一律 1.5 倍速，第 7 帧前一直转向目标（每 tick 最多 20°），第 9–12 帧判定前方 ±25°、3.5 格的窄锥，伤害 6。走路、侧移都躲不开，只有翻滚的无敌帧能躲（伤害类型不在 `ignores_dodge_roll` 里） |
 | 刺中举起 | 突刺命中、目标能举起（宽 ≤1、高 ≤2.2、没在骑乘）时，从第 10 帧切到 `saw_impale`：目标成为乘客，两端都按 `IronSentinelPoints.IMPALE`（刺中点逐帧表）把它的身体中段放在锯条上；举到头顶，第 24/34/44/54 帧各锯 1 点（`iron_sentinel_impale`，无视盾牌），第 55 帧甩出（下一 tick 给出锯条的速度，往前下方甩飞）。被刺者按潜行挣脱不了；玩家被刺中时客户端切到第三人称背后视角 |
-| 弹反 | 拳头和两次横扫（`iron_sentinel_punch`、`iron_sentinel_saw`，在 `fiercerbattles:boss_parryable` 里）能被弹反：弹反窗口内被挡下，播放弹反音效、Boss 照常吃反击伤害（`parry.counter_damage`），Boss 播放自己的眩晕 `stagger` / `saw_stagger`（56 帧：双臂被弹开向外后甩、右脚后撤一步，第 16 帧起弯腰垂臂发呆，第 42 帧开始起身）。二阶段被弹反后，下一轮先出第三段突刺：刺中就举起，没刺中就在第 22 帧接第一、二段（这一轮是 3→1→2） |
-| 处决 | 眩晕第 0–42 帧内，主手剑/斧按处决键（V）对准钢铁卫戍，任何血量都能处决（`ExecutionTarget`，不看人形白名单、血线和体型）。双人动作 `iron_sentinel_execution`：玩家 30 tick（蹲下蓄力、第 5 帧起跳、第 7 帧把剑从下往上刺进胸口熔炉、挂在剑上、第 16–17 帧蹬开胸口拔剑、落回原地后 0.56 格）；钢铁卫戍同时播放 `executed` / `saw_executed`（76 帧：第 7 帧被刺中、抽搐、第 17 帧拔剑后瘫软，第 50 帧起慢慢站起）。玩家这一半播完时造成 30 点真实伤害（`iron_sentinel_execution`：无视护甲、附魔、效果和受伤冷却，没有击退）；之后钢铁卫戍继续把起身播完（这段时间可以继续打） |
+| 弹反 | 拳头和两次横扫（`iron_sentinel_punch`、`iron_sentinel_saw`，在 `fiercerbattles:boss_parryable` 里）能被弹反：弹反窗口内被挡下，播放弹反音效、Boss 照常吃反击伤害（`parry.counter_damage`），Boss 播放自己的眩晕 `stagger` / `saw_stagger`（56 帧：双臂被弹开向外后甩、右脚后撤一步，第 16 帧起弯腰垂臂发呆，第 42 帧开始起身）。二阶段被弹反后，下一轮先出突刺：刺中就举起，没刺中就在第 22 帧接左、右、左三次横扫（这一轮是 刺→左→右→左，`PUNISH`，快砍轮换照常） |
+| 处决 | 眩晕第 0–42 帧内，主手剑/斧按处决键（V）对准钢铁卫戍，任何血量都能处决（`ExecutionTarget`，不看人形白名单、血线和体型）。双人动作 `iron_sentinel_execution`：玩家 30 tick（蹲下蓄力、第 5 帧起跳、第 7 帧把剑从下往上刺进胸口熔炉、挂在剑上、第 16–17 帧蹬开胸口拔剑、落回原地后 0.56 格）；钢铁卫戍同时播放 `executed` / `saw_executed`（76 帧：第 7 帧被刺中、抽搐、第 17 帧拔剑后瘫软，第 50 帧起慢慢站起）。玩家这一半播完时造成 20 点真实伤害（`iron_sentinel_execution`：无视护甲、附魔、效果和受伤冷却，没有击退）；之后钢铁卫戍继续把起身播完（这段时间可以继续打） |
 | 火炮 | 两种触发，都在两次动作之间：二阶段每打完 3 轮；或目标在 7 格以外持续 6 秒（120 tick，两个阶段都有）。一阶段播 `skill_cannon`，二阶段播 `saw_cannon`，拆成召唤、发射、收回：**召唤** 第 0–48 帧（右拳裂开变炮、扎稳，期间每 tick 最多转 10° 对准目标）；**发射** 第 48 帧起循环播放第 48–62 帧，每 15 tick（0.75 秒）一炮，共 4 炮，从炮口（`IronSentinelPoints.FIRE_MUZZLE`）朝目标身体中部直线发射，1.2 格/tick，碰到方块或敌人爆开：2 格内 4 点；然后 `cannon_sky` / `saw_cannon_sky`（32 帧）抬炮朝天，第 8/13/18 帧（每 0.25 秒）各射一发，只是动画；**收回** 从第 84 帧播到 118 帧 |
 | 火炮期间靠近 | 只在二阶段、每次火炮一次：发射（包括朝天）期间目标进入 4 格内，立刻改出 `saw_cannon_thrust`（右手炮保持伸出的突刺，帧号和判定同第三段突刺），刺中就 `saw_cannon_impale`（同刺中举起），然后收回火炮 |
 | 迫击炮 | 收回火炮后，每 1.5 秒（30 tick）在目标当时的脚下标记一次落点，共 3 次：地面出现 3 格半径的红色提示圈（越接近落地闪得越快），25 tick 后炮弹从天而降（最后 10 tick 能看到它落下）：3 格内按距离 6→3 点（`iron_sentinel_mortar`，无视盾牌）。Boss 这期间照常追击和攻击 |
-| 死亡 | 原版倒地，发光层在 20 tick 内熄灭 |
+| 死亡 | 不用原版侧倒，客户端按死亡时钟播放 `death`（二阶段 `saw_death`，60 帧）：致命一击把它打得后仰退一步，熔炉闪烁、弯腰，最后挣扎一下，第 30 帧起像被推倒的雕像一样整个向前倒下（根对象绕脚爪转动），第 44 帧脸朝下砸在地上并反弹一下，双臂摊开（电锯摊在一侧）。发光层一边闪一边熄灭，砸地时全暗；红色受伤染色只保留开头 8 tick。服务端第 30 帧倾倒声、第 44 帧砸地声和扬尘，第 70 tick 化作烟雾消失 |
 
 调试：`IronSentinel` / `SentinelShell` 的 DEBUG 日志记录每次动作切换（含世界时间和倍速）、每次命中、每一轮的顺序和快段、火炮的触发原因、每一炮、迫击炮落点、弹反、处决。
 

@@ -36,7 +36,7 @@ ROOT = "Bone_A"
 CLIPS = ("idle", "walk", "attack_left", "attack_right", "attack_combo", "attack_normal", "skill_cannon",
          "saw_transform", "saw_revert", "saw_sweep_lr", "saw_sweep_rl", "saw_thrust", "saw_impale", "saw_idle",
          "saw_walk", "saw_cannon", "stagger", "saw_stagger", "executed", "saw_executed", "cannon_sky",
-         "saw_cannon_sky", "saw_cannon_thrust", "saw_cannon_impale")
+         "saw_cannon_sky", "saw_cannon_thrust", "saw_cannon_impale", "death", "saw_death")
 LOOPS = {"idle", "walk", "saw_idle", "saw_walk"}
 # Tracked points: (object, local offset in px, direction in the object's frame or None).
 POINTS = {
